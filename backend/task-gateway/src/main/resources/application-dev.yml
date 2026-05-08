@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      routes:
+        - id: task-user-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=1
+
+        - id: task-task-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/task/**
+          filters:
+            - StripPrefix=1
+
+        - id: task-pay-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/pay/**
+          filters:
+            - StripPrefix=1
+
+        - id: task-admin-api
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=1
+
+logging:
+  level:
+    com.task.platform.gateway: DEBUG

@@ -1,0 +1,68 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: task-gateway
+  profiles:
+    active: dev
+  cloud:
+    gateway:
+      routes:
+        # 用户服务路由
+        - id: task-user-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/user/**
+          filters:
+            - StripPrefix=1
+
+        # 任务服务路由
+        - id: task-task-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/task/**
+          filters:
+            - StripPrefix=1
+
+        # 支付服务路由
+        - id: task-pay-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/pay/**
+          filters:
+            - StripPrefix=1
+
+        # 管理后台 API 路由
+        - id: task-admin-api
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=1
+
+      # 全局 CORS 配置
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
+# JWT 配置（与 task-common JwtUtil 保持一致）
+jwt:
+  secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890
+
+# 日志配置
+logging:
+  level:
+    com.task.platform.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG

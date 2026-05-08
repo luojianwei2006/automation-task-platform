@@ -1,0 +1,48 @@
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# Java
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+
+# Maven
+.mvn/
+mvnw
+mvnw.cmd
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Android
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+
+# Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+
+# Env files
+**/.env
+**/*.local
+**/application-*.yml
+!application.yml
+!application-dev.yml
+
+# Temp
+*.tmp
+*.bak

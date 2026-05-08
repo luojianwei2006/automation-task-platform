@@ -1,0 +1,45 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: task-job
+  profiles:
+    active: dev
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/task_platform?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: root123
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      initial-size: 3
+      min-idle: 2
+      max-active: 10
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 4
+      lettuce:
+        pool:
+          max-active: 5
+          max-idle: 3
+          min-idle: 1
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  global-config:
+    db-config:
+      id-type: auto
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+logging:
+  level:
+    com.task.platform.job: DEBUG
