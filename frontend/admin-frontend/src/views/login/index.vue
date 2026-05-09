@@ -6,8 +6,8 @@
         <p>管理后台</p>
       </div>
       <el-form ref="formRef" :model="form" :rules="rules" size="large">
-        <el-form-item prop="phone">
-          <el-input v-model="form.phone" placeholder="手机号" prefix-icon="User" />
+        <el-form-item prop="username">
+          <el-input v-model="form.username" placeholder="账号" prefix-icon="User" />
         </el-form-item>
         <el-form-item prop="password">
           <el-input
@@ -30,6 +30,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '../../store/user'
 import request from '../../utils/request'
 
@@ -39,12 +40,12 @@ const formRef = ref()
 const loading = ref(false)
 
 const form = reactive({
-  phone: '',
+  username: '',
   password: '',
 })
 
 const rules = {
-  phone: [{ required: true, message: '请输入手机号', trigger: 'blur' }],
+  username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
@@ -55,7 +56,7 @@ async function handleLogin() {
   loading.value = true
   try {
     const data = await request.post('/auth/login', {
-      phone: form.phone,
+      username: form.username,
       password: form.password,
     })
     userStore.setToken(data.token)
