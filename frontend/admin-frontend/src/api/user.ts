@@ -30,17 +30,17 @@ export interface PageResult<T> {
 
 /** 获取用户列表 */
 export function getUserList(params: UserListParams) {
-  return request.get<PageResult<UserItem>>('/api/admin/users', { params })
+  return request.get<PageResult<UserItem>>('/users', { params })
 }
 
 /** 获取用户详情 */
 export function getUserDetail(userId: number) {
-  return request.get<UserItem>(`/api/admin/users/${userId}`)
+  return request.get<UserItem>(`/users/${userId}`)
 }
 
 /** 封禁/解封用户 */
 export function toggleUserStatus(userId: number, enable: boolean) {
-  return request.put(`/api/admin/users/${userId}/status`, { enable })
+  return request.put(`/users/${userId}/status`, { enable })
 }
 
 /** 实名认证审核 */
@@ -49,10 +49,10 @@ export function reviewRealAuth(
   pass: boolean,
   reason?: string
 ) {
-  return request.post(`/api/admin/users/${userId}/real-auth/review`, { pass, reason })
+  return request.post(`/users/${userId}/real-auth/review`, { pass, reason })
 }
 
 /** 获取用户实名认证详情 */
 export function getRealAuthDetail(userId: number) {
-  return request.get(`/api/admin/users/${userId}/real-auth`)
+  return request.get(`/users/${userId}/real-auth`)
 }
