@@ -323,19 +323,19 @@ CREATE TABLE IF NOT EXISTS `t_admin_user` (
 -- 九、初始化数据
 -- ============================================
 
--- 9.1 初始化超级管理员账号（密码：Admin@2026，BCrypt加密后）
--- 账号：admin / 密码：Admin@2026
+-- 9.1 初始化超级管理员账号（密码：123456，BCrypt加密后）
+-- 账号：admin / 密码：123456
 INSERT INTO `t_admin_user` (`username`, `password`, `display_name`, `role_type`, `status`)
-VALUES ('admin', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJCZbi5/.dy', '超级管理员', 1, 1)
+VALUES ('admin', '$2a$10$34bZfIVN/QYb3vYui8I4aOLZUkbrT6ZEgLhOdGF/ZLHdY0P1GtHli', '超级管理员', 1, 1)
 ON DUPLICATE KEY UPDATE `display_name` = '超级管理员';
 
 -- 初始化示例用户（密码：123456）
 INSERT INTO `t_user` (`phone`, `password`, `nickname`, `invite_code`, `status`)
-VALUES ('13800001111', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJCZbi5/.dy', '测试用户', 'ABC12345', 1);
+VALUES ('13800001111', '$2a$10$34bZfIVN/QYb3vYui8I4aOLZUkbrT6ZEgLhOdGF/ZLHdY0P1GtHli', '测试用户', 'ABC12345', 1);
 
 -- 初始化示例商户（密码：123456）
 INSERT INTO `t_merchant` (`name`, `contact_name`, `phone`, `password`, `auth_status`, `point_balance`, `status`)
-VALUES ('测试商户有限公司', '张三', '13800002222', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJCZbi5/.dy', 1, 10000.00, 1);
+VALUES ('测试商户有限公司', '张三', '13800002222', '$2a$10$34bZfIVN/QYb3vYui8I4aOLZUkbrT6ZEgLhOdGF/ZLHdY0P1GtHli', 1, 10000.00, 1);
 
 -- ============================================
 -- 完成提示
