@@ -26,4 +26,15 @@ public class AdminUserDetailsService implements UserDetailsService {
         }
         return new AdminUserDetails(adminUser);
     }
+
+    /**
+     * 按 ID 加载用户（JWT 中存的是 adminId）
+     */
+    public UserDetails loadUserById(Long id) {
+        AdminUser adminUser = adminUserMapper.selectById(id);
+        if (adminUser == null) {
+            throw new UsernameNotFoundException("管理员账号不存在: " + id);
+        }
+        return new AdminUserDetails(adminUser);
+    }
 }

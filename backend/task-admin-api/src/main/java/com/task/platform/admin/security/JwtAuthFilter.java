@@ -2,10 +2,6 @@ package com.task.platform.admin.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.task.platform.common.utils.JwtUtil;
-import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -15,6 +11,10 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -47,16 +47,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
-            // 验证Token有效性（JwtUtil会抛出异常if无效）
+            // 验证Token有效性（JwtUtil 会抛异常 if 无效）
             Long adminId = JwtUtil.getUserId(token);
             String role = JwtUtil.getRole(token);
 
-            // 如果SecurityContext没有认证信息，则设置
+            // 如果 SecurityContext 没有认证信息，则设置
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 通过username加载用户（实际存的是username not id）
-                // 注意：JWT payload中存的是adminId，需要从DB查出username
-                // 这里简化处理：直接用adminId字符串作username存入JWT，DB按此查询
-                UserDetails userDetails = userDetailsService.loadUserByUsername(adminId.toString());
+                // JWT payload 中存的是 adminId，按 id 查用户
+                UserDetails userDetails = userDetailsService.loadUserById(adminId);
+                if (userDetails == null) {
+                    throw new RuntimeException("管理员账号不存在: " + adminId);
+                }
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
