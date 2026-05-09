@@ -16,7 +16,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.0</version>
+        <version>3.1.5</version>
         <relativePath/>
     </parent>
 
@@ -38,15 +38,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         
         <!-- 依赖版本管理 -->
-        <mybatis-plus.version>3.5.5</mybatis-plus.version>
+        <mybatis-plus.version>3.5.7</mybatis-plus.version>
         <jjwt.version>0.12.3</jjwt.version>
         <hutool.version>5.8.25</hutool.version>
         <lombok.version>1.18.30</lombok.version>
         <mysql.version>8.0.33</mysql.version>
         <druid.version>1.2.20</druid.version>
         <fastjson2.version>2.0.43</fastjson2.version>
-        <!-- Spring Cloud 版本（与 Spring Boot 3.2.x 配套） -->
-        <spring-cloud.version>2023.0.0</spring-cloud.version>
+        <!-- Spring Cloud 版本（与 Spring Boot 3.1.x 配套） -->
+        <spring-cloud.version>2022.0.4</spring-cloud.version>
     </properties>
 
     <!-- 依赖管理 - 子模块无需指定版本 -->

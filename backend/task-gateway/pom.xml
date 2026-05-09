@@ -50,6 +50,13 @@
             <groupId>com.task.platform</groupId>
             <artifactId>task-common</artifactId>
             <version>${project.version}</version>
+            <exclusions>
+                <!-- 排除 spring-boot-starter-web，Gateway 使用 WebFlux -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
     </dependencies>
     
