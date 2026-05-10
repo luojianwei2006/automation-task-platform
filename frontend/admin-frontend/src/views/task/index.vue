@@ -375,8 +375,11 @@ async function handleSubmit() {
     
     formVisible.value = false
     loadTasks()
-  } catch (error) {
-    // 表单校验失败，不提交
+  } catch (error: any) {
+    // 显示错误信息
+    if (error.message) {
+      ElMessage.error(error.message)
+    }
   }
 }
 
