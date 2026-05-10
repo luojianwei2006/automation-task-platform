@@ -41,6 +41,15 @@ public class Task {
     /** 任务要求图片（JSON数组） */
     @TableField("requirement_images")
     private String requirementImages;
+    
+    // 修复：空字符串转 null，避免 MySQL JSON 字段报错
+    public void setRequirementImages(String requirementImages) {
+        if (requirementImages == null || requirementImages.trim().isEmpty()) {
+            this.requirementImages = null;
+        } else {
+            this.requirementImages = requirementImages;
+        }
+    }
 
     /** 单次奖励金额 */
     @TableField("reward_amount")
