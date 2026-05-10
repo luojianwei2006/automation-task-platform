@@ -50,6 +50,8 @@ public class AdminSecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 登录接口公开
                 .requestMatchers("/api/admin/auth/login").permitAll()
+                // 上传文件公开访问（无需认证）
+                .requestMatchers("/uploads/**").permitAll()
                 // Actuator健康检查（可选）
                 .requestMatchers("/actuator/health").permitAll()
                 // Swagger（开发环境，生产需关闭）

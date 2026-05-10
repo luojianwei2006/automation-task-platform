@@ -115,6 +115,20 @@
           <el-link type="primary" :href="currentTask.targetUrl" target="_blank">{{ currentTask.targetUrl }}</el-link>
         </el-descriptions-item>
         <el-descriptions-item label="任务要求">{{ currentTask.requirements || '-' }}</el-descriptions-item>
+        <!-- 显示上传的图片 -->
+        <el-descriptions-item label="要求图片" v-if="getImagesFromTask(currentTask).length > 0">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <el-image
+              v-for="(url, index) in getImagesFromTask(currentTask)"
+              :key="index"
+              :src="url"
+              :preview-src-list="getImagesFromTask(currentTask)"
+              :initial-index="index"
+              style="width: 100px; height: 100px; border-radius: 4px;"
+              fit="cover"
+            />
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item label="单次奖励">¥{{ currentTask.rewardAmount?.toFixed(2) }}</el-descriptions-item>
         <el-descriptions-item label="总配额">{{ currentTask.totalQuota }}</el-descriptions-item>
         <el-descriptions-item label="已使用">{{ currentTask.usedQuota }}</el-descriptions-item>
@@ -594,6 +608,20 @@ onMounted(() => {
   
   loadTasks()
 })
+// 从任务对象中解析图片URL数组
+function getImagesFromTask(task: any): string[] {
+  if (!task || !task.requirementImages) {
+    return []
+  }
+  
+  try {
+    const urls = JSON.parse(task.requirementImages)
+    return Array.isArray(urls) ? urls : []
+  } catch (e) {
+    console.error('解析图片数据失败', e)
+    return []
+  }
+}
 </script>
 
 <style scoped>

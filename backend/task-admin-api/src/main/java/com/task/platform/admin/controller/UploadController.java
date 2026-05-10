@@ -4,6 +4,7 @@ import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -113,6 +114,8 @@ public class UploadController {
                         ? originalFilename.substring(originalFilename.lastIndexOf("."))
                         : ".jpg";
                 String filename = UUID.randomUUID().toString() + extension;
+
+                log.info("上传目录: {}", uploadPath);
 
                 // 保存文件
                 File dest = new File(uploadPath, filename);
