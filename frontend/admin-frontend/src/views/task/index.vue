@@ -344,21 +344,30 @@ async function showPublishDialog() {
   resetForm()
   
   // 获取用户信息，判断是否为超管
-  try {
-    const userStr = localStorage.getItem('userInfo')
-    if (userStr) {
-      userInfo.value = JSON.parse(userStr)
-      // 判断是否为超管（roleType === 1 或 role === 'SUPER_ADMIN'）
-      isSuperAdmin.value = userInfo.value?.roleType === 1 || 
-                            userInfo.value?.role === 'SUPER_ADMIN'
-      
-      // 如果是超管，加载商户列表
-      if (isSuperAdmin.value) {
-        await loadMerchantList()
+  // 如果 userInfo 已解析过，直接使用；否则尝试从 localStorage 解析
+  if (!userInfo.value) {
+    try {
+      const userStr = localStorage.getItem('userInfo')
+      // 检查值是否有效：不能是 undefined、null、空字符串或字符串 "undefined"
+      if (userStr && userStr !== 'undefined' && userStr !== 'null') {
+        userInfo.value = JSON.parse(userStr)
+      } else {
+        // 清除无效数据
+        localStorage.removeItem('userInfo')
       }
+    } catch (e) {
+      console.error('获取用户信息失败', e)
+      localStorage.removeItem('userInfo')
     }
-  } catch (e) {
-    console.error('获取用户信息失败', e)
+  }
+  
+  // 判断是否为超管（roleType === 1 或 role === 'SUPER_ADMIN'）
+  isSuperAdmin.value = userInfo.value?.roleType === 1 || 
+                        userInfo.value?.role === 'SUPER_ADMIN'
+  
+  // 如果是超管，加载商户列表
+  if (isSuperAdmin.value) {
+    await loadMerchantList()
   }
   
   formVisible.value = true
