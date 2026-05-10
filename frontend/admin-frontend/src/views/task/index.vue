@@ -181,6 +181,24 @@
           />
         </el-form-item>
 
+        <el-form-item label="要求图片（0-4张）">
+          <el-upload
+            v-model:file-list="uploadFileList"
+            :http-request="customUpload"
+            :on-remove="handleRemove"
+            :before-upload="beforeUpload"
+            :limit="4"
+            :on-exceed="handleExceed"
+            list-type="picture-card"
+            accept="image/*"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
+          <div style="margin-top: 8px; color: #999; font-size: 12px;">
+            最多上传4张图片，单张大小不超过5MB
+          </div>
+        </el-form-item>
+
         <el-form-item label="单次奖励(元)" prop="rewardAmount">
           <el-input-number
             v-model="form.rewardAmount"
@@ -234,6 +252,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getMerchantList } from '@/api/task'
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
+import { uploadImages } from '@/api/upload'
 
 console.log('[DEBUG] 导入的 getMerchantList 函数:', getMerchantList)
 
@@ -270,6 +289,11 @@ const form = reactive({
   budgetPoints: 0.01,
   deadline: '',
 })
+
+// 图片上传相关
+const uploadFileList = ref<any[]>([])
+const imageUrls = ref<string[]>([])
+const uploadLoading = ref(false)
 
 const formRules: FormRules = {
   merchantId: [{ required: true, message: '请选择商户', trigger: 'change' }],
@@ -384,12 +408,33 @@ function showEditDialog(row: any) {
   form.taskType = row.taskType
   form.targetUrl = row.targetUrl
   form.requirements = row.requirements || ''
-  form.requirementImages = row.requirementImages || ''
   form.rewardAmount = row.rewardAmount
   form.totalQuota = row.totalQuota
   form.dailyLimit = row.dailyLimit || 0
   form.budgetPoints = row.budgetPoints
   form.deadline = row.deadline || ''
+  
+  // 处理已有图片
+  imageUrls.value = []
+  uploadFileList.value = []
+  
+  if (row.requirementImages) {
+    try {
+      const urls = JSON.parse(row.requirementImages)
+      if (Array.isArray(urls)) {
+        imageUrls.value = urls
+        // 构建 uploadFileList 用于显示
+        uploadFileList.value = urls.map((url: string, index: number) => ({
+          name: `图片${index + 1}`,
+          url: url,
+          response: url
+        }))
+      }
+    } catch (e) {
+      console.error('解析图片数据失败', e)
+    }
+  }
+  
   formVisible.value = true
 }
 
@@ -405,6 +450,11 @@ function resetForm() {
   form.dailyLimit = 0
   form.budgetPoints = 0.01
   form.deadline = ''
+  
+  // 清除上传的图片
+  uploadFileList.value = []
+  imageUrls.value = []
+  
   // 清除表单校验
   formRef.value?.clearValidate()
 }
@@ -415,17 +465,28 @@ async function handleSubmit() {
   try {
     await formRef.value.validate()
     
+    // 将图片URL数组转为JSON字符串
+    const requirementImagesStr = imageUrls.value.length > 0 
+      ? JSON.stringify(imageUrls.value) 
+      : null
+    
+    const submitData = {
+      ...form,
+      requirementImages: requirementImagesStr
+    }
+    
     if (isEdit.value && editingTaskId.value) {
       // 编辑任务
-      await updateTask(editingTaskId.value, { ...form })
+      await updateTask(editingTaskId.value, submitData)
       ElMessage.success('任务已更新')
     } else {
       // 发布任务
-      await publishTask({ ...form })
+      await publishTask(submitData)
       ElMessage.success('任务已提交，等待审核')
     }
     
     formVisible.value = false
+    resetForm()
     loadTasks()
   } catch (error: any) {
     // 显示错误信息
@@ -436,6 +497,60 @@ async function handleSubmit() {
 }
 
 // ==================== 辅助函数 ====================
+
+// ==================== 图片上传相关方法 ====================
+
+// 自定义上传方法
+async function customUpload(options: any) {
+  const { file, onSuccess, onError } = options
+  uploadLoading.value = true
+  
+  try {
+    const urls = await uploadImages([file])
+    imageUrls.value.push(urls[0])
+    
+    onSuccess(urls[0])
+    ElMessage.success('上传成功')
+  } catch (error: any) {
+    ElMessage.error(error.message || '上传失败')
+    onError(error)
+  } finally {
+    uploadLoading.value = false
+  }
+}
+
+// 移除图片
+function handleRemove(file: any) {
+  const url = file.url || file.response
+  const index = imageUrls.value.indexOf(url)
+  if (index > -1) {
+    imageUrls.value.splice(index, 1)
+  }
+}
+
+// 上传前校验
+function beforeUpload(file: File) {
+  const isImage = file.type.startsWith('image/')
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件!')
+    return false
+  }
+  
+  const isLt5M = file.size / 1024 / 1024 < 5
+  if (!isLt5M) {
+    ElMessage.error('图片大小不能超过5MB!')
+    return false
+  }
+  
+  return true
+}
+
+// 超出数量限制
+function handleExceed() {
+  ElMessage.warning('最多上传4张图片')
+}
+
+// ==================== 商户列表加载 ====================
 
 async function loadMerchantList() {
   merchantLoading.value = true

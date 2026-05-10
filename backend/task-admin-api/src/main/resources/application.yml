@@ -1,5 +1,7 @@
 server:
   port: 8084
+  tomcat:
+    max-swallow-size: 10MB
 
 spring:
   application:
@@ -16,6 +18,12 @@ spring:
       max-active: 20
       validation-query: SELECT 1
 
+  # 文件上传配置
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 20MB
+
   data:
     redis:
       host: 192.168.10.11
@@ -27,6 +35,12 @@ spring:
         pool:
           max-active: 8
           min-idle: 0
+
+  # 文件上传路径配置
+  file:
+    upload:
+      path: /uploads
+      url-prefix: http://localhost:8084/uploads
 
 mybatis-plus:
   configuration:
