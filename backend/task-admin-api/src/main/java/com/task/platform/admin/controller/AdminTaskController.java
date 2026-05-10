@@ -98,7 +98,7 @@ public class AdminTaskController {
 
         Task task = taskMapper.selectById(taskId);
         if (task == null) {
-            return ApiResponse.error("任务不存在");
+            return ApiResponse.error(404, "任务不存在");
         }
 
         if (req.isPass()) {
@@ -127,7 +127,7 @@ public class AdminTaskController {
 
         Task task = taskMapper.selectById(taskId);
         if (task == null) {
-            return ApiResponse.error("任务不存在");
+            return ApiResponse.error(404, "任务不存在");
         }
 
         task.setStatus(online ? STATUS_ONLINE : STATUS_PAUSED);
