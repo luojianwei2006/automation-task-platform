@@ -39,6 +39,9 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+jwt:
+  secret: your-256-bit-secret-key-here-must-be-32-chars
+
 logging:
   level:
     com.task.platform: DEBUG

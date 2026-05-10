@@ -3,6 +3,7 @@ package com.task.platform.task.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.common.response.ApiResponse;
 import com.task.platform.task.entity.Task;
+import com.task.platform.task.security.JwtClaims;
 import com.task.platform.task.service.TaskService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ public class TaskController {
     @PostMapping
     @PreAuthorize("hasRole('MERCHANT_ADMIN')")
     public ApiResponse<Map<String, Object>> publish(
-            @AuthenticationPrincipal com.task.platform.admin.security.AdminUserDetails currentUser,
+            @AuthenticationPrincipal JwtClaims currentUser,
             @RequestBody TaskService.PublishTaskRequest req) {
 
         Task task = taskService.publishTask(currentUser.getAdminId(), req);
@@ -53,7 +54,7 @@ public class TaskController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
     public ApiResponse<Map<String, Object>> listTasks(
-            @AuthenticationPrincipal com.task.platform.admin.security.AdminUserDetails currentUser,
+            @AuthenticationPrincipal JwtClaims currentUser,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Integer status,
@@ -83,7 +84,7 @@ public class TaskController {
     @GetMapping("/{taskId}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
     public ApiResponse<Task> getDetail(
-            @AuthenticationPrincipal com.task.platform.admin.security.AdminUserDetails currentUser,
+            @AuthenticationPrincipal JwtClaims currentUser,
             @PathVariable Long taskId) {
 
         Long merchantId = currentUser.isSuperAdmin() ? null : currentUser.getMerchantId();
@@ -99,7 +100,7 @@ public class TaskController {
     @PutMapping("/{taskId}/status")
     @PreAuthorize("hasRole('MERCHANT_ADMIN')")
     public ApiResponse<Void> toggleStatus(
-            @AuthenticationPrincipal com.task.platform.admin.security.AdminUserDetails currentUser,
+            @AuthenticationPrincipal JwtClaims currentUser,
             @PathVariable Long taskId,
             @RequestParam boolean online) {
 
