@@ -52,7 +52,15 @@ public class TaskService {
         task.setTaskType(req.getTaskType());
         task.setTargetUrl(req.getTargetUrl());
         task.setRequirements(req.getRequirements());
-        task.setRequirementImages(req.getRequirementImages());
+        
+        // 修复：空字符串转成 null，避免 MySQL JSON 字段报错
+        String requirementImages = req.getRequirementImages();
+        if (requirementImages == null || requirementImages.trim().isEmpty()) {
+            task.setRequirementImages(null);
+        } else {
+            task.setRequirementImages(requirementImages);
+        }
+        
         task.setRewardAmount(req.getRewardAmount());
         task.setTotalQuota(req.getTotalQuota());
         task.setUsedQuota(0);
