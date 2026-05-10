@@ -339,6 +339,7 @@ async function handleToggle(row: any, online: boolean) {
 // ==================== 发布/编辑任务相关函数 ====================
 
 async function showPublishDialog() {
+  console.log('[DEBUG] showPublishDialog 被调用')
   isEdit.value = false
   editingTaskId.value = null
   resetForm()
@@ -348,26 +349,36 @@ async function showPublishDialog() {
   if (!userInfo.value) {
     try {
       const userStr = localStorage.getItem('userInfo')
+      console.log('[DEBUG] localStorage userInfo:', userStr)
       // 检查值是否有效：不能是 undefined、null、空字符串或字符串 "undefined"
       if (userStr && userStr !== 'undefined' && userStr !== 'null') {
         userInfo.value = JSON.parse(userStr)
+        console.log('[DEBUG] 解析后的 userInfo:', userInfo.value)
       } else {
         // 清除无效数据
+        console.log('[DEBUG] userInfo 无效，清除')
         localStorage.removeItem('userInfo')
       }
     } catch (e) {
-      console.error('获取用户信息失败', e)
+      console.error('[DEBUG] 获取用户信息失败', e)
       localStorage.removeItem('userInfo')
     }
+  } else {
+    console.log('[DEBUG] userInfo 已存在:', userInfo.value)
   }
   
   // 判断是否为超管（roleType === 1 或 role === 'SUPER_ADMIN'）
   isSuperAdmin.value = userInfo.value?.roleType === 1 || 
                         userInfo.value?.role === 'SUPER_ADMIN'
+  console.log('[DEBUG] isSuperAdmin:', isSuperAdmin.value, '| roleType:', userInfo.value?.roleType, '| role:', userInfo.value?.role)
   
   // 如果是超管，加载商户列表
   if (isSuperAdmin.value) {
+    console.log('[DEBUG] 开始加载商户列表...')
     await loadMerchantList()
+    console.log('[DEBUG] 商户列表加载完成:', merchantList.value)
+  } else {
+    console.log('[DEBUG] 非超管，不加载商户列表')
   }
   
   formVisible.value = true
