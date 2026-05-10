@@ -348,9 +348,9 @@ async function showPublishDialog() {
     const userStr = localStorage.getItem('userInfo')
     if (userStr) {
       userInfo.value = JSON.parse(userStr)
-      // 判断是否为超管（roleType === 1 或角色包含 SUPER_ADMIN）
+      // 判断是否为超管（roleType === 1 或 role === 'SUPER_ADMIN'）
       isSuperAdmin.value = userInfo.value?.roleType === 1 || 
-                            userInfo.value?.roles?.includes('SUPER_ADMIN')
+                            userInfo.value?.role === 'SUPER_ADMIN'
       
       // 如果是超管，加载商户列表
       if (isSuperAdmin.value) {
