@@ -138,6 +138,18 @@
       @close="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
+        <!--- 超管发布时需要选择商户 --->
+        <el-form-item v-if="isSuperAdmin" label="选择商户" prop="merchantId">
+          <el-select v-model="form.merchantId" placeholder="请选择商户" :loading="merchantLoading">
+            <el-option
+              v-for="merchant in merchantList"
+              :key="merchant.id"
+              :label="merchant.name"
+              :value="merchant.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="任务标题" prop="title">
           <el-input v-model="form.title" placeholder="请输入任务标题" />
         </el-form-item>
@@ -228,6 +240,14 @@ const tableData = ref<any[]>([])
 const detailVisible = ref(false)
 const currentTask = ref<any>(null)
 
+// 当前用户信息
+const userInfo = ref<any>(null)
+const isSuperAdmin = ref(false)
+
+// 商户列表（超管发布任务时需要）
+const merchantList = ref<any[]>([])
+const merchantLoading = ref(false)
+
 // 发布/编辑表单相关
 const formVisible = ref(false)
 const isEdit = ref(false)
@@ -235,6 +255,7 @@ const formRef = ref<FormInstance>()
 const editingTaskId = ref<number | null>(null)
 
 const form = reactive({
+  merchantId: '' as number | '',
   title: '',
   platform: '' as number | '',
   taskType: '' as number | '',
@@ -249,6 +270,7 @@ const form = reactive({
 })
 
 const formRules: FormRules = {
+  merchantId: [{ required: true, message: '请选择商户', trigger: 'change' }],
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
   taskType: [{ required: true, message: '请选择任务类型', trigger: 'change' }],
@@ -316,10 +338,29 @@ async function handleToggle(row: any, online: boolean) {
 
 // ==================== 发布/编辑任务相关函数 ====================
 
-function showPublishDialog() {
+async function showPublishDialog() {
   isEdit.value = false
   editingTaskId.value = null
   resetForm()
+  
+  // 获取用户信息，判断是否为超管
+  try {
+    const userStr = localStorage.getItem('userInfo')
+    if (userStr) {
+      userInfo.value = JSON.parse(userStr)
+      // 判断是否为超管（roleType === 1 或角色包含 SUPER_ADMIN）
+      isSuperAdmin.value = userInfo.value?.roleType === 1 || 
+                            userInfo.value?.roles?.includes('SUPER_ADMIN')
+      
+      // 如果是超管，加载商户列表
+      if (isSuperAdmin.value) {
+        await loadMerchantList()
+      }
+    }
+  } catch (e) {
+    console.error('获取用户信息失败', e)
+  }
+  
   formVisible.value = true
 }
 
@@ -383,7 +424,31 @@ async function handleSubmit() {
   }
 }
 
+// ==================== 辅助函数 ====================
+
+async function loadMerchantList() {
+  merchantLoading.value = true
+  try {
+    const res = await getMerchantList()
+    merchantList.value = res.records || res || []
+  } catch (error) {
+    ElMessage.error('加载商户列表失败')
+  } finally {
+    merchantLoading.value = false
+  }
+}
+
 onMounted(() => {
+  // 初始化用户信息
+  try {
+    const userStr = localStorage.getItem('userInfo')
+    if (userStr) {
+      userInfo.value = JSON.parse(userStr)
+    }
+  } catch (e) {
+    console.error('解析用户信息失败', e)
+  }
+  
   loadTasks()
 })
 </script>

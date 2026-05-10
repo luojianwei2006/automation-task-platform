@@ -82,6 +82,11 @@ export function updateTask(taskId: number, data: UpdateTaskRequest) {
   return request.put(`/tasks/${taskId}`, data)
 }
 
+/** 获取商户列表（超管用） */
+export function getMerchantList() {
+  return request.get<any[]>('/merchants', { params: { page: 1, size: 1000 } })
+}
+
 // ==================== 请求类型定义 ====================
 
 export interface PublishTaskRequest {
