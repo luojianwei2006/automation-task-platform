@@ -442,11 +442,14 @@ onMounted(() => {
   // 初始化用户信息
   try {
     const userStr = localStorage.getItem('userInfo')
-    if (userStr) {
+    // 检查值是否有效：不能是 undefined、null、空字符串或字符串 "undefined"
+    if (userStr && userStr !== 'undefined' && userStr !== 'null') {
       userInfo.value = JSON.parse(userStr)
     }
   } catch (e) {
     console.error('解析用户信息失败', e)
+    // 解析失败时清除无效数据
+    localStorage.removeItem('userInfo')
   }
   
   loadTasks()
