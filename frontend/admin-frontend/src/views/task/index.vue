@@ -232,8 +232,10 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getTaskList, reviewTask, toggleTask, publishTask, updateTask } from '@/api/task'
+import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getMerchantList } from '@/api/task'
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
+
+console.log('[DEBUG] 导入的 getMerchantList 函数:', getMerchantList)
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -438,10 +440,24 @@ async function handleSubmit() {
 async function loadMerchantList() {
   merchantLoading.value = true
   try {
+    console.log('[DEBUG] 开始加载商户列表...')
     const res = await getMerchantList()
-    merchantList.value = res.records || res || []
-  } catch (error) {
-    ElMessage.error('加载商户列表失败')
+    console.log('[DEBUG] 商户列表原始返回:', res)
+    
+    // 正确解析：/merchants/all 返回的是数组，不是 { records, total }
+    if (Array.isArray(res)) {
+      merchantList.value = res
+    } else if (res && res.records) {
+      merchantList.value = res.records
+    } else {
+      merchantList.value = []
+    }
+    
+    console.log('[DEBUG] 商户列表解析后:', merchantList.value)
+  } catch (error: any) {
+    console.error('[DEBUG] 加载商户列表失败:', error)
+    console.error('[DEBUG] 错误详情:', error.response?.data || error.message)
+    ElMessage.error('加载商户列表失败: ' + (error.response?.data?.msg || error.message || '未知错误'))
   } finally {
     merchantLoading.value = false
   }

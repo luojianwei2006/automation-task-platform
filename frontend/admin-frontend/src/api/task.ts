@@ -84,7 +84,7 @@ export function updateTask(taskId: number, data: UpdateTaskRequest) {
 
 /** 获取商户列表（超管用） */
 export function getMerchantList() {
-  return request.get<any[]>('/merchants', { params: { page: 1, size: 1000 } })
+  return request.get<any[]>('/merchants/all')
 }
 
 // ==================== 请求类型定义 ====================
