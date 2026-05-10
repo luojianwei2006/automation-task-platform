@@ -55,16 +55,19 @@ async function handleLogin() {
 
   loading.value = true
   try {
-    const data = await request.post('/auth/login', {
+    const res = await request.post('/auth/login', {
       username: form.username,
       password: form.password,
     })
-    userStore.setToken(data.token)
-    userStore.setUserInfo(data.userInfo)
+    // 后端返回结构: { token, refreshToken, expiresIn, adminInfo }
+    console.log('[DEBUG] 登录返回数据:', res)
+    userStore.setToken(res.token)
+    userStore.setUserInfo(res.adminInfo)
     ElMessage.success('登录成功')
     router.push('/dashboard')
   } catch (e) {
     // 错误已在拦截器处理
+    console.error('[DEBUG] 登录失败:', e)
   } finally {
     loading.value = false
   }
