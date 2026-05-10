@@ -71,3 +71,44 @@ export function reviewTask(taskId: number, pass: boolean, reason?: string) {
 export function toggleTask(taskId: number, online: boolean) {
   return request.put(`/tasks/${taskId}/toggle`, null, { params: { online } })
 }
+
+/** 发布任务 */
+export function publishTask(data: PublishTaskRequest) {
+  return request.post('/tasks', data)
+}
+
+/** 更新任务 */
+export function updateTask(taskId: number, data: UpdateTaskRequest) {
+  return request.put(`/tasks/${taskId}`, data)
+}
+
+// ==================== 请求类型定义 ====================
+
+export interface PublishTaskRequest {
+  merchantId?: number  // 超管必填，商户管理员不传
+  title: string
+  platform: number
+  taskType: number
+  targetUrl: string
+  requirements?: string
+  requirementImages?: string
+  rewardAmount: number
+  totalQuota: number
+  dailyLimit?: number
+  budgetPoints: number
+  deadline?: string
+}
+
+export interface UpdateTaskRequest {
+  title?: string
+  platform?: number
+  taskType?: number
+  targetUrl?: string
+  requirements?: string
+  requirementImages?: string
+  rewardAmount?: number
+  totalQuota?: number
+  dailyLimit?: number
+  budgetPoints?: number
+  deadline?: string
+}

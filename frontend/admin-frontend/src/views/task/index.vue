@@ -29,6 +29,7 @@
 
         <el-form-item>
           <el-button type="primary" @click="loadTasks">查询</el-button>
+          <el-button type="success" @click="showPublishDialog">发布任务</el-button>
         </el-form-item>
       </el-form>
 
@@ -59,9 +60,10 @@
         <el-table-column label="截止时间" width="170">
           <template #default="{ row }">{{ row.deadline || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="showDetail(row)">详情</el-button>
+            <el-button size="small" type="primary" @click="showEditDialog(row)">编辑</el-button>
             <el-button
               v-if="row.status === 0"
               size="small"
@@ -127,19 +129,134 @@
         </el-descriptions-item>
       </el-descriptions>
     </el-dialog>
+
+    <!--- 发布/编辑任务对话框 --->
+    <el-dialog
+      v-model="formVisible"
+      :title="isEdit ? '编辑任务' : '发布任务'"
+      width="600px"
+      @close="resetForm"
+    >
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
+        <el-form-item label="任务标题" prop="title">
+          <el-input v-model="form.title" placeholder="请输入任务标题" />
+        </el-form-item>
+
+        <el-form-item label="平台" prop="platform">
+          <el-select v-model="form.platform" placeholder="请选择平台">
+            <el-option label="抖音" :value="1" />
+            <el-option label="小红书" :value="2" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="任务类型" prop="taskType">
+          <el-select v-model="form.taskType" placeholder="请选择任务类型">
+            <el-option label="点赞" :value="1" />
+            <el-option label="评论" :value="2" />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item label="目标链接" prop="targetUrl">
+          <el-input v-model="form.targetUrl" placeholder="请输入目标链接" />
+        </el-form-item>
+
+        <el-form-item label="任务要求">
+          <el-input
+            v-model="form.requirements"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入任务要求"
+          />
+        </el-form-item>
+
+        <el-form-item label="单次奖励(元)" prop="rewardAmount">
+          <el-input-number
+            v-model="form.rewardAmount"
+            :min="0.01"
+            :precision="2"
+            :step="0.1"
+          />
+        </el-form-item>
+
+        <el-form-item label="总配额" prop="totalQuota">
+          <el-input-number v-model="form.totalQuota" :min="1" :step="10" />
+        </el-form-item>
+
+        <el-form-item label="每日上限">
+          <el-input-number v-model="form.dailyLimit" :min="0" :step="10" />
+          <span style="margin-left: 8px; color: #999;">0=不限</span>
+        </el-form-item>
+
+        <el-form-item label="预算点数" prop="budgetPoints">
+          <el-input-number
+            v-model="form.budgetPoints"
+            :min="0.01"
+            :precision="2"
+            :step="10"
+          />
+          <span style="margin-left: 8px; color: #999;">含15%服务费</span>
+        </el-form-item>
+
+        <el-form-item label="截止时间">
+          <el-date-picker
+            v-model="form.deadline"
+            type="datetime"
+            placeholder="请选择截止时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="formVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getTaskList, reviewTask, toggleTask } from '@/api/task'
+import type { FormInstance, FormRules } from 'element-plus'
+import { getTaskList, reviewTask, toggleTask, publishTask, updateTask } from '@/api/task'
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
 const detailVisible = ref(false)
 const currentTask = ref<any>(null)
+
+// 发布/编辑表单相关
+const formVisible = ref(false)
+const isEdit = ref(false)
+const formRef = ref<FormInstance>()
+const editingTaskId = ref<number | null>(null)
+
+const form = reactive({
+  title: '',
+  platform: '' as number | '',
+  taskType: '' as number | '',
+  targetUrl: '',
+  requirements: '',
+  requirementImages: '',
+  rewardAmount: 0.01,
+  totalQuota: 1,
+  dailyLimit: 0,
+  budgetPoints: 0.01,
+  deadline: '',
+})
+
+const formRules: FormRules = {
+  title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
+  platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
+  taskType: [{ required: true, message: '请选择任务类型', trigger: 'change' }],
+  targetUrl: [{ required: true, message: '请输入目标链接', trigger: 'blur' }],
+  rewardAmount: [{ required: true, message: '请输入单次奖励', trigger: 'blur' }],
+  totalQuota: [{ required: true, message: '请输入总配额', trigger: 'blur' }],
+  budgetPoints: [{ required: true, message: '请输入预算点数', trigger: 'blur' }],
+}
 
 const filter = reactive({
   status: '' as number | '',
@@ -195,6 +312,72 @@ async function handleToggle(row: any, online: boolean) {
   await toggleTask(row.id, online)
   ElMessage.success(online ? '已上架' : '已下架')
   loadTasks()
+}
+
+// ==================== 发布/编辑任务相关函数 ====================
+
+function showPublishDialog() {
+  isEdit.value = false
+  editingTaskId.value = null
+  resetForm()
+  formVisible.value = true
+}
+
+function showEditDialog(row: any) {
+  isEdit.value = true
+  editingTaskId.value = row.id
+  // 填充表单数据
+  form.title = row.title
+  form.platform = row.platform
+  form.taskType = row.taskType
+  form.targetUrl = row.targetUrl
+  form.requirements = row.requirements || ''
+  form.requirementImages = row.requirementImages || ''
+  form.rewardAmount = row.rewardAmount
+  form.totalQuota = row.totalQuota
+  form.dailyLimit = row.dailyLimit || 0
+  form.budgetPoints = row.budgetPoints
+  form.deadline = row.deadline || ''
+  formVisible.value = true
+}
+
+function resetForm() {
+  form.title = ''
+  form.platform = ''
+  form.taskType = ''
+  form.targetUrl = ''
+  form.requirements = ''
+  form.requirementImages = ''
+  form.rewardAmount = 0.01
+  form.totalQuota = 1
+  form.dailyLimit = 0
+  form.budgetPoints = 0.01
+  form.deadline = ''
+  // 清除表单校验
+  formRef.value?.clearValidate()
+}
+
+async function handleSubmit() {
+  if (!formRef.value) return
+  
+  try {
+    await formRef.value.validate()
+    
+    if (isEdit.value && editingTaskId.value) {
+      // 编辑任务
+      await updateTask(editingTaskId.value, { ...form })
+      ElMessage.success('任务已更新')
+    } else {
+      // 发布任务
+      await publishTask({ ...form })
+      ElMessage.success('任务已提交，等待审核')
+    }
+    
+    formVisible.value = false
+    loadTasks()
+  } catch (error) {
+    // 表单校验失败，不提交
+  }
 }
 
 onMounted(() => {
