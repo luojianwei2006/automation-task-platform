@@ -18,13 +18,34 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, onMounted } from 'vue'
+import { getDashboardStatistics } from '@/api/statistics'
+import { ElMessage } from 'element-plus'
 
 const stats = reactive({
-  totalUsers: '--',
-  totalTasks: '--',
-  todayEarnings: '¥ --',
-  pendingWithdraw: '--',
+  totalUsers: 0,
+  totalTasks: 0,
+  todayEarnings: '0.00',
+  pendingWithdraw: 0,
+})
+
+const fetchStatistics = async () => {
+  try {
+    const data = await getDashboardStatistics()
+    if (data) {
+      stats.totalUsers = data.totalUsers || 0
+      stats.totalTasks = data.totalTasks || 0
+      stats.todayEarnings = (data.todayEarnings || 0).toFixed(2)
+      stats.pendingWithdraw = data.pendingWithdraw || 0
+    }
+  } catch (error) {
+    ElMessage.error('获取统计数据失败')
+    console.error('获取统计数据失败', error)
+  }
+}
+
+onMounted(() => {
+  fetchStatistics()
 })
 </script>
 
