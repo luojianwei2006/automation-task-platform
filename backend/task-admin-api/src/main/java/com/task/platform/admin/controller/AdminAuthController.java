@@ -20,7 +20,7 @@ import java.util.Map;
  * @author TaskPlatform
  */
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping("/admin")
 @RequiredArgsConstructor
 public class AdminAuthController {
 

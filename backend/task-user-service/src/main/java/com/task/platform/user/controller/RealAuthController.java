@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
  * @author TaskPlatform
  */
 @RestController
-@RequestMapping("/api/v1/user/real-auth")
+@RequestMapping("/user/real-auth")
 @RequiredArgsConstructor
 public class RealAuthController {
 

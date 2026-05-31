@@ -1,5 +1,4 @@
 import request from '../utils/request'
-import type { AxiosResponse } from 'axios'
 
 /**
  * 商户管理 API

@@ -5,9 +5,12 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ErrorCode;
 import com.task.platform.task.entity.Task;
+import com.task.platform.task.entity.UserTaskRecord;
 import com.task.platform.task.mapper.TaskMapper;
+import com.task.platform.task.mapper.UserTaskRecordMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,13 +20,15 @@ import java.util.List;
 
 /**
  * 任务服务
- * 任务发布、上下架、列表查询
+ * 任务发布、上下架、列表查询、用户接任务
  */
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class TaskService {
 
     private final TaskMapper taskMapper;
+    private final UserTaskRecordMapper userTaskRecordMapper;
 
     // 状态常量
     public static final int STATUS_PENDING = 0;   // 待审核
@@ -161,6 +166,294 @@ public class TaskService {
         taskMapper.updateById(task);
     }
 
+    // ==================== 用户端方法 ====================
+
+    /**
+     * 用户端任务列表（任务大厅）
+     * 只返回已上架的任务
+     */
+    public Page<Task> getUserTaskList(int page, int size, Integer platform, Integer taskType) {
+        LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<Task>()
+                .eq(Task::getStatus, STATUS_ONLINE)  // 只显示上架中的任务
+                .orderByDesc(Task::getCreatedAt);
+
+        if (platform != null) {
+            wrapper.eq(Task::getPlatform, platform);
+        }
+        if (taskType != null) {
+            wrapper.eq(Task::getTaskType, taskType);
+        }
+
+        Page<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);
+        
+        // 调试日志
+        log.info("===== 任务大厅查询 =====");
+        log.info("查询条件: status={}", STATUS_ONLINE);
+        log.info("结果总数: {}", result.getTotal());
+        log.info("当前页记录数: {}", result.getRecords().size());
+        
+        // 打印每条记录的 requirementImages 字段
+        for (Task task : result.getRecords()) {
+            log.info("任务ID={}, title={}, requirementImages={}", 
+                task.getId(), task.getTitle(), task.getRequirementImages());
+        }
+        
+        return result;
+    }
+
+    /**
+     * 用户端任务详情
+     */
+    public Task getTaskDetailForUser(Long taskId) {
+        Task task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "任务不存在");
+        }
+        
+        // 调试日志：打印 requirementImages 字段
+        log.info("===== 任务详情查询 =====");
+        log.info("任务ID: {}", taskId);
+        log.info("任务标题: {}", task.getTitle());
+        log.info("requirementImages 字段值: {}", task.getRequirementImages());
+        
+        return task;
+    }
+
+    /**
+     * 接受任务
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UserTaskRecord acceptTask(Long userId, Long taskId) {
+        // 1. 检查任务是否存在且已上架
+        Task task = taskMapper.selectById(taskId);
+        if (task == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "任务不存在");
+        }
+        if (task.getStatus() != STATUS_ONLINE) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务未上架");
+        }
+
+        // 2. 检查配额是否充足
+        if (task.getUsedQuota() >= task.getTotalQuota()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务配额已用完");
+        }
+
+        // 3. 检查是否已经接取过（同一用户同一任务只能接一次）
+        LambdaQueryWrapper<UserTaskRecord> recordWrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getUserId, userId)
+                .eq(UserTaskRecord::getTaskId, taskId);
+        UserTaskRecord existingRecord = userTaskRecordMapper.selectOne(recordWrapper);
+        if (existingRecord != null) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "您已接取此任务");
+        }
+
+        // 4. 检查任务截止时间（截止前1小时不能接取）
+        if (task.getDeadline() != null) {
+            LocalDateTime oneHourBeforeDeadline = task.getDeadline().minusHours(1);
+            if (LocalDateTime.now().isAfter(oneHourBeforeDeadline)) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "任务即将截止，无法接取");
+            }
+        }
+
+        // 5. 创建任务记录
+        UserTaskRecord record = new UserTaskRecord();
+        record.setUserId(userId);
+        record.setTaskId(taskId);
+        record.setStatus(0); // 进行中
+        record.setSubmitCount(0);
+        record.setAcceptedAt(LocalDateTime.now());
+
+        // 6. 设置提交截止时间（如果有配置 submitDeadlineHours）
+        if (task.getSubmitDeadlineHours() != null && task.getSubmitDeadlineHours() > 0) {
+            record.setAcceptDeadline(LocalDateTime.now().plusHours(task.getSubmitDeadlineHours()));
+        } else {
+            // 默认24小时
+            record.setAcceptDeadline(LocalDateTime.now().plusHours(24));
+        }
+
+        userTaskRecordMapper.insert(record);
+
+        // 7. 增加任务已使用配额
+        task.setUsedQuota(task.getUsedQuota() + 1);
+        taskMapper.updateById(task);
+
+        return record;
+    }
+
+    /**
+     * 我的任务记录
+     * 查询用户接取过的任务，关联 t_user_task_record + t_task，返回 Task 对象（含任务完整信息）
+     */
+    public Page<Task> getMyTaskRecords(Long userId, int page, int size) {
+        LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getUserId, userId)
+                .orderByDesc(UserTaskRecord::getAcceptedAt);
+        Page<UserTaskRecord> recordPage = userTaskRecordMapper.selectPage(new Page<>(page, size), wrapper);
+
+        // 根据 record 中的 taskId 批量查出完整 Task 信息
+        List<Task> tasks = new java.util.ArrayList<>();
+        for (UserTaskRecord record : recordPage.getRecords()) {
+            Task task = taskMapper.selectById(record.getTaskId());
+            if (task != null) {
+                tasks.add(task);
+            }
+        }
+
+        Page<Task> taskPage = new Page<>(page, size, recordPage.getTotal());
+        taskPage.setRecords(tasks);
+        return taskPage;
+    }
+
+    /**
+     * 提交任务截图
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UserTaskRecord submitTask(Long userId, Long taskId, String screenshotUrl, Double latitude, Double longitude) {
+        // 1. 查找任务记录
+        LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getUserId, userId)
+                .eq(UserTaskRecord::getTaskId, taskId);
+        UserTaskRecord record = userTaskRecordMapper.selectOne(wrapper);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "未接取此任务");
+        }
+
+        // 2. 检查状态是否为"进行中"（0）
+        if (record.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务状态不正确，无法提交");
+        }
+
+        // 3. 检查是否超时
+        if (record.getAcceptDeadline() != null && LocalDateTime.now().isAfter(record.getAcceptDeadline())) {
+            record.setStatus(4); // 超时放弃
+            userTaskRecordMapper.updateById(record);
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务已超时，无法提交");
+        }
+
+        // 4. 检查提交次数（最多2次）
+        if (record.getSubmitCount() >= 2) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "提交次数已达上限");
+        }
+
+        // 5. 更新截图URL、提交次数、状态
+        record.setScreenshotUrl(screenshotUrl);
+        record.setSubmitCount(record.getSubmitCount() + 1);
+        record.setStatus(1); // 待审核
+        record.setSubmittedAt(LocalDateTime.now());
+        record.setSubmitLat(latitude);
+        record.setSubmitLng(longitude);
+        userTaskRecordMapper.updateById(record);
+
+        // TODO: 预留AI审核接口调用（后续实现）
+        // aiCheckService.checkScreenshot(record.getId(), screenshotUrl);
+
+        return record;
+    }
+
+    /**
+     * 放弃任务（用户主动放弃进行中的任务）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void abandonTask(Long userId, Long taskId) {
+        LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getUserId, userId)
+                .eq(UserTaskRecord::getTaskId, taskId);
+        UserTaskRecord record = userTaskRecordMapper.selectOne(wrapper);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "未接取此任务");
+        }
+        if (record.getStatus() != 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "只能放弃进行中的任务");
+        }
+        record.setStatus(4); // 超时放弃/主动放弃
+        userTaskRecordMapper.updateById(record);
+
+        // 归还名额
+        Task task = taskMapper.selectById(taskId);
+        if (task != null && task.getUsedQuota() > 0) {
+            task.setUsedQuota(task.getUsedQuota() - 1);
+            taskMapper.updateById(task);
+        }
+    }
+
+    /**
+     * 审核任务记录（人工审核，预留AI审核接口）
+     * @param recordId 任务记录ID
+     * @param pass 是否通过
+     * @param reviewResult 审核结果（通过时可为null，拒绝时填写原因）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public UserTaskRecord reviewTaskRecord(Long recordId, boolean pass, String reviewResult) {
+        // 1. 查找任务记录
+        UserTaskRecord record = userTaskRecordMapper.selectById(recordId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "任务记录不存在");
+        }
+
+        // 2. 检查状态是否为"待审核"（1）
+        if (record.getStatus() != 1) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务状态不正确，无法审核");
+        }
+
+        // 3. 更新审核结果
+        if (pass) {
+            record.setStatus(2); // 通过
+            record.setReviewResult("审核通过");
+            record.setManualCheckedAt(LocalDateTime.now());
+            record.setCheckedAt(LocalDateTime.now());
+
+            // TODO: 调用支付服务发放奖励
+            // payService.grantReward(record.getUserId(), record.getTaskId(), record.getRewardAmount());
+            // record.setRewardGrantedAt(LocalDateTime.now());
+        } else {
+            record.setStatus(3); // 拒绝
+            record.setReviewResult(reviewResult);
+            record.setManualCheckedAt(LocalDateTime.now());
+            record.setCheckedAt(LocalDateTime.now());
+        }
+
+        userTaskRecordMapper.updateById(record);
+        return record;
+    }
+
+    /**
+     * 查询任务记录详情（用于审核进度时间线）
+     */
+    public UserTaskRecord getTaskRecordDetail(Long recordId) {
+        UserTaskRecord record = userTaskRecordMapper.selectById(recordId);
+        if (record == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "任务记录不存在");
+        }
+        return record;
+    }
+
+    /**
+     * 获取用户对指定任务的记录
+     * 用于任务详情页判断用户是否已接取该任务
+     */
+    public UserTaskRecord getTaskRecord(Long userId, Long taskId) {
+        LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getUserId, userId)
+                .eq(UserTaskRecord::getTaskId, taskId);
+        return userTaskRecordMapper.selectOne(wrapper);
+    }
+
+    /**
+     * 处理超时任务（定时任务调用）
+     * 将 status=0（进行中）且 acceptDeadline < now 的记录更新为 status=4（超时放弃）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int processTimeoutTasks() {
+        LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
+                .eq(UserTaskRecord::getStatus, 0) // 进行中
+                .lt(UserTaskRecord::getAcceptDeadline, LocalDateTime.now()); // 超时
+
+        UserTaskRecord updateRecord = new UserTaskRecord();
+        updateRecord.setStatus(4); // 超时放弃
+
+        return userTaskRecordMapper.update(updateRecord, wrapper);
+    }
+
     // ==================== DTO ====================
 
     @Data
@@ -196,5 +489,12 @@ public class TaskService {
         private LocalDateTime deadline;
         private LocalDateTime publishedAt;
         private LocalDateTime createdAt;
+    }
+
+    @Data
+    public static class SubmitTaskRequest {
+        private String screenshotUrl;
+        private Double latitude;
+        private Double longitude;
     }
 }

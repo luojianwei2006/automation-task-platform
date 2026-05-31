@@ -46,6 +46,12 @@ public class AppUser {
     /** 绑定支付宝账号 */
     private String alipayAccount;
 
+    /** 微信收款码URL */
+    private String wechatQrcode;
+
+    /** 支付宝收款码URL */
+    private String alipayQrcode;
+
     /** 邀请码（唯一） */
     private String inviteCode;
 

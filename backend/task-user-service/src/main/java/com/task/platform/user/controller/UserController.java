@@ -4,6 +4,7 @@ import com.task.platform.common.response.ApiResponse;
 import com.task.platform.user.service.UserProfileService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * @author TaskPlatform
  */
 @RestController
-@RequestMapping("/api/v1/user")
+@RequestMapping("/user")
 @RequiredArgsConstructor
 @Validated
 public class UserController {
@@ -65,6 +66,20 @@ public class UserController {
     }
 
     /**
+     * 解绑/删除收款账户
+     * DELETE /api/v1/user/wallet/{type}
+     * @param type 1=微信 2=支付宝
+     */
+    @DeleteMapping("/wallet/{type}")
+    public ApiResponse<Void> unbindWallet(
+            @RequestHeader("Authorization") String authorization,
+            @PathVariable Integer type) {
+        Long userId = extractUserId(authorization);
+        userProfileService.unbindWallet(userId, type);
+        return ApiResponse.success(null, "已解绑");
+    }
+
+    /**
      * 获取邀请信息（邀请码 + 邀请链接）
      * GET /api/v1/user/invite/link
      */
@@ -88,6 +103,19 @@ public class UserController {
         return ApiResponse.success(userProfileService.getInviteRecords(userId, page, size));
     }
 
+    /**
+     * 修改密码
+     * PUT /api/user/password
+     */
+    @PutMapping("/password")
+    public ApiResponse<Void> changePassword(
+            @RequestHeader("Authorization") String authorization,
+            @Valid @RequestBody ChangePasswordRequest req) {
+        Long userId = extractUserId(authorization);
+        userProfileService.changePassword(userId, req);
+        return ApiResponse.success(null);
+    }
+
     // ==================== DTO ====================
 
     /** 更新用户信息请求 */
@@ -106,13 +134,28 @@ public class UserController {
     public static class BindWalletRequest {
 
         /** 账户类型：1微信 2支付宝 */
-        @NotBlank(message = "账户类型不能为空")
+        @NotNull(message = "账户类型不能为空")
         private Integer type;
 
-        /** 账户（微信号 or 支付宝账号） */
-        @NotBlank(message = "账户不能为空")
+        /** 账户（微信号 or 支付宝账号），传收款码URL时可不传 */
         @Size(max = 128, message = "账户长度超限")
         private String account;
+
+        /** 收款码图片URL（扫码支付时使用） */
+        @Size(max = 512, message = "收款码URL长度超限")
+        private String qrcodeUrl;
+    }
+
+    /** 修改密码请求 */
+    @Data
+    public static class ChangePasswordRequest {
+
+        @NotBlank(message = "旧密码不能为空")
+        private String oldPassword;
+
+        @NotBlank(message = "新密码不能为空")
+        @Size(min = 6, message = "新密码长度不能少于6位")
+        private String newPassword;
     }
 
     // ==================== 工具方法 ====================

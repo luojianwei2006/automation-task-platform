@@ -22,7 +22,32 @@ public class JwtTokenProvider {
     private String secret;
 
     /**
-     * 从 Token 解析用户ID
+     * 从 Token 解析用户ID（普通用户）
+     */
+    public Long getUserId(String token) {
+        Claims claims = parseClaims(token);
+        return claims.get("userId", Long.class);
+    }
+
+    /**
+     * 从 Token 解析用户ID（兼容旧Token，如果userId不存在则从subject获取）
+     */
+    public Long getUserIdFallback(String token) {
+        Claims claims = parseClaims(token);
+        Long userId = claims.get("userId", Long.class);
+        if (userId != null) {
+            return userId;
+        }
+        // 旧Token中只有sub，尝试解析
+        try {
+            return Long.valueOf(claims.getSubject());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从 Token 解析用户ID（管理员）
      */
     public Long getAdminId(String token) {
         Claims claims = parseClaims(token);
@@ -79,13 +104,26 @@ public class JwtTokenProvider {
 
     /**
      * 从 Token 创建 JwtClaims 对象
+     * 支持普通用户和管理员
      */
     public JwtClaims getJwtClaims(String token) {
+        // 优先解析 userId（普通用户）
+        Long userId = getUserId(token);
+        // 兼容旧Token，如果userId不存在则从subject获取
+        if (userId == null) {
+            try {
+                userId = Long.valueOf(getUsername(token));
+            } catch (NumberFormatException e) {
+                userId = null;
+            }
+        }
+        
         Long adminId = getAdminId(token);
         String username = getUsername(token);
         Long merchantId = getMerchantId(token);
         List<String> roles = getRoles(token);
 
-        return new JwtClaims(adminId, merchantId, username, roles);
+        JwtClaims claims = new JwtClaims(userId, adminId, merchantId, username, roles);
+        return claims;
     }
 }

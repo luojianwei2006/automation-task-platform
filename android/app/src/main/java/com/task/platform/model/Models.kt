@@ -31,7 +31,11 @@ data class UserInfo(
     val nickname: String?,
     val avatarUrl: String?,
     @SerializedName("realAuthStatus") val realAuthStatus: Int,
-    @SerializedName("inviteCode") val inviteCode: String?
+    @SerializedName("inviteCode") val inviteCode: String?,
+    @SerializedName("wechatAccount") val wechatAccount: String? = null,
+    @SerializedName("alipayAccount") val alipayAccount: String? = null,
+    @SerializedName("wechatQrcode") val wechatQrcode: String? = null,
+    @SerializedName("alipayQrcode") val alipayQrcode: String? = null
 )
 
 /**
@@ -39,16 +43,32 @@ data class UserInfo(
  */
 data class TaskDTO(
     val id: Long,
-    val title: String,
+    val title: String?,
     /** 1抖音 2小红书 */
     val platform: Int,
     /** 1点赞 2评论 */
     val taskType: Int,
-    @SerializedName("targetUrl") val targetUrl: String,
-    @SerializedName("rewardAmount") val rewardAmount: Double,
+    @SerializedName("targetUrl") val targetUrl: String?,
+    /** 任务要求（文本） */
+    @SerializedName("requirements") val requirements: String?,
+    /** 要求图片（JSON数组字符串，需解析） */
+    @SerializedName("requirementImages") val requirementImages: String?,
+    @SerializedName("rewardAmount") val rewardAmount: Double?,
     @SerializedName("totalQuota") val totalQuota: Int,
     @SerializedName("usedQuota") val usedQuota: Int,
-    val status: Int
+    /** 每日限制 */
+    @SerializedName("dailyLimit") val dailyLimit: Int?,
+    /** 截止时间 */
+    @SerializedName("deadline") val deadline: String?,
+    val status: Int,
+    /** 是否需要定位验证 */
+    @SerializedName("requireLocation") val requireLocation: Boolean = false,
+    /** 任务位置纬度 */
+    @SerializedName("locationLat") val locationLat: Double? = null,
+    /** 任务位置经度 */
+    @SerializedName("locationLng") val locationLng: Double? = null,
+    /** 位置描述 */
+    @SerializedName("locationDesc") val locationDesc: String? = null
 )
 
 /**
@@ -68,4 +88,17 @@ data class EarningsSummary(
     @SerializedName("totalEarnings") val totalEarnings: Double,
     @SerializedName("availableBalance") val availableBalance: Double,
     @SerializedName("todayEarnings") val todayEarnings: Double
+)
+
+/**
+ * 收益明细记录
+ */
+data class EarningsRecord(
+    val id: Long,
+    /** 1任务收益 2邀请奖励 3提现 4其他 */
+    val type: Int,
+    val description: String,
+    /** 正数=收入 负数=支出 */
+    val amount: Double,
+    val createdAt: String
 )

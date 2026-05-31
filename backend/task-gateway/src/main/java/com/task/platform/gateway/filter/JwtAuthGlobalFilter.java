@@ -2,6 +2,7 @@ package com.task.platform.gateway.filter;
 
 import com.task.platform.common.utils.JwtUtil;
 import io.jsonwebtoken.Claims;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
@@ -14,41 +15,52 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * JWT 全局鉴权过滤器
  *
- * 白名单路径（无需登录）：
+ * 白名单配置（无需登录）：
  * - POST /api/user/auth/login（密码登录）
  * - POST /api/user/auth/sms-login（验证码登录）
  * - POST /api/user/auth/register（注册）
  * - POST /api/user/auth/sms-code（发送验证码）
  * - GET /api/admin/auth/login（管理员登录）
+ * - GET /api/task/tasks（任务大厅列表 - 仅GET）
+ * - GET /api/task/tasks/*（任务详情 - 仅GET）
  */
 @Slf4j
 @Component
 public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
-    /** 需要放行的白名单路径前缀 */
-    private static final String[] WHITE_LIST = {
-        "/api/user/auth/login",
-        "/api/user/auth/sms-login",
-        "/api/user/auth/register",
-        "/api/user/auth/sms-code",
-        "/api/admin/auth/login",
-    };
+    /**
+     * 白名单配置（路径 + HTTP方法）
+     * method=null 表示不限制HTTP方法（全放行）
+     */
+    private static final List<WhiteListEntry> WHITE_LIST = Arrays.asList(
+            new WhiteListEntry("/api/user/auth/login", "POST"),
+            new WhiteListEntry("/api/user/auth/sms-login", "POST"),
+            new WhiteListEntry("/api/user/auth/register", "POST"),
+            new WhiteListEntry("/api/user/auth/sms-code", "POST"),
+            new WhiteListEntry("/api/admin/auth/login", "POST"),
+            // 任务大厅（仅GET请求放行，POST/PUT/DELETE仍需认证）
+            new WhiteListEntry("/api/task/tasks", "GET")
+    );
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getPath().toString();
+        String method = request.getMethod().name();
 
-        // 1. 白名单放行
-        if (isWhiteListed(path)) {
+        // 1. 白名单检查
+        if (isWhitelisted(path, method)) {
             return chain.filter(exchange);
         }
 
         // 2. OPTIONS 预检请求放行
-        if (request.getMethod().name().equals("OPTIONS")) {
+        if ("OPTIONS".equals(method)) {
             return chain.filter(exchange);
         }
 
@@ -80,11 +92,17 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
 
     /**
      * 判断是否在白名单中
+     * @param path 请求路径
+     * @param method HTTP方法
+     * @return true=放行，false=需要认证
      */
-    private boolean isWhiteListed(String path) {
-        for (String prefix : WHITE_LIST) {
-            if (path.startsWith(prefix)) {
-                return true;
+    private boolean isWhitelisted(String path, String method) {
+        for (WhiteListEntry entry : WHITE_LIST) {
+            if (path.startsWith(entry.getPath())) {
+                // 检查HTTP方法是否匹配
+                if (entry.getMethod() == null || entry.getMethod().equals(method)) {
+                    return true;
+                }
             }
         }
         return false;
@@ -123,5 +141,25 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     public int getOrder() {
         // 高优先级，在路由之前执行
         return -100;
+    }
+
+    /**
+     * 白名单条目（路径 + HTTP方法）
+     */
+    @Data
+    public static class WhiteListEntry {
+        /** 路径前缀 */
+        private String path;
+        /** HTTP方法（null=不限制） */
+        private String method;
+
+        public WhiteListEntry(String path, String method) {
+            this.path = path;
+            this.method = method;
+        }
+
+        public WhiteListEntry(String path) {
+            this(path, null);
+        }
     }
 }

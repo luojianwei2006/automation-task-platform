@@ -59,11 +59,35 @@ public class UserTaskRecord {
     @TableField("accepted_at")
     private LocalDateTime acceptedAt;
 
+    /** 提交截止时间（接取后 N 小时内必须提交） */
+    @TableField("accept_deadline")
+    private LocalDateTime acceptDeadline;
+
+    /** 提交时定位纬度 */
+    @TableField("submit_lat")
+    private Double submitLat;
+
+    /** 提交时定位经度 */
+    @TableField("submit_lng")
+    private Double submitLng;
+
     /** 提交时间 */
     @TableField("submitted_at")
     private LocalDateTime submittedAt;
 
-    /** 审核时间 */
+    /** AI审核时间（预留） */
+    @TableField("ai_checked_at")
+    private LocalDateTime aiCheckedAt;
+
+    /** 人工审核时间 */
+    @TableField("manual_checked_at")
+    private LocalDateTime manualCheckedAt;
+
+    /** 奖励发放时间 */
+    @TableField("reward_granted_at")
+    private LocalDateTime rewardGrantedAt;
+
+    /** 审核时间（最终审核时间，兼容旧逻辑） */
     @TableField("checked_at")
     private LocalDateTime checkedAt;
 }

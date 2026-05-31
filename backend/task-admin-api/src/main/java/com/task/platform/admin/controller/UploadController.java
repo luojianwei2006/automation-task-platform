@@ -21,7 +21,7 @@ import java.util.UUID;
  */
 @Slf4j
 @RestController
-@RequestMapping("/api/admin/upload")
+@RequestMapping("/admin/upload")
 @RequiredArgsConstructor
 public class UploadController {
 

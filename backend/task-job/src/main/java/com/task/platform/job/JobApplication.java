@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * 3. 数据统计报表生成
  * 4. 过期任务自动关闭
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.task.platform")
 @EnableScheduling
 public class JobApplication {
 

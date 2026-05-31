@@ -32,8 +32,14 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             
             // 授权规则
+            // 注意：Gateway 已 StripPrefix=1 去掉 /api 前缀
+            // 所以到达 task-service 的路径是 /task/** 而不是 /api/task/**
+            // 公开接口：任务大厅列表、任务详情
+            // 需认证接口：接受任务、提交截图、我的任务记录
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/task/**").authenticated()
+                .requestMatchers("/task/tasks/records").authenticated()
+                .requestMatchers("/task/tasks/*/accept").authenticated()
+                .requestMatchers("/task/tasks/*/submit").authenticated()
                 .anyRequest().permitAll()
             )
             

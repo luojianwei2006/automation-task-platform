@@ -32,7 +32,7 @@ public class JwtUtil {
 
     /**
      * 生成JWT Token
-     * @param userId 用户ID
+     * @param userId 用户ID（普通用户或管理员ID）
      * @param role 角色（USER/MERCHANT/ADMIN）
      * @param extraClaims 额外声明（可选）
      * @return Token字符串
@@ -44,6 +44,7 @@ public class JwtUtil {
         JwtBuilder builder = Jwts.builder()
                 .id(String.valueOf(userId))
                 .subject(String.valueOf(userId))
+                .claim("userId", userId)  // ✅ 添加 userId 声明
                 .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiryDate)

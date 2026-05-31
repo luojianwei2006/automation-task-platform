@@ -4,6 +4,7 @@ server:
 spring:
   application:
     name: task-task-service
+  
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     url: jdbc:mysql://118.145.198.135:3306/task_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
@@ -40,7 +41,13 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 jwt:
-  secret: your-256-bit-secret-key-here-must-be-32-chars
+  secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890
+
+# 文件上传配置
+file:
+  upload:
+    path: ./uploads
+    url-prefix: http://10.0.2.2:8080/api/task/uploads
 
 logging:
   level:

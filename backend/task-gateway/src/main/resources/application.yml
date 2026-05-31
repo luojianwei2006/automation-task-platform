@@ -11,17 +11,25 @@ spring:
   cloud:
     gateway:
       routes:
-        # 用户服务路由
+        # 用户认证服务路由（注册/登录/验证码）
         - id: task-user-service
           uri: http://localhost:8081
           predicates:
             - Path=/api/user/**
           filters:
+            - StripPrefix=1  # 移除 /api 前缀，转发 /user/** 到 user-service
+
+        # 用户信息服务路由
+        - id: task-user-info-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/user-info/**
+          filters:
             - StripPrefix=1
 
         # 任务服务路由
         - id: task-task-service
-          uri: http://localhost:8082
+          uri: http://localhost:8083
           predicates:
             - Path=/api/task/**
           filters:
@@ -47,7 +55,7 @@ spring:
       globalcors:
         cors-configurations:
           '[/**]':
-            allowedOrigins: "*"
+            allowedOriginPatterns: "*"
             allowedMethods:
               - GET
               - POST

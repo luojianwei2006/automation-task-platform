@@ -2,6 +2,7 @@ package com.task.platform.task;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 任务服务启动类
@@ -12,7 +13,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 3. 截图审核（AI视觉 + 人工兜底）
  * 4. 奖励发放（同步/异步）
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.task.platform")
+@EnableScheduling
 public class TaskServiceApplication {
 
     public static void main(String[] args) {

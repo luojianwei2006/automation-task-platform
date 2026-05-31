@@ -88,6 +88,7 @@
               type="primary"
               @click="handleToggle(row, true)"
             >上架</el-button>
+            <el-button size="small" type="info" @click="showTaskRecords(row)">查看领取记录</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -105,151 +106,228 @@
     </el-card>
 
     <!--- 详情对话框 --->
-    <el-dialog v-model="detailVisible" title="任务详情" width="600px">
-      <el-descriptions :column="1" border v-if="currentTask">
-        <el-descriptions-item label="任务ID">{{ currentTask.id }}</el-descriptions-item>
-        <el-descriptions-item label="标题">{{ currentTask.title }}</el-descriptions-item>
-        <el-descriptions-item label="平台">{{ PLATFORM_MAP[currentTask.platform] }}</el-descriptions-item>
-        <el-descriptions-item label="类型">{{ TASK_TYPE_MAP[currentTask.taskType] }}</el-descriptions-item>
-        <el-descriptions-item label="目标链接">
-          <el-link type="primary" :href="currentTask.targetUrl" target="_blank">{{ currentTask.targetUrl }}</el-link>
-        </el-descriptions-item>
-        <el-descriptions-item label="任务要求">{{ currentTask.requirements || '-' }}</el-descriptions-item>
-        <!-- 显示上传的图片 -->
-        <el-descriptions-item label="要求图片" v-if="getImagesFromTask(currentTask).length > 0">
-          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-            <el-image
-              v-for="(url, index) in getImagesFromTask(currentTask)"
-              :key="index"
-              :src="url"
-              :preview-src-list="getImagesFromTask(currentTask)"
-              :initial-index="index"
-              style="width: 100px; height: 100px; border-radius: 4px;"
-              fit="cover"
-            />
-          </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="单次奖励">¥{{ currentTask.rewardAmount?.toFixed(2) }}</el-descriptions-item>
-        <el-descriptions-item label="总配额">{{ currentTask.totalQuota }}</el-descriptions-item>
-        <el-descriptions-item label="已使用">{{ currentTask.usedQuota }}</el-descriptions-item>
-        <el-descriptions-item label="预算">¥{{ currentTask.budgetPoints?.toFixed(2) }}</el-descriptions-item>
-        <el-descriptions-item label="已消耗">¥{{ currentTask.usedPoints?.toFixed(2) }}</el-descriptions-item>
-        <el-descriptions-item label="截止时间">{{ currentTask.deadline || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag :type="STATUS_MAP[currentTask.status]?.type">{{ STATUS_MAP[currentTask.status]?.text }}</el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="currentTask.rejectReason" label="拒绝原因">
-          {{ currentTask.rejectReason }}
-        </el-descriptions-item>
-      </el-descriptions>
+    <el-dialog v-model="detailVisible" title="任务详情" width="1000px" @opened="onDetailOpened">
+      <el-row :gutter="24">
+        <!--- 左列：任务信息 --->
+        <el-col :span="12">
+          <el-descriptions :column="1" border v-if="currentTask">
+            <el-descriptions-item label="任务ID">{{ currentTask.id }}</el-descriptions-item>
+            <el-descriptions-item label="标题">{{ currentTask.title }}</el-descriptions-item>
+            <el-descriptions-item label="平台">{{ PLATFORM_MAP[currentTask.platform] }}</el-descriptions-item>
+            <el-descriptions-item label="类型">{{ TASK_TYPE_MAP[currentTask.taskType] }}</el-descriptions-item>
+            <el-descriptions-item label="目标链接">
+              <el-link type="primary" :href="currentTask.targetUrl" target="_blank">{{ currentTask.targetUrl }}</el-link>
+            </el-descriptions-item>
+            <el-descriptions-item label="任务要求">{{ currentTask.requirements || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="要求图片" v-if="getImagesFromTask(currentTask).length > 0">
+              <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                <el-image
+                  v-for="(url, index) in getImagesFromTask(currentTask)"
+                  :key="index"
+                  :src="url"
+                  :preview-src-list="getImagesFromTask(currentTask)"
+                  :initial-index="index"
+                  style="width: 80px; height: 80px; border-radius: 4px;"
+                  fit="cover"
+                />
+              </div>
+            </el-descriptions-item>
+            <el-descriptions-item label="单次奖励">¥{{ currentTask.rewardAmount?.toFixed(2) }}</el-descriptions-item>
+            <el-descriptions-item label="总配额">{{ currentTask.totalQuota }}</el-descriptions-item>
+            <el-descriptions-item label="已使用">{{ currentTask.usedQuota }}</el-descriptions-item>
+            <el-descriptions-item label="预算">¥{{ currentTask.budgetPoints?.toFixed(2) }}</el-descriptions-item>
+            <el-descriptions-item label="已消耗">¥{{ currentTask.usedPoints?.toFixed(2) }}</el-descriptions-item>
+            <el-descriptions-item label="截止时间">{{ currentTask.deadline || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="STATUS_MAP[currentTask.status]?.type">{{ STATUS_MAP[currentTask.status]?.text }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item v-if="currentTask.rejectReason" label="拒绝原因">
+              {{ currentTask.rejectReason }}
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-col>
+
+        <!--- 右列：定位信息 + 地图 --->
+        <el-col :span="12">
+          <template v-if="currentTask?.requireLocation">
+            <div style="font-size: 14px; font-weight: 500; margin-bottom: 12px;">定位信息</div>
+            <el-descriptions :column="1" border v-if="currentTask">
+              <el-descriptions-item label="需要定位">是</el-descriptions-item>
+              <el-descriptions-item v-if="currentTask.locationDesc" label="位置描述">
+                {{ currentTask.locationDesc }}
+              </el-descriptions-item>
+              <el-descriptions-item label="坐标">
+                {{ currentTask.locationLat?.toFixed(6) }}, {{ currentTask.locationLng?.toFixed(6) }}
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <div style="margin-top: 16px;" v-if="currentTask.locationLat && currentTask.locationLng">
+              <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">任务位置</div>
+              <amap-viewer ref="detailMapRef" :lat="currentTask.locationLat" :lng="currentTask.locationLng" />
+            </div>
+          </template>
+          <template v-else>
+            <el-empty description="此任务无需定位" :image-size="100" />
+          </template>
+        </el-col>
+      </el-row>
     </el-dialog>
 
     <!--- 发布/编辑任务对话框 --->
     <el-dialog
       v-model="formVisible"
       :title="isEdit ? '编辑任务' : '发布任务'"
-      width="600px"
+      width="920px"
       @close="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="120px">
-        <!--- 超管发布时需要选择商户 --->
-        <el-form-item v-if="isSuperAdmin" label="选择商户" prop="merchantId">
-          <el-select v-model="form.merchantId" placeholder="请选择商户" :loading="merchantLoading">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
+        <!-- 发布身份选择 -->
+        <el-form-item label="发布身份">
+          <el-select v-model="form.merchantId" placeholder="请选择发布身份" style="width: 100%;" :loading="merchantLoading">
+            <el-option label="平台" :value="0" />
             <el-option
-              v-for="merchant in merchantList"
-              :key="merchant.id"
-              :label="merchant.name"
-              :value="merchant.id"
+              v-for="m in merchantList"
+              :key="m.id"
+              :label="m.name"
+              :value="m.id"
             />
           </el-select>
         </el-form-item>
+        <el-row :gutter="20">
+          <!--- 左列 --->
+          <el-col :span="12">
+            <el-form-item label="任务标题" prop="title">
+              <el-input v-model="form.title" placeholder="请输入任务标题" />
+            </el-form-item>
 
-        <el-form-item label="任务标题" prop="title">
-          <el-input v-model="form.title" placeholder="请输入任务标题" />
-        </el-form-item>
+            <el-form-item label="平台" prop="platform">
+              <el-select v-model="form.platform" placeholder="请选择平台" style="width: 100%;">
+                <el-option label="抖音" :value="1" />
+                <el-option label="小红书" :value="2" />
+              </el-select>
+            </el-form-item>
 
-        <el-form-item label="平台" prop="platform">
-          <el-select v-model="form.platform" placeholder="请选择平台">
-            <el-option label="抖音" :value="1" />
-            <el-option label="小红书" :value="2" />
-          </el-select>
-        </el-form-item>
+            <el-form-item label="任务类型" prop="taskType">
+              <el-select v-model="form.taskType" placeholder="请选择任务类型" style="width: 100%;">
+                <el-option label="点赞" :value="1" />
+                <el-option label="评论" :value="2" />
+              </el-select>
+            </el-form-item>
 
-        <el-form-item label="任务类型" prop="taskType">
-          <el-select v-model="form.taskType" placeholder="请选择任务类型">
-            <el-option label="点赞" :value="1" />
-            <el-option label="评论" :value="2" />
-          </el-select>
-        </el-form-item>
+            <el-form-item label="目标链接" prop="targetUrl">
+              <el-input v-model="form.targetUrl" placeholder="请输入目标链接" />
+            </el-form-item>
 
-        <el-form-item label="目标链接" prop="targetUrl">
-          <el-input v-model="form.targetUrl" placeholder="请输入目标链接" />
-        </el-form-item>
+            <el-form-item label="任务要求">
+              <el-input
+                v-model="form.requirements"
+                type="textarea"
+                :rows="4"
+                placeholder="请输入任务要求"
+              />
+            </el-form-item>
 
-        <el-form-item label="任务要求">
-          <el-input
-            v-model="form.requirements"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入任务要求"
-          />
-        </el-form-item>
+            <el-form-item label="要求图片">
+              <el-upload
+                v-model:file-list="uploadFileList"
+                :http-request="customUpload"
+                :on-remove="handleRemove"
+                :before-upload="beforeUpload"
+                :limit="4"
+                :on-exceed="handleExceed"
+                list-type="picture-card"
+                accept="image/*"
+              >
+                <el-icon><Plus /></el-icon>
+              </el-upload>
+              <div style="color: #999; font-size: 12px;">最多4张，单张≤5MB</div>
+            </el-form-item>
+          </el-col>
 
-        <el-form-item label="要求图片（0-4张）">
-          <el-upload
-            v-model:file-list="uploadFileList"
-            :http-request="customUpload"
-            :on-remove="handleRemove"
-            :before-upload="beforeUpload"
-            :limit="4"
-            :on-exceed="handleExceed"
-            list-type="picture-card"
-            accept="image/*"
-          >
-            <el-icon><Plus /></el-icon>
-          </el-upload>
-          <div style="margin-top: 8px; color: #999; font-size: 12px;">
-            最多上传4张图片，单张大小不超过5MB
-          </div>
-        </el-form-item>
+          <!--- 右列 --->
+          <el-col :span="12">
+            <el-form-item label="单次奖励(元)" prop="rewardAmount">
+              <el-input-number
+                v-model="form.rewardAmount"
+                :min="0.01"
+                :precision="2"
+                :step="0.1"
+                style="width: 100%;"
+              />
+            </el-form-item>
 
-        <el-form-item label="单次奖励(元)" prop="rewardAmount">
-          <el-input-number
-            v-model="form.rewardAmount"
-            :min="0.01"
-            :precision="2"
-            :step="0.1"
-          />
-        </el-form-item>
+            <el-form-item label="总配额" prop="totalQuota">
+              <el-input-number v-model="form.totalQuota" :min="1" :step="10" style="width: 100%;" />
+            </el-form-item>
 
-        <el-form-item label="总配额" prop="totalQuota">
-          <el-input-number v-model="form.totalQuota" :min="1" :step="10" />
-        </el-form-item>
+            <el-form-item label="每日上限">
+              <el-input-number v-model="form.dailyLimit" :min="0" :step="10" style="width: calc(100% - 48px);" />
+              <span style="margin-left: 8px; color: #999; font-size: 12px;">0=不限</span>
+            </el-form-item>
 
-        <el-form-item label="每日上限">
-          <el-input-number v-model="form.dailyLimit" :min="0" :step="10" />
-          <span style="margin-left: 8px; color: #999;">0=不限</span>
-        </el-form-item>
+            <el-form-item label="预算点数" prop="budgetPoints">
+              <el-input-number
+                v-model="form.budgetPoints"
+                :min="0.01"
+                :precision="2"
+                :step="10"
+                style="width: 100%;"
+              />
+              <div style="color: #999; font-size: 12px; margin-top: 2px;">含15%服务费</div>
+            </el-form-item>
 
-        <el-form-item label="预算点数" prop="budgetPoints">
-          <el-input-number
-            v-model="form.budgetPoints"
-            :min="0.01"
-            :precision="2"
-            :step="10"
-          />
-          <span style="margin-left: 8px; color: #999;">含15%服务费</span>
-        </el-form-item>
+            <el-form-item label="截止时间">
+              <el-date-picker
+                v-model="form.deadline"
+                type="datetime"
+                placeholder="请选择截止时间"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                style="width: 100%;"
+              />
+            </el-form-item>
 
-        <el-form-item label="截止时间">
-          <el-date-picker
-            v-model="form.deadline"
-            type="datetime"
-            placeholder="请选择截止时间"
-            format="YYYY-MM-DD HH:mm:ss"
-            value-format="YYYY-MM-DD HH:mm:ss"
-          />
-        </el-form-item>
+            <el-form-item label="提交截止(h)">
+              <el-input-number
+                v-model="form.submitDeadlineHours"
+                :min="1"
+                :max="720"
+                :step="1"
+                style="width: 100%;"
+              />
+              <div style="color: #999; font-size: 12px; margin-top: 2px;">接取后多少小时内必须提交，默认 24 小时</div>
+            </el-form-item>
+
+            <el-form-item label="需要定位">
+              <el-switch v-model="form.requireLocation" />
+              <span style="margin-left: 8px; color: #999; font-size: 12px;">开启后接取时需验证定位</span>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <!--- 定位信息（需要时展开，通栏） --->
+        <template v-if="form.requireLocation">
+          <el-divider content-position="left">定位验证</el-divider>
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <el-form-item label="位置描述">
+                <el-input
+                  v-model="form.locationDesc"
+                  placeholder="地图点击后将自动填入"
+                />
+                <div style="color: #999; font-size: 12px; margin-top: 2px;">用户需在目标位置 50 米范围内才能接取</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="任务位置">
+                <amap-picker
+                  v-model="locationCoord"
+                  @update:location-desc="form.locationDesc = $event"
+                />
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </template>
       </el-form>
 
       <template #footer>
@@ -257,29 +335,140 @@
         <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!--- 领取记录弹窗 --->
+    <el-dialog v-model="myRecordsVisible" :title="'领取记录 - 任务ID: ' + recordTaskId" width="1000px">
+      <el-table :data="myRecords" v-loading="myRecordsLoading" stripe style="width:100%">
+        <el-table-column prop="id" label="记录ID" width="90" />
+        <el-table-column prop="userId" label="用户ID" width="90" />
+        <el-table-column prop="phone" label="手机号" width="130" />
+        <el-table-column prop="nickname" label="昵称" width="120" show-overflow-tooltip />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="RECORD_STATUS_MAP[row.status]?.type">{{ RECORD_STATUS_MAP[row.status]?.text }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="奖励" width="100">
+          <template #default="{ row }">¥{{ row.rewardAmount?.toFixed(2) }}</template>
+        </el-table-column>
+        <el-table-column label="提交次数" width="100">
+          <template #default="{ row }">{{ row.submitCount || 0 }}</template>
+        </el-table-column>
+        <el-table-column label="接取时间" width="170">
+          <template #default="{ row }">{{ row.acceptedAt ? row.acceptedAt : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right">
+          <template #default="{ row }">
+            <el-button
+              v-if="row.status === 1"
+              size="small"
+              type="success"
+              @click="handleApproveRecord(row)"
+            >通过</el-button>
+            <el-button
+              v-if="row.status === 1"
+              size="small"
+              type="danger"
+              @click="handleRejectRecord(row)"
+            >拒绝</el-button>
+            <el-button size="small" @click="showRecordDetail(row.id)">查看详情</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div class="pagination" style="margin-top: 12px;">
+        <el-pagination
+          v-model:current-page="myRecordsPagination.page"
+          v-model:page-size="myRecordsPagination.size"
+          :total="myRecordsPagination.total"
+          layout="total, prev, pager, next, jumper"
+          @current-change="loadTaskRecords"
+        />
+      </div>
+    </el-dialog>
+
+    <!--- 记录详情弹窗 --->
+    <el-dialog v-model="recordDetailVisible" title="记录详情" width="900px" v-loading="recordDetailLoading">
+      <el-row :gutter="24">
+        <!--- 左列：用户信息 + 记录信息 --->
+        <el-col :span="12">
+          <el-descriptions :column="1" border v-if="recordDetail">
+            <el-descriptions-item label="记录ID">{{ recordDetail.id }}</el-descriptions-item>
+            <el-descriptions-item label="用户ID">{{ recordDetail.userId }}</el-descriptions-item>
+            <el-descriptions-item label="手机号">{{ recordDetail.phone || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="昵称">{{ recordDetail.nickname || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="RECORD_STATUS_MAP[recordDetail.status]?.type">{{ RECORD_STATUS_MAP[recordDetail.status]?.text }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="奖励">¥{{ recordDetail.rewardAmount?.toFixed(2) }}</el-descriptions-item>
+            <el-descriptions-item label="提交次数">{{ recordDetail.submitCount || 0 }}</el-descriptions-item>
+            <el-descriptions-item label="接取时间">{{ recordDetail.acceptedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="提交时间">{{ recordDetail.submittedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="审核时间">{{ recordDetail.checkedAt || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="审核结果">{{ recordDetail.reviewResult || '-' }}</el-descriptions-item>
+          </el-descriptions>
+        </el-col>
+
+        <!--- 右列：任务信息 + 提交截图 + 定位信息 --->
+        <el-col :span="12">
+          <template v-if="recordDetail">
+            <div style="font-size: 14px; font-weight: 500; margin-bottom: 12px;">任务信息</div>
+            <el-descriptions :column="1" border>
+              <el-descriptions-item label="任务标题">{{ recordDetail.taskTitle || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="平台">{{ PLATFORM_MAP[recordDetail.taskPlatform] || '未知' }}</el-descriptions-item>
+              <el-descriptions-item label="类型">{{ TASK_TYPE_MAP[recordDetail.taskType] || '未知' }}</el-descriptions-item>
+              <el-descriptions-item label="目标链接">
+                <el-link type="primary" :href="recordDetail.taskTargetUrl" target="_blank">{{ recordDetail.taskTargetUrl }}</el-link>
+              </el-descriptions-item>
+            </el-descriptions>
+
+            <div style="font-size: 14px; font-weight: 500; margin-top: 16px; margin-bottom: 8px;">提交截图</div>
+            <div v-if="getImagesFromRecord(recordDetail).length > 0" style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <el-image
+                v-for="(url, index) in getImagesFromRecord(recordDetail)"
+                :key="index"
+                :src="url"
+                :preview-src-list="getImagesFromRecord(recordDetail)"
+                :initial-index="index"
+                style="width: 80px; height: 80px; border-radius: 4px;"
+                fit="cover"
+              />
+            </div>
+            <el-empty v-else description="暂无提交截图" :image-size="60" />
+
+            <template v-if="recordDetail.submitLat && recordDetail.submitLng">
+              <div style="font-size: 14px; font-weight: 500; margin-top: 16px; margin-bottom: 8px;">提交定位</div>
+              <el-descriptions :column="1" border>
+                <el-descriptions-item label="纬度">{{ recordDetail.submitLat?.toFixed(6) }}</el-descriptions-item>
+                <el-descriptions-item label="经度">{{ recordDetail.submitLng?.toFixed(6) }}</el-descriptions-item>
+              </el-descriptions>
+            </template>
+          </template>
+        </el-col>
+      </el-row>
+    </el-dialog>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
+import AmapPicker from '@/components/AmapPicker.vue'
+import AmapViewer from '@/components/AmapViewer.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
-import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getMerchantList } from '@/api/task'
+import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getTaskRecordsByTaskId, getTaskDetail, getRecordDetail, approveRecord, rejectRecord } from '@/api/task'
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
-import { uploadImages } from '@/api/upload'
-
-console.log('[DEBUG] 导入的 getMerchantList 函数:', getMerchantList)
+import { getAllMerchants } from '@/api/merchant'
+import { uploadImage } from '@/api/upload'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
+const detailMapRef = ref()
 const detailVisible = ref(false)
 const currentTask = ref<any>(null)
 
-// 当前用户信息
-const userInfo = ref<any>(null)
-const isSuperAdmin = ref(false)
-
-// 商户列表（超管发布任务时需要）
+// 商户列表（超管发布/编辑任务时使用）
 const merchantList = ref<any[]>([])
 const merchantLoading = ref(false)
 
@@ -289,11 +478,84 @@ const isEdit = ref(false)
 const formRef = ref<FormInstance>()
 const editingTaskId = ref<number | null>(null)
 
+// 领取记录弹窗相关
+const recordTaskId = ref<number>(0)
+const myRecordsVisible = ref(false)
+const myRecordsLoading = ref(false)
+const myRecords = ref<any[]>([])
+const myRecordsPagination = reactive({ page: 1, size: 10, total: 0 })
+
+// 记录详情弹窗相关
+const recordDetailVisible = ref(false)
+const recordDetail = ref<any>(null)
+const recordDetailLoading = ref(false)
+
+async function showRecordDetail(recordId: number) {
+  recordDetailVisible.value = true
+  recordDetailLoading.value = true
+  try {
+    const res = await getRecordDetail(recordId)
+    recordDetail.value = res || null
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载失败')
+  } finally {
+    recordDetailLoading.value = false
+  }
+}
+
+async function handleApproveRecord(row: any) {
+  try {
+    await approveRecord(row.id)
+    ElMessage.success('审核通过，奖励已发放')
+    loadTaskRecords()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
+  }
+}
+
+async function handleRejectRecord(row: any) {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入拒绝原因', '审核拒绝', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPattern: /.+/,
+      inputErrorMessage: '拒绝原因不能为空',
+    })
+    await rejectRecord(row.id, value)
+    ElMessage.success('已拒绝，用户可重新提交')
+    loadTaskRecords()
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e.message || '操作失败')
+    }
+  }
+}
+
+function getImagesFromRecord(record: any): string[] {
+  if (!record || !record.screenshotUrl) {
+    return []
+  }
+  return record.screenshotUrl.split(',').filter((url: string) => url.trim() !== '')
+}
+// 加载商户列表（用于发布/编辑任务时的下拉选择）
+async function loadMerchantList() {
+  merchantLoading.value = true
+  try {
+    const res = await getAllMerchants()
+    merchantList.value = res || []
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载商户列表失败')
+  } finally {
+    merchantLoading.value = false
+  }
+}
+
 const form = reactive({
-  merchantId: '' as number | '',
+  // 发布身份：0=平台，>0=商户ID
+  merchantId: 0,
   title: '',
-  platform: '' as number | '',
-  taskType: '' as number | '',
+  platform: undefined as number | undefined,
+  taskType: undefined as number | undefined,
   targetUrl: '',
   requirements: '',
   requirementImages: '',
@@ -302,6 +564,13 @@ const form = reactive({
   dailyLimit: 0,
   budgetPoints: 0.01,
   deadline: '',
+  // 定位相关
+  requireLocation: false,
+  locationLat: undefined as number | undefined,
+  locationLng: undefined as number | undefined,
+  locationDesc: '',
+  // 提交截止时间（小时）
+  submitDeadlineHours: 24,
 })
 
 // 图片上传相关
@@ -310,7 +579,6 @@ const imageUrls = ref<string[]>([])
 const uploadLoading = ref(false)
 
 const formRules: FormRules = {
-  merchantId: [{ required: true, message: '请选择商户', trigger: 'change' }],
   title: [{ required: true, message: '请输入任务标题', trigger: 'blur' }],
   platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
   taskType: [{ required: true, message: '请选择任务类型', trigger: 'change' }],
@@ -332,6 +600,27 @@ const pagination = reactive({
   total: 0,
 })
 
+// 同步地图坐标与表单字段
+const locationCoord = computed({
+  get: () => ({
+    lat: form.locationLat,
+    lng: form.locationLng,
+  }),
+  set: (val: { lat?: number, lng?: number }) => {
+    form.locationLat = val.lat
+    form.locationLng = val.lng
+  }
+})
+
+// 任务记录状态映射（UserTaskRecord.status）
+const RECORD_STATUS_MAP: Record<number, { text: string; type: string }> = {
+  0: { text: '进行中', type: 'warning' },
+  1: { text: '待审核', type: '' },
+  2: { text: '已通过', type: 'success' },
+  3: { text: '未通过', type: 'danger' },
+  4: { text: '已放弃', type: 'info' },
+}
+
 async function loadTasks() {
   loading.value = true
   try {
@@ -349,9 +638,64 @@ async function loadTasks() {
   }
 }
 
+async function showTaskRecords(row: any) {
+  recordTaskId.value = row.id
+  myRecordsVisible.value = true
+  myRecordsPagination.page = 1
+  await loadTaskRecords()
+}
+
+async function loadTaskRecords() {
+  myRecordsLoading.value = true
+  try {
+    const res = await getTaskRecordsByTaskId(recordTaskId.value, {
+      page: myRecordsPagination.page,
+      size: myRecordsPagination.size
+    })
+    myRecords.value = res.records || []
+    myRecordsPagination.total = res.total || 0
+  } catch (e: any) {
+    ElMessage.error(e.message || '加载失败')
+  } finally {
+    myRecordsLoading.value = false
+  }
+}
+
+function showDetailByTaskId(taskId: number) {
+  const task = tableData.value.find((t: any) => t.id === taskId)
+  if (task) {
+    showDetail(task)
+  } else {
+    loadTaskDetailForRecord(taskId)
+  }
+}
+
+async function loadTaskDetailForRecord(taskId: number) {
+  try {
+    const res = await getTaskDetail(taskId)
+    if (res) {
+      currentTask.value = res
+      detailVisible.value = true
+      nextTick(() => {
+        if (detailMapRef.value) {
+          detailMapRef.value.initMap()
+        }
+      })
+    }
+  } catch (e) {
+    ElMessage.error('加载任务详情失败')
+  }
+}
+
 function showDetail(row: any) {
   currentTask.value = row
   detailVisible.value = true
+}
+
+function onDetailOpened() {
+  nextTick(() => {
+    detailMapRef.value?.refresh()
+  })
 }
 
 async function handleReview(row: any, pass: boolean) {
@@ -378,66 +722,45 @@ async function handleToggle(row: any, online: boolean) {
 
 // ==================== 发布/编辑任务相关函数 ====================
 
-async function showPublishDialog() {
+function showPublishDialog() {
   isEdit.value = false
   editingTaskId.value = null
   resetForm()
-  
-  // 获取用户信息，判断是否为超管
-  // 如果 userInfo 已解析过，直接使用；否则尝试从 localStorage 解析
-  if (!userInfo.value) {
-    try {
-      const userStr = localStorage.getItem('userInfo')
-      // 检查值是否有效：不能是 undefined、null、空字符串或字符串 "undefined"
-      if (userStr && userStr !== 'undefined' && userStr !== 'null') {
-        userInfo.value = JSON.parse(userStr)
-      } else {
-        // 清除无效数据
-        localStorage.removeItem('userInfo')
-      }
-    } catch (e) {
-      console.error('获取用户信息失败', e)
-      localStorage.removeItem('userInfo')
-    }
-  }
-  
-  // 判断是否为超管（roleType === 1 或 role === 'SUPER_ADMIN'）
-  isSuperAdmin.value = userInfo.value?.roleType === 1 || 
-                        userInfo.value?.role === 'SUPER_ADMIN'
-  
-  // 如果是超管，加载商户列表
-  if (isSuperAdmin.value) {
-    await loadMerchantList()
-  }
-  
+  loadMerchantList()
   formVisible.value = true
 }
 
-function showEditDialog(row: any) {
+async function showEditDialog(row: any) {
   isEdit.value = true
   editingTaskId.value = row.id
-  // 填充表单数据
-  form.title = row.title
+  resetForm()
+  await loadMerchantList()
+  // 回填表单数据
+  form.merchantId = row.merchantId == null ? 0 : row.merchantId
+  form.title = row.title || ''
   form.platform = row.platform
   form.taskType = row.taskType
-  form.targetUrl = row.targetUrl
+  form.targetUrl = row.targetUrl || ''
   form.requirements = row.requirements || ''
-  form.rewardAmount = row.rewardAmount
-  form.totalQuota = row.totalQuota
+  form.rewardAmount = row.rewardAmount || 0.01
+  form.totalQuota = row.totalQuota || 1
   form.dailyLimit = row.dailyLimit || 0
-  form.budgetPoints = row.budgetPoints
+  form.budgetPoints = row.budgetPoints || 0.01
   form.deadline = row.deadline || ''
-  
+  form.requireLocation = row.requireLocation || false
+  form.locationLat = row.locationLat || undefined
+  form.locationLng = row.locationLng || undefined
+  form.locationDesc = row.locationDesc || ''
+  form.submitDeadlineHours = row.submitDeadlineHours || 24
+
   // 处理已有图片
   imageUrls.value = []
   uploadFileList.value = []
-  
   if (row.requirementImages) {
     try {
       const urls = JSON.parse(row.requirementImages)
       if (Array.isArray(urls)) {
         imageUrls.value = urls
-        // 构建 uploadFileList 用于显示
         uploadFileList.value = urls.map((url: string, index: number) => ({
           name: `图片${index + 1}`,
           url: url,
@@ -448,14 +771,15 @@ function showEditDialog(row: any) {
       console.error('解析图片数据失败', e)
     }
   }
-  
+
   formVisible.value = true
 }
 
 function resetForm() {
+  form.merchantId = 0
   form.title = ''
-  form.platform = ''
-  form.taskType = ''
+  form.platform = undefined
+  form.taskType = undefined
   form.targetUrl = ''
   form.requirements = ''
   form.requirementImages = ''
@@ -464,31 +788,46 @@ function resetForm() {
   form.dailyLimit = 0
   form.budgetPoints = 0.01
   form.deadline = ''
-  
+  // 定位相关字段
+  form.requireLocation = false
+  form.locationLat = undefined
+  form.locationLng = undefined
+  form.locationDesc = ''
+  form.submitDeadlineHours = 24
+
   // 清除上传的图片
   uploadFileList.value = []
   imageUrls.value = []
-  
+
   // 清除表单校验
   formRef.value?.clearValidate()
 }
 
 async function handleSubmit() {
   if (!formRef.value) return
-  
+
   try {
     await formRef.value.validate()
-    
+
     // 将图片URL数组转为JSON字符串
-    const requirementImagesStr = imageUrls.value.length > 0 
-      ? JSON.stringify(imageUrls.value) 
+    const requirementImagesStr = imageUrls.value.length > 0
+      ? JSON.stringify(imageUrls.value)
       : null
-    
+
     const submitData = {
       ...form,
-      requirementImages: requirementImagesStr
+      merchantId: form.merchantId,
+      platform: form.platform!,
+      taskType: form.taskType!,
+      requirementImages: requirementImagesStr,
+      // 定位相关字段
+      requireLocation: form.requireLocation,
+      locationLat: form.locationLat ?? null,
+      locationLng: form.locationLng ?? null,
+      locationDesc: form.locationDesc,
+      submitDeadlineHours: form.submitDeadlineHours,
     }
-    
+
     if (isEdit.value && editingTaskId.value) {
       // 编辑任务
       await updateTask(editingTaskId.value, submitData)
@@ -498,32 +837,30 @@ async function handleSubmit() {
       await publishTask(submitData)
       ElMessage.success('任务已提交，等待审核')
     }
-    
+
     formVisible.value = false
     resetForm()
     loadTasks()
   } catch (error: any) {
-    // 显示错误信息
     if (error.message) {
       ElMessage.error(error.message)
     }
   }
 }
 
-// ==================== 辅助函数 ====================
-
 // ==================== 图片上传相关方法 ====================
 
-// 自定义上传方法
 async function customUpload(options: any) {
   const { file, onSuccess, onError } = options
   uploadLoading.value = true
-  
+
   try {
-    const urls = await uploadImages([file])
-    imageUrls.value.push(urls[0])
-    
-    onSuccess(urls[0])
+    const url = await uploadImage(file)
+    if (!url) {
+      throw new Error('上传成功但未返回图片地址')
+    }
+    imageUrls.value.push(url)
+    onSuccess(url)
     ElMessage.success('上传成功')
   } catch (error: any) {
     ElMessage.error(error.message || '上传失败')
@@ -533,7 +870,6 @@ async function customUpload(options: any) {
   }
 }
 
-// 移除图片
 function handleRemove(file: any) {
   const url = file.url || file.response
   const index = imageUrls.value.indexOf(url)
@@ -542,78 +878,33 @@ function handleRemove(file: any) {
   }
 }
 
-// 上传前校验
 function beforeUpload(file: File) {
   const isImage = file.type.startsWith('image/')
   if (!isImage) {
     ElMessage.error('只能上传图片文件!')
     return false
   }
-  
+
   const isLt5M = file.size / 1024 / 1024 < 5
   if (!isLt5M) {
     ElMessage.error('图片大小不能超过5MB!')
     return false
   }
-  
+
   return true
 }
 
-// 超出数量限制
 function handleExceed() {
   ElMessage.warning('最多上传4张图片')
 }
 
-// ==================== 商户列表加载 ====================
+// ==================== 辅助函数 ====================
 
-async function loadMerchantList() {
-  merchantLoading.value = true
-  try {
-    console.log('[DEBUG] 开始加载商户列表...')
-    const res = await getMerchantList()
-    console.log('[DEBUG] 商户列表原始返回:', res)
-    
-    // 正确解析：/merchants/all 返回的是数组，不是 { records, total }
-    if (Array.isArray(res)) {
-      merchantList.value = res
-    } else if (res && res.records) {
-      merchantList.value = res.records
-    } else {
-      merchantList.value = []
-    }
-    
-    console.log('[DEBUG] 商户列表解析后:', merchantList.value)
-  } catch (error: any) {
-    console.error('[DEBUG] 加载商户列表失败:', error)
-    console.error('[DEBUG] 错误详情:', error.response?.data || error.message)
-    ElMessage.error('加载商户列表失败: ' + (error.response?.data?.msg || error.message || '未知错误'))
-  } finally {
-    merchantLoading.value = false
-  }
-}
-
-onMounted(() => {
-  // 初始化用户信息
-  try {
-    const userStr = localStorage.getItem('userInfo')
-    // 检查值是否有效：不能是 undefined、null、空字符串或字符串 "undefined"
-    if (userStr && userStr !== 'undefined' && userStr !== 'null') {
-      userInfo.value = JSON.parse(userStr)
-    }
-  } catch (e) {
-    console.error('解析用户信息失败', e)
-    // 解析失败时清除无效数据
-    localStorage.removeItem('userInfo')
-  }
-  
-  loadTasks()
-})
-// 从任务对象中解析图片URL数组
 function getImagesFromTask(task: any): string[] {
   if (!task || !task.requirementImages) {
     return []
   }
-  
+
   try {
     const urls = JSON.parse(task.requirementImages)
     return Array.isArray(urls) ? urls : []
@@ -622,6 +913,10 @@ function getImagesFromTask(task: any): string[] {
     return []
   }
 }
+
+onMounted(() => {
+  loadTasks()
+})
 </script>
 
 <style scoped>

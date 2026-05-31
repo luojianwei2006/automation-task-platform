@@ -21,6 +21,7 @@
         <el-sub-menu index="user-group">
           <template #title><el-icon><User /></el-icon>用户管理</template>
           <el-menu-item index="/user/list">C端用户</el-menu-item>
+          <el-menu-item index="/user/real-auth">实名认证</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="task-group">
           <template #title><el-icon><List /></el-icon>业务管理</template>

@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- 广告大厅 - 喇叭/推广 -->
+    <path
+        android:pathData="M5,10V18H9L15,23V5L9,10H5ZM6.5,11.5H9.5V16.5H6.5V11.5ZM10.5,11L13.5,8.5V19.5L10.5,17V11Z"
+        android:fillColor="#000000"/>
+    <path
+        android:pathData="M18,11C19,12 19.5,13 19.5,14C19.5,15 19,16 18,17"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M20.5,8.5C22,10 23,12 23,14C23,16 22,18 20.5,19.5"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+</vector>

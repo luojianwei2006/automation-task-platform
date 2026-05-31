@@ -31,6 +31,7 @@ public class UserProfileService {
 
     private final UserMapper userMapper;
     private final InviteRelationMapper inviteRelationMapper;
+    private final com.task.platform.user.mapper.UserEarningsMapper userEarningsMapper;
 
     // 邀请链接前缀（实际部署时替换为真实域名）
     private static final String INVITE_BASE_URL = "https://app.taskplatform.com/invite/";
@@ -90,11 +91,72 @@ public class UserProfileService {
         }
 
         switch (req.getType()) {
-            case 1 -> user.setWechatAccount(req.getAccount());
-            case 2 -> user.setAlipayAccount(req.getAccount());
+            case 1 -> {
+                if (req.getQrcodeUrl() != null && !req.getQrcodeUrl().isBlank()) {
+                    user.setWechatQrcode(req.getQrcodeUrl());
+                }
+                if (req.getAccount() != null && !req.getAccount().isBlank()) {
+                    user.setWechatAccount(req.getAccount());
+                }
+            }
+            case 2 -> {
+                if (req.getQrcodeUrl() != null && !req.getQrcodeUrl().isBlank()) {
+                    user.setAlipayQrcode(req.getQrcodeUrl());
+                }
+                if (req.getAccount() != null && !req.getAccount().isBlank()) {
+                    user.setAlipayAccount(req.getAccount());
+                }
+            }
             default -> throw new BusinessException(ErrorCode.PARAM_ERROR, "账户类型不正确，1=微信 2=支付宝");
         }
 
+        userMapper.updateById(user);
+    }
+
+    /**
+     * 解绑/删除收款账户
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void unbindWallet(Long userId, Integer type) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+        switch (type) {
+            case 1 -> {
+                user.setWechatAccount(null);
+                user.setWechatQrcode(null);
+            }
+            case 2 -> {
+                user.setAlipayAccount(null);
+                user.setAlipayQrcode(null);
+            }
+            default -> throw new BusinessException(ErrorCode.PARAM_ERROR, "账户类型不正确，1=微信 2=支付宝");
+        }
+        userMapper.updateById(user);
+    }
+
+    /**
+     * 修改密码
+     * 验证旧密码正确后，使用 BCrypt 重新加密新密码并保存
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long userId, UserController.ChangePasswordRequest req) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
+        }
+
+        // 验证旧密码（密码存储格式假设为 BCrypt 哈希）
+        if (user.getPassword() == null || !org.springframework.security.crypto.bcrypt.BCrypt.checkpw(
+                req.getOldPassword(), user.getPassword())) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "旧密码不正确");
+        }
+
+        // 使用 BCrypt 加密新密码并保存
+        String newHashed = org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
+                req.getNewPassword(), org.springframework.security.crypto.bcrypt.BCrypt.gensalt());
+        user.setPassword(newHashed);
         userMapper.updateById(user);
     }
 
@@ -167,8 +229,11 @@ public class UserProfileService {
         private String inviteCode;
         private String wechatAccount;   // 脱敏
         private String alipayAccount;   // 脱敏
+        private String wechatQrcode;    // 微信收款码URL
+        private String alipayQrcode;    // 支付宝收款码URL
         private Integer autoMode;       // 自动化模式
         private LocalDateTime createdAt;
+        private java.math.BigDecimal balance; // 当前余额
     }
 
     /** 邀请链接VO */
@@ -213,8 +278,13 @@ public class UserProfileService {
         // 收款账户脱敏展示（只显示前3后2）
         vo.setWechatAccount(maskAccount(user.getWechatAccount()));
         vo.setAlipayAccount(maskAccount(user.getAlipayAccount()));
+        vo.setWechatQrcode(user.getWechatQrcode());
+        vo.setAlipayQrcode(user.getAlipayQrcode());
         vo.setAutoMode(user.getAutoMode());
         vo.setCreatedAt(user.getCreatedAt());
+        // 查询当前余额（t_user_earnings 最新一条记录的 balance_after）
+        java.math.BigDecimal balance = userEarningsMapper.selectLatestBalance(user.getId());
+        vo.setBalance(balance != null ? balance.setScale(2, java.math.BigDecimal.ROUND_HALF_UP) : null);
         return vo;
     }
 

@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- 我的 - 精致人物 -->
+    <path
+        android:pathData="M14,4C11.515,4 9.5,6.015 9.5,8.5C9.5,10.985 11.515,13 14,13C16.485,13 18.5,10.985 18.5,8.5C18.5,6.015 16.485,4 14,4ZM14,5.5C15.657,5.5 17,6.843 17,8.5C17,10.157 15.657,11.5 14,11.5C12.343,11.5 11,10.157 11,8.5C11,6.843 12.343,5.5 14,5.5Z"
+        android:fillColor="#000000"/>
+    <path
+        android:pathData="M8,15C6.619,15 5.5,16.119 5.5,17.5V22C5.5,22.828 6.172,23.5 7,23.5H21C21.828,23.5 22.5,22.828 22.5,22V17.5C22.5,16.119 21.381,15 20,15H8ZM8,16.5H20C20.552,16.5 21,16.948 21,17.5V22H7V17.5C7,16.948 7.448,16.5 8,16.5Z"
+        android:fillColor="#000000"/>
+</vector>

@@ -1,0 +1,50 @@
+package com.task.platform.admin.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * 用户收益明细表实体（管理后台用）
+ * 对应数据库表：t_user_earnings
+ */
+@Data
+@TableName("t_user_earnings")
+public class UserEarnings {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    /** 用户ID */
+    @TableField("user_id")
+    private Long userId;
+
+    /** 关联ID（任务记录ID/广告记录ID/邀请关系ID） */
+    @TableField("related_id")
+    private Long relatedId;
+
+    /** 收益类型：1任务奖励 2广告奖励 3邀请返佣 4新手任务奖励 */
+    private Integer type;
+
+    /** 收益金额 */
+    private BigDecimal amount;
+
+    /** 变动后余额 */
+    @TableField("balance_after")
+    private BigDecimal balanceAfter;
+
+    /** 状态：0待审核 1已到账 2已撤销 */
+    private Integer status;
+
+    /** 备注 */
+    private String remark;
+
+    /** 创建时间 */
+    @TableField("created_at")
+    private LocalDateTime createdAt;
+}

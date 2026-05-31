@@ -7,6 +7,7 @@ import com.task.platform.admin.entity.Task;
 import com.task.platform.admin.mapper.TaskMapper;
 import com.task.platform.admin.security.AdminUserDetails;
 import com.task.platform.common.response.ApiResponse;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,7 +26,7 @@ import java.util.Map;
  * 商户管理员：查看/管理自己商户的任务、发布任务、编辑任务
  */
 @RestController
-@RequestMapping("/api/admin/tasks")
+@RequestMapping("/admin/tasks")
 @RequiredArgsConstructor
 public class AdminTaskController {
 
@@ -85,6 +86,22 @@ public class AdminTaskController {
         data.put("size", size);
         data.put("records", result.getRecords());
         return ApiResponse.success(data);
+    }
+
+    // ==================== 获取任务详情 ====================
+
+    /**
+     * 获取任务详情（管理后台，支持所有状态）
+     * GET /api/admin/tasks/{taskId}
+     */
+    @GetMapping("/{taskId}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
+    public ApiResponse<Task> getTaskDetail(@PathVariable Long taskId) {
+        Task task = taskMapper.selectById(taskId);
+        if (task == null) {
+            return ApiResponse.error(404, "任务不存在");
+        }
+        return ApiResponse.success(task);
     }
 
     // ==================== 任务审核 ====================
@@ -154,10 +171,10 @@ public class AdminTaskController {
 
         Long merchantId;
         if (currentUser.isSuperAdmin()) {
-            // 超管可以指定商户ID
+            // 超管可以指定商户ID，也可以不指定（0或null = 平台任务）
             merchantId = req.getMerchantId();
-            if (merchantId == null) {
-                return ApiResponse.error(400, "超管发布任务时必须指定merchantId");
+            if (merchantId != null && merchantId == 0) {
+                merchantId = null;
             }
         } else {
             // 商户管理员只能为自己商户发布
@@ -180,6 +197,11 @@ public class AdminTaskController {
         task.setBudgetPoints(req.getBudgetPoints());
         task.setUsedPoints(BigDecimal.ZERO);
         task.setDeadline(req.getDeadline());
+        task.setRequireLocation(req.getRequireLocation());
+        task.setLocationLat(req.getLocationLat());
+        task.setLocationLng(req.getLocationLng());
+        task.setLocationDesc(req.getLocationDesc());
+        task.setSubmitDeadlineHours(req.getSubmitDeadlineHours());
 
         taskMapper.insert(task);
 
@@ -249,6 +271,21 @@ public class AdminTaskController {
         if (req.getDeadline() != null) {
             task.setDeadline(req.getDeadline());
         }
+        if (req.getRequireLocation() != null) {
+            task.setRequireLocation(req.getRequireLocation());
+        }
+        if (req.getLocationLat() != null) {
+            task.setLocationLat(req.getLocationLat());
+        }
+        if (req.getLocationLng() != null) {
+            task.setLocationLng(req.getLocationLng());
+        }
+        if (req.getLocationDesc() != null) {
+            task.setLocationDesc(req.getLocationDesc());
+        }
+        if (req.getSubmitDeadlineHours() != null) {
+            task.setSubmitDeadlineHours(req.getSubmitDeadlineHours());
+        }
 
         taskMapper.updateById(task);
         return ApiResponse.success(null, "任务已更新");
@@ -264,7 +301,7 @@ public class AdminTaskController {
 
     @Data
     public static class PublishTaskRequest {
-        /** 商户ID（超管必填，商户管理员不传） */
+        /** 商户ID（超管可选，不传=平台任务；商户管理员不传） */
         private Long merchantId;
         /** 任务标题（必填） */
         private String title;
@@ -287,7 +324,18 @@ public class AdminTaskController {
         /** 预算点数（含15%服务费，必填） */
         private java.math.BigDecimal budgetPoints;
         /** 截止时间 */
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         private java.time.LocalDateTime deadline;
+        /** 是否需要定位验证 */
+        private Boolean requireLocation;
+        /** 目标纬度 */
+        private Double locationLat;
+        /** 目标经度 */
+        private Double locationLng;
+        /** 位置描述 */
+        private String locationDesc;
+        /** 提交截止时间（接取后多少小时内必须提交） */
+        private Integer submitDeadlineHours;
     }
 
     @Data
@@ -313,6 +361,17 @@ public class AdminTaskController {
         /** 预算点数（含15%服务费） */
         private java.math.BigDecimal budgetPoints;
         /** 截止时间 */
+        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
         private java.time.LocalDateTime deadline;
+        /** 是否需要定位验证 */
+        private Boolean requireLocation;
+        /** 目标纬度 */
+        private Double locationLat;
+        /** 目标经度 */
+        private Double locationLng;
+        /** 位置描述 */
+        private String locationDesc;
+        /** 提交截止时间（接取后多少小时内必须提交） */
+        private Integer submitDeadlineHours;
     }
 }

@@ -1,11 +1,12 @@
 package com.task.platform.admin.config;
 
-import com.task.platform.admin.security.AdminUserDetailsService;
 import com.task.platform.admin.security.JwtAuthFilter;
-import lombok.RequiredArgsConstructor;
+import com.task.platform.admin.security.AdminUserDetailsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -17,33 +18,44 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 /**
  * Spring Security 配置 - 管理后台
  *
  * RBAC角色访问控制规则：
- * - /api/admin/auth/** : 公开（登录接口）
- * - /api/admin/super/** : 仅 ROLE_SUPER_ADMIN
- * - /api/admin/merchant/** : ROLE_SUPER_ADMIN + ROLE_MERCHANT_ADMIN
- * - /api/admin/finance/** : ROLE_SUPER_ADMIN + ROLE_FINANCE
- * - /api/admin/** : 全部已登录管理员
+ * - /admin/auth/** : 公开（登录接口）
+ * - /admin/super/** : 仅 ROLE_SUPER_ADMIN
+ * - /admin/merchant/** : ROLE_SUPER_ADMIN + ROLE_MERCHANT_ADMIN
+ * - /admin/finance/** : ROLE_SUPER_ADMIN + ROLE_FINANCE
+ * - /admin/** : 全部已登录管理员
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true) // 支持 @PreAuthorize 注解
-@RequiredArgsConstructor
 public class AdminSecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
     private final AdminUserDetailsService adminUserDetailsService;
+    private final ObjectMapper objectMapper;
+
+    public AdminSecurityConfig(AdminUserDetailsService adminUserDetailsService,
+                               ObjectMapper objectMapper) {
+        this.adminUserDetailsService = adminUserDetailsService;
+        this.objectMapper = objectMapper;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // JwtAuthFilter 不注册为 Bean，避免被 Spring Boot 自动注册为全局 Servlet 过滤器
+        JwtAuthFilter jwtAuthFilter = new JwtAuthFilter(adminUserDetailsService, objectMapper);
+
         http
             // 禁用 CSRF（纯API服务，前端SPA不需要）
             .csrf(AbstractHttpConfigurer::disable)
+
+            // 启用 CORS（允许前端跨域请求）
+            .cors(Customizer.withDefaults())
 
             // 无状态Session（使用JWT，不使用Session）
             .sessionManagement(session ->
@@ -52,7 +64,7 @@ public class AdminSecurityConfig {
             // 路由权限规则
             .authorizeHttpRequests(auth -> auth
                 // 登录接口公开
-                .requestMatchers("/api/admin/auth/login").permitAll()
+                .requestMatchers("/admin/auth/login").permitAll()
                 // 上传文件公开访问（无需认证）
                 .requestMatchers("/uploads/**").permitAll()
                 // Actuator健康检查（可选）
@@ -61,14 +73,14 @@ public class AdminSecurityConfig {
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 
                 // 超管专属接口
-                .requestMatchers("/api/admin/super/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/admin/super/**").hasRole("SUPER_ADMIN")
 
                 // 财务接口：超管 + 财务角色
-                .requestMatchers("/api/admin/finance/**")
+                .requestMatchers("/admin/finance/**")
                     .hasAnyRole("SUPER_ADMIN", "FINANCE")
 
                 // 商户管理接口：超管 + 商户管理员
-                .requestMatchers("/api/admin/merchant/**")
+                .requestMatchers("/admin/merchant/**")
                     .hasAnyRole("SUPER_ADMIN", "MERCHANT_ADMIN")
 
                 // 其他接口：所有已认证管理员
@@ -101,16 +113,16 @@ public class AdminSecurityConfig {
     }
 
     @Bean
-    public CorsFilter corsFilter() {
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
         config.addAllowedOrigin("http://localhost:5173");
         config.addAllowedOrigin("http://localhost:5174");
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-        return new CorsFilter(source);
+        return source;
     }
 
     @Bean

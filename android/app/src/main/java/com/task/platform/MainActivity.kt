@@ -8,10 +8,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import androidx.navigation.compose.rememberNavController
+import com.task.platform.navigation.TaskNavGraph
+import dagger.hilt.android.AndroidEntryPoint
 
 /**
  * 安卓端主Activity - Jetpack Compose入口
  */
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -19,9 +23,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    // TODO: 接入Navigation导航图
-                    // NavHost(navController = navController, startDestination = "login") { ... }
-                    TaskNavGraph()
+                    val navController = rememberNavController()
+                    TaskNavGraph(navController = navController)
                 }
             }
         }

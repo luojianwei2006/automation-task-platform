@@ -1,5 +1,6 @@
 package com.task.platform.admin.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
@@ -20,7 +21,8 @@ public class Task {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 发布商户ID */
+    /** 发布商户ID（NULL=平台任务，ALWAYS策略确保INSERT时携带该字段） */
+    @TableField(insertStrategy = FieldStrategy.ALWAYS)
     private Long merchantId;
 
     /** 任务标题 */
@@ -95,4 +97,24 @@ public class Task {
 
     @TableField("updated_at")
     private LocalDateTime updatedAt;
+
+    /** 是否需要定位验证 */
+    @TableField("require_location")
+    private Boolean requireLocation;
+
+    /** 目标纬度 */
+    @TableField("location_lat")
+    private Double locationLat;
+
+    /** 目标经度 */
+    @TableField("location_lng")
+    private Double locationLng;
+
+    /** 位置描述 */
+    @TableField("location_desc")
+    private String locationDesc;
+
+    /** 提交截止时间（接取后多少小时内必须提交） */
+    @TableField("submit_deadline_hours")
+    private Integer submitDeadlineHours;
 }

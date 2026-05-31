@@ -2,9 +2,11 @@ package com.task.platform.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.task.platform.model.LoginResponse
+import com.task.platform.network.ApiClient
 import com.task.platform.repository.AuthRepository
-import com.task.platform.utils.DataStoreManager
+import com.task.platform.storage.DataStoreManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,7 +22,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
     // ==================== UI State ====================
@@ -34,6 +37,23 @@ class LoginViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<UiState>(UiState.Idle)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    // 记住密码：保存的账号密码
+    private val _savedPhone = MutableStateFlow<String?>(null)
+    val savedPhone: StateFlow<String?> = _savedPhone.asStateFlow()
+
+    private val _savedPassword = MutableStateFlow<String?>(null)
+    val savedPassword: StateFlow<String?> = _savedPassword.asStateFlow()
+
+    init {
+        // 加载保存的账号密码
+        viewModelScope.launch {
+            dataStoreManager.getSavedPhone().collect { _savedPhone.value = it }
+        }
+        viewModelScope.launch {
+            dataStoreManager.getSavedPassword().collect { _savedPassword.value = it }
+        }
+    }
 
     // 短信验证码倒计时（秒）
     private val _countdown = MutableStateFlow(0)
@@ -97,9 +117,12 @@ class LoginViewModel @Inject constructor(
             authRepository.loginWithPassword(phone, password)
                 .onSuccess { loginResponse ->
                     // 持久化 Token 和用户信息
-                    DataStoreManager.saveToken(loginResponse.token)
-                    DataStoreManager.saveRefreshToken(loginResponse.refreshToken)
-                    loginResponse.userInfo?.let { DataStoreManager.saveUserInfo(it) }
+                    dataStoreManager.saveToken(loginResponse.token, loginResponse.refreshToken)
+                    dataStoreManager.saveUserInfo(Gson().toJson(loginResponse.userInfo))
+                    // 保存登录账号和密码，下次自动填充
+                    dataStoreManager.saveLoginCredentials(phone, password)
+                    // 将 Token 注入到 ApiClient 拦截器，后续请求自动带 Authorization
+                    ApiClient.setToken(loginResponse.token)
                     _uiState.value = UiState.Success(loginResponse)
                 }
                 .onFailure {
@@ -121,9 +144,10 @@ class LoginViewModel @Inject constructor(
             _uiState.value = UiState.Loading
             authRepository.loginWithSms(phone, code)
                 .onSuccess { loginResponse ->
-                    DataStoreManager.saveToken(loginResponse.token)
-                    DataStoreManager.saveRefreshToken(loginResponse.refreshToken)
-                    loginResponse.userInfo?.let { DataStoreManager.saveUserInfo(it) }
+                    dataStoreManager.saveToken(loginResponse.token, loginResponse.refreshToken)
+                    dataStoreManager.saveUserInfo(Gson().toJson(loginResponse.userInfo))
+                    // 将 Token 注入到 ApiClient 拦截器
+                    ApiClient.setToken(loginResponse.token)
                     _uiState.value = UiState.Success(loginResponse)
                 }
                 .onFailure {
@@ -164,9 +188,10 @@ class LoginViewModel @Inject constructor(
             _uiState.value = UiState.Loading
             authRepository.register(phone, code, password, nickname, inviteCode)
                 .onSuccess { loginResponse ->
-                    DataStoreManager.saveToken(loginResponse.token)
-                    DataStoreManager.saveRefreshToken(loginResponse.refreshToken)
-                    loginResponse.userInfo?.let { DataStoreManager.saveUserInfo(it) }
+                    dataStoreManager.saveToken(loginResponse.token, loginResponse.refreshToken)
+                    dataStoreManager.saveUserInfo(Gson().toJson(loginResponse.userInfo))
+                    // 将 Token 注入到 ApiClient 拦截器
+                    ApiClient.setToken(loginResponse.token)
                     _uiState.value = UiState.Success(loginResponse)
                 }
                 .onFailure {
@@ -179,6 +204,11 @@ class LoginViewModel @Inject constructor(
         if (_uiState.value is UiState.Error) {
             _uiState.value = UiState.Idle
         }
+    }
+
+    /** 登录/注册成功或失败后，重置 UI 状态，防止 LaunchedEffect 重复触发 */
+    fun resetUiState() {
+        _uiState.value = UiState.Idle
     }
 
     private fun validatePhone(phone: String): Boolean {

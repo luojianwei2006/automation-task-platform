@@ -27,6 +27,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '用户管理' }
       },
       {
+        path: 'user/real-auth',
+        name: 'RealAuth',
+        component: () => import('../views/user/real-auth.vue'),
+        meta: { title: '实名认证' }
+      },
+      {
         path: 'task/list',
         name: 'TaskList',
         component: () => import('../views/task/index.vue'),

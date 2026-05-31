@@ -1,0 +1,29 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="28dp"
+    android:height="28dp"
+    android:viewportWidth="28"
+    android:viewportHeight="28">
+    <!-- 任务大厅 - 精致剪贴板+勾选 -->
+    <path
+        android:pathData="M11,2C10.172,2 9.5,2.672 9.5,3.5V5H8C6.619,5 5.5,6.119 5.5,7.5V23.5C5.5,24.881 6.619,26 8,26H20C21.381,26 22.5,24.881 22.5,23.5V7.5C22.5,6.119 21.381,5 20,5H18.5V3.5C18.5,2.672 17.828,2 17,2H11ZM11,3.5H17V5H11V3.5ZM8,6.5H20C20.552,6.5 21,6.948 21,7.5V23.5C21,24.052 20.552,24.5 20,24.5H8C7.448,24.5 7,24.052 7,23.5V7.5C7,6.948 7.448,6.5 8,6.5Z"
+        android:fillColor="#000000"/>
+    <path
+        android:pathData="M11,12L13.5,14.5L17,10.5"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M10.5,17H17.5"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+    <path
+        android:pathData="M10.5,20H15"
+        android:strokeColor="#000000"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"/>
+</vector>

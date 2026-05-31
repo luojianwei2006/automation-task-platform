@@ -88,7 +88,7 @@ CREATE TABLE `t_invite_relation` (
 -- 3.1 任务表（t_task）
 CREATE TABLE `t_task` (
   `id` BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '任务ID',
-  `merchant_id` BIGINT NOT NULL COMMENT '发布商户ID',
+  `merchant_id` BIGINT COMMENT '发布商户ID（NULL=平台发布）',
   `title` VARCHAR(128) NOT NULL COMMENT '任务标题',
   `platform` TINYINT NOT NULL COMMENT '平台：1抖音 2小红书',
   `task_type` TINYINT NOT NULL COMMENT '任务类型：1点赞 2评论',

@@ -10,10 +10,17 @@ import java.util.Map;
 
 /**
  * 认证模块API - 注册/登录/验证码/Token刷新
- * 路径前缀: /api/v1/auth
+ * 路径前缀: /user/auth
+ * 
+ * Gateway 路由规则：
+ * - 前端请求：/api/user/auth/**
+ * - Gateway StripPrefix=1 → 去掉 /api
+ * - 转发到 user-service：/user/auth/**
+ * 
+ * 所以这里使用 @RequestMapping("/user/auth")
  */
 @RestController
-@RequestMapping("/api/v1/auth")
+@RequestMapping("/user/auth")
 public class AuthController {
 
     private final UserService userService;

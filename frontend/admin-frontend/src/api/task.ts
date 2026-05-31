@@ -29,6 +29,9 @@ export interface TaskItem {
   title: string
   platform: number
   taskType: number
+  targetUrl: string
+  requirements?: string
+  requirementImages?: string | null
   rewardAmount: number
   totalQuota: number
   usedQuota: number
@@ -39,6 +42,12 @@ export interface TaskItem {
   deadline: string | null
   publishedAt: string | null
   createdAt: string
+  // 定位相关
+  requireLocation?: boolean
+  locationLat?: number | null
+  locationLng?: number | null
+  locationDesc?: string | null
+  submitDeadlineHours?: number
 }
 
 export interface TaskListParams {
@@ -96,24 +105,86 @@ export interface PublishTaskRequest {
   taskType: number
   targetUrl: string
   requirements?: string
-  requirementImages?: string
+  requirementImages?: string | null
   rewardAmount: number
   totalQuota: number
   dailyLimit?: number
   budgetPoints: number
   deadline?: string
+  // 定位相关
+  requireLocation?: boolean
+  locationLat?: number | null
+  locationLng?: number | null
+  locationDesc?: string
+  // 提交设置
+  submitDeadlineHours?: number
 }
 
 export interface UpdateTaskRequest {
+  merchantId?: number
   title?: string
   platform?: number
   taskType?: number
   targetUrl?: string
   requirements?: string
-  requirementImages?: string
+  requirementImages?: string | null
   rewardAmount?: number
   totalQuota?: number
   dailyLimit?: number
   budgetPoints?: number
   deadline?: string
+  // 定位相关
+  requireLocation?: boolean
+  locationLat?: number | null
+  locationLng?: number | null
+  locationDesc?: string
+  // 提交设置
+  submitDeadlineHours?: number
+}
+
+// ==================== 已领取任务记录 ====================
+
+/** 获取当前用户已领取的任务记录（所有状态） */
+export function getMyTaskRecords(params: { page?: number; size?: number } = {}) {
+  return request.get<PageResult<any>>('/tasks/records', { params })
+}
+
+// ==================== 管理后台任务详情 ====================
+
+/** 获取任务详情（管理后台，支持所有状态） */
+export function getTaskDetail(taskId: number) {
+  return request.get<any>('/tasks/' + taskId)
+}
+
+// ==================== 任务领取记录 ====================
+
+/** 根据任务ID查询领取记录（管理后台） */
+export function getTaskRecordsByTaskId(taskId: number, params: { page?: number; size?: number } = {}) {
+  return request.get<PageResult<any>>('/task-records/task/' + taskId, { params })
+}
+
+// ==================== 任务记录详情 ====================
+
+/** 记录状态映射（UserTaskRecord.status） */
+export const RECORD_STATUS_MAP: Record<number, { text: string; type: string }> = {
+  0: { text: '进行中', type: 'warning' },
+  1: { text: '待审核', type: '' },
+  2: { text: '已通过', type: 'success' },
+  3: { text: '未通过', type: 'danger' },
+  4: { text: '已放弃', type: 'info' },
+}
+
+/** 根据记录ID查询详情（含用户信息 + 任务信息） */
+export function getRecordDetail(recordId: number) {
+  return request.get<any>('/task-records/' + recordId)
+}
+
+/** 审核通过：发放奖励，状态设为通过 */
+export function approveRecord(recordId: number) {
+  return request.post('/task-records/' + recordId + '/approve')
+}
+
+/** 审核拒绝：状态回退为进行中，需填写拒绝原因 */
+export function rejectRecord(recordId: number, reason: string) {
+  return request.post('/task-records/' + recordId + '/reject', null, { params: { reason } })
 }

@@ -53,9 +53,9 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
 
-# JWT配置（与用户服务共享密钥）
+# JWT配置（与 Gateway、其他微服务共享密钥）
 jwt:
-  secret: your-256-bit-secret-key-here-must-be-32-chars
+  secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890
 
 logging:
   level:

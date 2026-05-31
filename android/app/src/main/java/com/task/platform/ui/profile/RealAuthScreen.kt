@@ -1,36 +1,56 @@
 package com.task.platform.ui.profile
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Pending
-import androidx.compose.material.icons.filled.Cancel
-import androidx.compose.material.icons.filled.HowToReg
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.task.platform.viewmodel.RealAuthViewModel
+import java.util.Locale
 
-/**
- * 实名认证页面
- *
- * 状态流：
- * - 未认证 → 展示提交表单
- * - 审核中 → 展示等待提示
- * - 已认证 → 展示认证成功
- * - 认证失败 → 展示失败原因 + 重新提交
- */
+// ─── 配色 ─────────────────────────────────────
+private val Orange = Color(0xFFFF8C00)
+private val OrangeLight = Color(0xFFFFF0E0)
+private val OrangeBg = Color(0xFFFFF8F0)
+private val Gray50 = Color(0xFFFAFAFA)
+private val Gray100 = Color(0xFFF5F5F5)
+private val Gray300 = Color(0xFFE0E0E0)
+private val Gray400 = Color(0xFFBDBDBD)
+private val Gray500 = Color(0xFF9E9E9E)
+private val Gray700 = Color(0xFF616161)
+private val Gray900 = Color(0xFF212121)
+private val Green = Color(0xFF4CAF50)
+private val GreenLight = Color(0xFFE8F5E9)
+private val Amber = Color(0xFFFF9800)
+private val AmberLight = Color(0xFFFFF3E0)
+private val Red = Color(0xFFE53935)
+private val RedLight = Color(0xFFFFEBEE)
+
+// ==================== 主入口 ====================
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RealAuthScreen(
@@ -38,8 +58,8 @@ fun RealAuthScreen(
     viewModel: RealAuthViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
-
     val snackbarHostState = remember { SnackbarHostState() }
+
     LaunchedEffect(uiState) {
         if (uiState is RealAuthViewModel.UiState.Error) {
             snackbarHostState.showSnackbar((uiState as RealAuthViewModel.UiState.Error).message)
@@ -51,263 +71,549 @@ fun RealAuthScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("实名认证") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.VerifiedUser,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text("实名认证", fontWeight = FontWeight.Bold)
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回")
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Color.White)
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Orange,
+                    titleContentColor = Color.White
+                )
             )
-        }
+        },
+        containerColor = Gray50
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             when (val state = uiState) {
                 is RealAuthViewModel.UiState.Loading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+                    Box(
+                        Modifier.fillMaxSize().padding(padding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = Orange)
                     }
                 }
-
-                is RealAuthViewModel.UiState.Passed -> {
-                    AuthPassedContent()
-                }
-
-                is RealAuthViewModel.UiState.Pending -> {
-                    AuthPendingContent()
-                }
-
-                is RealAuthViewModel.UiState.Form -> {
-                    AuthFormContent(
-                        failReason = state.failReason,
-                        viewModel = viewModel
-                    )
-                }
-
+                is RealAuthViewModel.UiState.Passed -> PassedContent(onBack = onBack)
+                is RealAuthViewModel.UiState.Pending -> PendingContent(onBack = onBack)
+                is RealAuthViewModel.UiState.Form -> FormContent(
+                    failReason = state.failReason,
+                    viewModel = viewModel
+                )
                 else -> {}
             }
         }
     }
 }
 
-// ==================== 认证通过 ====================
+// ==================== 已认证 ====================
+
 @Composable
-private fun AuthPassedContent() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FFF0))
+private fun PassedContent(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Spacer(Modifier.height(40.dp))
+
+        // 成功图标
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(GreenLight),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.CheckCircle,
+                Icons.Default.VerifiedUser,
                 contentDescription = null,
-                tint = Color(0xFF52C41A),
-                modifier = Modifier.size(56.dp)
+                tint = Green,
+                modifier = Modifier.size(52.dp)
             )
-            Text("实名认证已通过", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("您的账号已完成实名认证，可以申请提现", color = Color.Gray)
         }
+
+        Spacer(Modifier.height(20.dp))
+
+        Text("实名认证已通过", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Gray900)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "您的账号已完成实名认证，可以正常使用全部功能",
+            fontSize = 15.sp,
+            color = Gray500,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+
+        Spacer(Modifier.height(32.dp))
+
+        // 权益卡片
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = GreenLight.copy(alpha = 0.3f))
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                BenefitRow(Icons.Default.Savings, "可申请提现，单笔最高 ¥5000")
+                BenefitRow(Icons.Default.VerifiedUser, "身份已核验，交易更安全")
+                BenefitRow(Icons.Default.Security, "享受平台安全保障服务")
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange)
+        ) {
+            Text("返回", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun BenefitRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Green, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(text, fontSize = 14.sp, color = Gray700)
     }
 }
 
 // ==================== 审核中 ====================
+
 @Composable
-private fun AuthPendingContent() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF7E6))
+private fun PendingContent(onBack: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 20.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+        Spacer(Modifier.height(40.dp))
+
+        Box(
+            modifier = Modifier
+                .size(100.dp)
+                .clip(CircleShape)
+                .background(AmberLight),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Pending,
+                Icons.Default.HourglassTop,
                 contentDescription = null,
-                tint = Color(0xFFFA8C16),
-                modifier = Modifier.size(56.dp)
+                tint = Amber,
+                modifier = Modifier.size(52.dp)
             )
-            Text("认证审核中", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text("预计1-2个工作日内完成审核", color = Color.Gray)
-            Text("审核通过后将收到站内消息通知", color = Color.Gray, fontSize = 13.sp)
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        Text("认证审核中", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Gray900)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "您的实名认证申请已提交，预计1-2个工作日内完成审核",
+            fontSize = 15.sp,
+            color = Gray500,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            "审核通过后将收到站内消息通知",
+            fontSize = 13.sp,
+            color = Gray400,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(40.dp))
+
+        // 审核进度条（模拟）
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("审核进度", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Gray900)
+
+                // 步骤 1：已提交 ✓
+                StepRow(icon = Icons.Default.CheckCircle, text = "资料已提交", active = true, color = Green)
+                StepConnector()
+                // 步骤 2：审核中 ○
+                StepRow(icon = Icons.Default.HourglassEmpty, text = "系统审核中", active = true, color = Amber)
+                StepConnector()
+                // 步骤 3：待完成 ○
+                StepRow(icon = Icons.Default.FiberManualRecord, text = "审核完成", active = false, color = Gray300)
+
+                Spacer(Modifier.height(4.dp))
+
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
+                    color = Amber,
+                    trackColor = Gray100
+                )
+                Spacer(Modifier.height(4.dp))
+                Text("预计剩余时间：1-2 个工作日", fontSize = 12.sp, color = Gray400)
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange)
+        ) {
+            Text("返回", fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }
     }
 }
 
-// ==================== 提交表单 ====================
 @Composable
-private fun AuthFormContent(
+private fun StepRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    active: Boolean,
+    color: Color
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text,
+            fontSize = 14.sp,
+            color = if (active) Gray900 else Gray400,
+            fontWeight = if (active) FontWeight.Medium else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+private fun StepConnector() {
+    Box(
+        modifier = Modifier
+            .padding(start = 9.dp)
+            .width(2.dp)
+            .height(20.dp)
+            .background(Gray100)
+    )
+}
+
+// ==================== 提交表单 ====================
+
+@Composable
+private fun FormContent(
     failReason: String?,
     viewModel: RealAuthViewModel
 ) {
     var realName by remember { mutableStateOf("") }
     var idCard by remember { mutableStateOf("") }
-    // 在真实实现中，照片上传需集成 COS SDK 先上传获取URL
+    var idCardFrontUri by remember { mutableStateOf<Uri?>(null) }
+    var idCardBackUri by remember { mutableStateOf<Uri?>(null) }
     var idCardFrontUrl by remember { mutableStateOf("") }
     var idCardBackUrl by remember { mutableStateOf("") }
 
     val isSubmitting by viewModel.isSubmitting.collectAsState()
+    val context = LocalContext.current
 
-    // 失败原因提示
-    if (failReason != null) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF1F0))
-        ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Icon(Icons.Default.Cancel, null, tint = Color.Red)
-                Column {
-                    Text("上次认证失败", fontWeight = FontWeight.Medium, color = Color.Red)
-                    Text(failReason, fontSize = 13.sp, color = Color.Gray)
-                }
-            }
+    // 身份证号格式实时校验
+    val idCardError = remember(idCard) {
+        if (idCard.isEmpty()) null
+        else if (!idCard.matches(Regex("^[1-9]\\d{5}(18|19|20)\\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\\d|3[01])\\d{3}[\\dXx]$")))
+            "身份证号格式不正确"
+        else null
+    }
+
+    // 图片选择器
+    val frontLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            idCardFrontUri = it
+            idCardFrontUrl = "https://placeholder.url/front.jpg"
+            // TODO: 上传到 COS 获取真实 URL
         }
     }
 
-    // 说明卡片
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F5FF))
+    val backLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            idCardBackUri = it
+            idCardBackUrl = "https://placeholder.url/back.jpg"
+            // TODO: 上传到 COS 获取真实 URL
+        }
+    }
+
+    Column(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // ── 失败原因提示 ──
+        if (failReason != null) {
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = RedLight)
             ) {
-                Icon(Icons.Default.HowToReg, null, tint = MaterialTheme.colorScheme.primary)
-                Text("为什么需要实名认证？", fontWeight = FontWeight.Medium)
-            }
-            Text("• 确保提现账户安全，防止资金风险", fontSize = 13.sp, color = Color.Gray)
-            Text("• 完成认证可享受更高提现额度", fontSize = 13.sp, color = Color.Gray)
-            Text("• 您的身份信息经加密存储，严格保密", fontSize = 13.sp, color = Color.Gray)
-        }
-    }
-
-    // 表单
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text("填写认证信息", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-
-            OutlinedTextField(
-                value = realName,
-                onValueChange = { realName = it },
-                label = { Text("真实姓名 *") },
-                placeholder = { Text("请输入真实姓名") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            OutlinedTextField(
-                value = idCard,
-                onValueChange = { if (it.length <= 18) idCard = it },
-                label = { Text("身份证号 *") },
-                placeholder = { Text("18位身份证号码") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-
-            Divider()
-
-            // 照片上传区域（简化实现，实际需要拍照/相册选取 + COS上传）
-            Text("上传证件照片", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                PhotoUploadBox(
-                    label = "身份证正面",
-                    photoUrl = idCardFrontUrl,
-                    modifier = Modifier.weight(1f),
-                    onUploadClick = {
-                        // TODO: 调起相机/相册，上传到COS后获取URL
-                        idCardFrontUrl = "https://placeholder.url/front.jpg"
-                    }
-                )
-                PhotoUploadBox(
-                    label = "身份证背面",
-                    photoUrl = idCardBackUrl,
-                    modifier = Modifier.weight(1f),
-                    onUploadClick = {
-                        idCardBackUrl = "https://placeholder.url/back.jpg"
-                    }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = {
-                    viewModel.submitRealAuth(realName, idCard, idCardFrontUrl, idCardBackUrl)
-                },
-                enabled = !isSubmitting && realName.isNotBlank() && idCard.length == 18
-                        && idCardFrontUrl.isNotBlank() && idCardBackUrl.isNotBlank(),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                shape = RoundedCornerShape(25.dp)
-            ) {
-                if (isSubmitting) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color.White,
-                        strokeWidth = 2.dp
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        Icons.Default.GppBad,
+                        contentDescription = null,
+                        tint = Red,
+                        modifier = Modifier.size(22.dp).padding(top = 1.dp)
                     )
-                } else {
-                    Text("提交认证", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Column {
+                        Text(
+                            "上次认证未通过，请修改后重新提交",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Red
+                        )
+                        Text(failReason, fontSize = 13.sp, color = Gray700)
+                    }
                 }
             }
         }
+
+        // ── 为什么需要实名认证 ──
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = OrangeBg)
+        ) {
+            Row(
+                modifier = Modifier.padding(14.dp),
+                verticalAlignment = Alignment.Top,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    Icons.Default.Security,
+                    contentDescription = null,
+                    tint = Orange,
+                    modifier = Modifier.size(22.dp).padding(top = 1.dp)
+                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("为什么需要认证？", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Gray900)
+                    Text("• 确保提现账户安全，防范资金风险", fontSize = 12.sp, color = Gray700)
+                    Text("• 信息经加密存储，严格保密", fontSize = 12.sp, color = Gray700)
+                }
+            }
+        }
+
+        // ── 表单卡片 ──
+        Card(
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text("填写身份信息", fontSize = 17.sp, fontWeight = FontWeight.SemiBold, color = Gray900)
+
+                // 姓名
+                OutlinedTextField(
+                    value = realName,
+                    onValueChange = { if (it.length <= 64) realName = it },
+                    label = { Text("真实姓名") },
+                    placeholder = { Text("请输入您的真实姓名", color = Gray400) },
+                    leadingIcon = { Icon(Icons.Default.Badge, null, tint = Orange) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Orange,
+                        focusedLabelColor = Orange,
+                        cursorColor = Orange
+                    )
+                )
+
+                // 身份证号
+                OutlinedTextField(
+                    value = idCard,
+                    onValueChange = {
+                        // 只允许数字和X
+                        val filtered = it.filter { c -> c.isDigit() || c.uppercaseChar() == 'X' }
+                        if (filtered.length <= 18) idCard = filtered.uppercase()
+                    },
+                    label = { Text("身份证号码") },
+                    placeholder = { Text("18位身份证号码", color = Gray400) },
+                    leadingIcon = { Icon(Icons.Default.CreditCard, null, tint = Orange) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = idCardError != null,
+                    supportingText = idCardError?.let { { Text(it, color = Red, fontSize = 12.sp) } },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Orange,
+                        focusedLabelColor = Orange,
+                        cursorColor = Orange
+                    )
+                )
+
+                HorizontalDivider(color = Gray100, thickness = 1.dp)
+
+                // 证件照片
+                Text("上传证件照片", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Gray900)
+                Text(
+                    "请确保照片清晰、四角完整、无反光",
+                    fontSize = 12.sp,
+                    color = Gray400
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    PhotoBox(
+                        label = "身份证正面",
+                        uri = idCardFrontUri,
+                        modifier = Modifier.weight(1f),
+                        onClick = { frontLauncher.launch("image/*") }
+                    )
+                    PhotoBox(
+                        label = "身份证背面",
+                        uri = idCardBackUri,
+                        modifier = Modifier.weight(1f),
+                        onClick = { backLauncher.launch("image/*") }
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // 提交按钮
+                val canSubmit = realName.isNotBlank()
+                        && idCardError == null
+                        && idCard.length == 18
+                        && idCardFrontUrl.isNotBlank()
+                        && idCardBackUrl.isNotBlank()
+
+                Button(
+                    onClick = {
+                        viewModel.submitRealAuth(realName, idCard, idCardFrontUrl, idCardBackUrl)
+                    },
+                    enabled = canSubmit && !isSubmitting,
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(25.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Orange,
+                        disabledContainerColor = Gray300
+                    )
+                ) {
+                    if (isSubmitting) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text("提交中...", fontSize = 16.sp)
+                    } else {
+                        Icon(Icons.Default.VerifiedUser, null, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("提交认证", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
     }
 }
 
+// ==================== 照片上传框 ====================
+
 @Composable
-private fun PhotoUploadBox(
+private fun PhotoBox(
     label: String,
-    photoUrl: String,
+    uri: Uri?,
     modifier: Modifier = Modifier,
-    onUploadClick: () -> Unit
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = modifier
-            .height(120.dp),
-        shape = RoundedCornerShape(8.dp),
-        onClick = onUploadClick
+        modifier = modifier.height(140.dp),
+        shape = RoundedCornerShape(12.dp),
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = if (uri == null)
+            androidx.compose.foundation.BorderStroke(1.5.dp, Gray300)
+        else
+            androidx.compose.foundation.BorderStroke(1.5.dp, Green)
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFFF5F5F5)),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            if (photoUrl.isBlank()) {
+            if (uri == null) {
+                // 未选择
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("+", fontSize = 28.sp, color = Color.Gray)
-                    Text(label, fontSize = 12.sp, color = Color.Gray)
+                    Icon(
+                        Icons.Default.AddPhotoAlternate,
+                        contentDescription = null,
+                        tint = Gray400,
+                        modifier = Modifier.size(36.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(label, fontSize = 13.sp, color = Gray500, textAlign = TextAlign.Center)
+                    Spacer(Modifier.height(2.dp))
+                    Text("点击上传", fontSize = 11.sp, color = Gray400)
                 }
             } else {
-                // TODO: 使用 Coil 加载照片
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF52C41A))
-                    Text(label, fontSize = 12.sp)
+                // 已选择，显示预览
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(uri)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = label,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                // 覆盖层：已上传标识
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.35f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(label, fontSize = 12.sp, color = Color.White)
+                        Text("点击重新上传", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f))
+                    }
                 }
             }
         }

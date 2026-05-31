@@ -2,8 +2,13 @@
   <div class="user-management">
     <!-- 页头 -->
     <div class="page-header">
-      <h2 class="page-title">用户管理</h2>
-      <p class="page-sub">C端注册用户列表 · 实名审核 · 封禁管理</p>
+      <div>
+        <h2 class="page-title">用户管理</h2>
+        <p class="page-sub">C端注册用户列表 · 实名审核 · 封禁管理</p>
+      </div>
+      <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+        新增用户
+      </el-button>
     </div>
 
     <!-- 搜索 & 筛选 -->
@@ -86,6 +91,18 @@
           </template>
         </el-table-column>
 
+        <el-table-column prop="realName" label="真实姓名" width="90" align="center">
+          <template #default="{ row }">
+            <span>{{ row.realName || '-' }}</span>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="idCard" label="身份证号" width="190" align="center">
+          <template #default="{ row }">
+            <span class="id-card-text">{{ row.idCard || '-' }}</span>
+          </template>
+        </el-table-column>
+
         <el-table-column label="账号状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
@@ -100,16 +117,27 @@
           </template>
         </el-table-column>
 
+        <el-table-column label="余额(元)" width="110" align="right">
+          <template #default="{ row }">
+            <span class="balance-text">
+              {{ row.balance != null ? Number(row.balance).toFixed(2) : '-' }}
+            </span>
+          </template>
+        </el-table-column>
+
         <el-table-column prop="createdAt" label="注册时间" width="160" align="center">
           <template #default="{ row }">
             {{ formatDate(row.createdAt) }}
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="190" align="center" fixed="right">
+        <el-table-column label="操作" width="260" align="center" fixed="right">
           <template #default="{ row }">
             <el-button size="small" text type="primary" @click="openDetailDialog(row)">
               详情
+            </el-button>
+            <el-button size="small" text type="warning" @click="openEditDialog(row)">
+              编辑
             </el-button>
             <!-- 实名审核按钮：仅审核中时显示 -->
             <el-button
@@ -162,11 +190,16 @@
         <el-descriptions-item label="手机号">{{ detailDialog.user?.phone }}</el-descriptions-item>
         <el-descriptions-item label="昵称">{{ detailDialog.user?.nickname || '未设置' }}</el-descriptions-item>
         <el-descriptions-item label="邀请码">{{ detailDialog.user?.inviteCode }}</el-descriptions-item>
+        <el-descriptions-item label="余额(元)">
+          {{ detailDialog.balance != null ? Number(detailDialog.balance).toFixed(2) : '-' }}
+        </el-descriptions-item>
         <el-descriptions-item label="实名状态">
           <el-tag :type="realAuthTagType(detailDialog.user?.realAuthStatus)" size="small">
             {{ realAuthLabel(detailDialog.user?.realAuthStatus) }}
           </el-tag>
         </el-descriptions-item>
+        <el-descriptions-item label="真实姓名">{{ detailDialog.user?.realName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="身份证号">{{ detailDialog.user?.idCard || '-' }}</el-descriptions-item>
         <el-descriptions-item label="账号状态">
           <el-tag :type="detailDialog.user?.status === 1 ? 'success' : 'danger'" size="small">
             {{ detailDialog.user?.status === 1 ? '正常' : '封禁' }}
@@ -179,6 +212,9 @@
 
       <template #footer>
         <el-button @click="detailDialog.visible = false">关闭</el-button>
+        <el-button type="primary" @click="openEarningsDialog(detailDialog.user!.id)">
+          查看流水
+        </el-button>
       </template>
     </el-dialog>
 
@@ -232,19 +268,145 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- ========== 新增/编辑用户弹窗 ========== -->
+    <el-dialog
+      v-model="userFormDialog.visible"
+      :title="userFormDialog.isEdit ? '编辑用户' : '新增用户'"
+      width="520px"
+      :close-on-click-modal="false"
+      @close="resetUserForm"
+    >
+      <el-form
+        ref="userFormRef"
+        :model="userForm"
+        :rules="userFormRules"
+        label-width="90px"
+      >
+        <el-form-item label="手机号" prop="phone">
+          <el-input
+            v-model="userForm.phone"
+            :disabled="userFormDialog.isEdit"
+            placeholder="请输入手机号"
+            maxlength="11"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="密码"
+          prop="password"
+        >
+          <el-input
+            v-model="userForm.password"
+            type="password"
+            show-password
+            :placeholder="userFormDialog.isEdit ? '不修改请留空' : '请输入密码（至少6位）'"
+          />
+        </el-form-item>
+
+        <el-form-item label="昵称" prop="nickname">
+          <el-input
+            v-model="userForm.nickname"
+            placeholder="请输入昵称（可选）"
+            maxlength="32"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item v-if="userFormDialog.isEdit" label="账号状态">
+          <el-radio-group v-model="userForm.status">
+            <el-radio :value="1">正常</el-radio>
+            <el-radio :value="0">封禁</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="userFormDialog.visible = false">取消</el-button>
+        <el-button type="primary" :loading="userFormDialog.loading" @click="submitUserForm">
+          确认
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- ========== 收益流水弹窗 ========== -->
+    <el-dialog
+      v-model="earningsDialog.visible"
+      title="收益流水"
+      width="780px"
+      :close-on-click-modal="false"
+    >
+      <el-table
+        v-loading="earningsDialog.loading"
+        :data="earningsDialog.list"
+        stripe
+        border
+        style="width: 100%"
+        empty-text="暂无收益记录"
+      >
+        <el-table-column prop="id" label="ID" width="70" align="center" />
+        <el-table-column label="类型" width="100" align="center">
+          <template #default="{ row }">
+            <el-tag size="small">{{ getEarningTypeLabel(row.type) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="金额(元)" width="110" align="right">
+          <template #default="{ row }">
+            <span :style="{ color: Number(row.amount) >= 0 ? '#67c23a' : '#f56c6c' }">
+              {{ formatAmount(row.amount) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="余额(元)" width="110" align="right">
+          <template #default="{ row }">
+            {{ formatBalance(row.balance_after) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="90" align="center">
+          <template #default="{ row }">
+            <el-tag :type="row.status === 1 ? 'success' : 'warning'" size="small">
+              {{ getEarningStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="remark" label="备注" min-width="120" />
+        <el-table-column label="时间" width="160" align="center">
+          <template #default="{ row }">
+            {{ formatDate(row.created_at) }}
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <el-pagination
+        v-model:current-page="earningsPagination.page"
+        v-model:page-size="earningsPagination.size"
+        :total="earningsDialog.total"
+        :page-sizes="[10, 20, 50]"
+        layout="total, sizes, prev, pager, next, jumper"
+        style="margin-top: 16px; justify-content: flex-end"
+        @size-change="handleEarningsPageChange"
+        @current-change="handleEarningsPageChange"
+      />
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, nextTick, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search, Refresh } from '@element-plus/icons-vue'
+import type { FormInstance } from 'element-plus'
+import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import {
   getUserList,
   getUserDetail,
+  createUser,
+  updateUser,
   toggleUserStatus,
   reviewRealAuth,
   getRealAuthDetail,
+  getUserBalance,
+  getUserEarnings,
   type UserItem
 } from '@/api/user'
 
@@ -278,8 +440,8 @@ async function loadUsers() {
     if (filterForm.realAuthStatus !== '') params.realAuthStatus = filterForm.realAuthStatus
 
     const res = await getUserList(params as any)
-    userList.value = res.data?.records ?? []
-    pagination.total = res.data?.total ?? 0
+    userList.value = (res as any)?.records ?? []
+    pagination.total = (res as any)?.total ?? 0
   } catch {
     ElMessage.error('加载用户列表失败')
   } finally {
@@ -313,12 +475,91 @@ async function toggleStatus(row: UserItem) {
 // ==================== 用户详情 ====================
 const detailDialog = reactive({
   visible: false,
-  user: null as UserItem | null
+  user: null as UserItem | null,
+  balance: null as number | null
 })
 
-function openDetailDialog(row: UserItem) {
+async function openDetailDialog(row: UserItem) {
   detailDialog.user = row
+  detailDialog.balance = null
   detailDialog.visible = true
+  // 加载余额
+  try {
+    const res = await getUserBalance(row.id)
+    detailDialog.balance = (res as any)?.balance ?? null
+  } catch {
+    detailDialog.balance = null
+  }
+}
+
+// ==================== 收益流水 ====================
+const earningsDialog = reactive({
+  visible: false,
+  userId: null as number | null,
+  loading: false,
+  list: [] as any[],
+  total: 0
+})
+
+const earningsPagination = reactive({
+  page: 1,
+  size: 10
+})
+
+async function openEarningsDialog(userId: number) {
+  earningsDialog.userId = userId
+  earningsDialog.visible = true
+  earningsDialog.list = []
+  earningsPagination.page = 1
+  await loadEarnings()
+}
+
+async function loadEarnings() {
+  if (!earningsDialog.userId) return
+  earningsDialog.loading = true
+  try {
+    const res = await getUserEarnings(earningsDialog.userId, {
+      page: earningsPagination.page,
+      size: earningsPagination.size
+    })
+    earningsDialog.list = (res as any)?.records ?? []
+    earningsDialog.total = (res as any)?.total ?? 0
+  } catch {
+    ElMessage.error('加载收益流水失败')
+  } finally {
+    earningsDialog.loading = false
+  }
+}
+
+function handleEarningsPageChange() {
+  loadEarnings()
+}
+
+function formatAmount(amount: number): string {
+  return Number(amount).toFixed(2)
+}
+
+function formatBalance(balance: number): string {
+  return Number(balance).toFixed(2)
+}
+
+function getEarningTypeLabel(type: number): string {
+  const map: Record<number, string> = {
+    1: '任务奖励',
+    2: '邀请奖励',
+    3: '提现',
+    4: '提现退回'
+  }
+  return map[type] ?? '未知'
+}
+
+function getEarningStatusLabel(status: number): string {
+  const map: Record<number, string> = {
+    0: '处理中',
+    1: '已到账',
+    2: '已取消'
+  }
+  return map[status] ?? '未知'
 }
 
 // ==================== 实名审核 ====================
@@ -374,6 +615,103 @@ async function submitRealAuthReview() {
   }
 }
 
+// ==================== 新增/编辑用户 ====================
+const userFormRef = ref<FormInstance>()
+const userFormDialog = reactive({
+  visible: false,
+  isEdit: false,
+  loading: false,
+  editUserId: null as number | null
+})
+
+const userForm = reactive({
+  phone: '',
+  password: '',
+  nickname: '',
+  status: 1 as number
+})
+
+// 密码在新增时必填，编辑时选填
+const userFormRules = computed(() => ({
+  phone: [
+    { required: true, message: '请输入手机号', trigger: 'blur' },
+    { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' }
+  ],
+  password: userFormDialog.isEdit
+    ? []
+    : [
+        { required: true, message: '请输入密码', trigger: 'blur' },
+        { min: 6, message: '密码长度不能少于6位', trigger: 'blur' }
+      ]
+}))
+
+function openCreateDialog() {
+  resetUserForm()
+  userFormDialog.isEdit = false
+  userFormDialog.visible = true
+}
+
+async function openEditDialog(row: UserItem) {
+  resetUserForm()
+  userFormDialog.isEdit = true
+  userFormDialog.editUserId = row.id
+  userForm.status = row.status
+  userFormDialog.visible = true
+
+  // 从详情接口获取真实手机号（列表数据是脱敏的）
+  try {
+    const res = await getUserDetail(row.id)
+    userForm.phone = (res as any)?.phone ?? ''
+    userForm.nickname = (res as any)?.nickname ?? ''
+  } catch {
+    // 降级：使用列表数据（手机号是脱敏的）
+    userForm.phone = row.phone
+    userForm.nickname = row.nickname || ''
+  }
+}
+
+async function submitUserForm() {
+  if (!userFormRef.value) return
+  const valid = await userFormRef.value.validate().catch(() => false)
+  if (!valid) return
+
+  userFormDialog.loading = true
+  try {
+    if (userFormDialog.isEdit) {
+      const data: Record<string, unknown> = {}
+      if (userForm.nickname !== '') data.nickname = userForm.nickname
+      if (userForm.password) data.newPassword = userForm.password
+      data.status = userForm.status
+      await updateUser(userFormDialog.editUserId!, data)
+      ElMessage.success('用户更新成功')
+    } else {
+      await createUser({
+        phone: userForm.phone,
+        password: userForm.password,
+        nickname: userForm.nickname || undefined
+      })
+      ElMessage.success('用户创建成功')
+      pagination.page = 1  // 新增后回到第一页
+    }
+    userFormDialog.visible = false
+    loadUsers()
+  } catch {
+    // 错误已由请求拦截器统一提示
+  } finally {
+    userFormDialog.loading = false
+  }
+}
+
+function resetUserForm() {
+  userForm.phone = ''
+  userForm.password = ''
+  userForm.nickname = ''
+  userForm.status = 1
+  nextTick(() => {
+    userFormRef.value?.resetFields()
+  })
+}
+
 // ==================== 工具函数 ====================
 function realAuthLabel(status?: number): string {
   const map: Record<number, string> = {
@@ -415,6 +753,9 @@ onMounted(() => {
 }
 
 .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
 }
 
@@ -473,5 +814,17 @@ onMounted(() => {
 .table-pagination {
   margin-top: 16px;
   justify-content: flex-end;
+}
+
+.balance-text {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: #303133;
+  font-weight: 500;
+}
+
+.id-card-text {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
 }
 </style>

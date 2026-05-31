@@ -15,13 +15,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 任务服务 - REST API
+ * 任务服务 - REST API（商户/管理员接口）
  *
  * 商户接口：发布任务、查看自己的任务、上下架
- * 用户接口：任务大厅（后续）
  */
 @RestController
-@RequestMapping("/api/task")
+@RequestMapping("/task")
 @RequiredArgsConstructor
 public class TaskController {
 
@@ -29,11 +28,11 @@ public class TaskController {
 
     /**
      * 发布任务
-     * POST /api/task
-     * 权限：商户管理员
+     * POST /task
+     * 权限：超管 + 商户管理员（超管发布时 merchantId 为 null）
      */
     @PostMapping
-    @PreAuthorize("hasRole('MERCHANT_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
     public ApiResponse<Map<String, Object>> publish(
             @AuthenticationPrincipal JwtClaims currentUser,
             @RequestBody TaskService.PublishTaskRequest req) {
@@ -48,7 +47,7 @@ public class TaskController {
 
     /**
      * 任务列表（分页 + 筛选）
-     * GET /api/task?page=1&size=20&status=&platform=&taskType=
+     * GET /task?page=1&size=20&status=&platform=&taskType=
      * 商户：只看自己的；超管：看全部
      */
     @GetMapping
@@ -79,7 +78,7 @@ public class TaskController {
 
     /**
      * 任务详情
-     * GET /api/task/{taskId}
+     * GET /task/{taskId}
      */
     @GetMapping("/{taskId}")
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
@@ -94,7 +93,7 @@ public class TaskController {
 
     /**
      * 上下架任务
-     * PUT /api/task/{taskId}/status
+     * PUT /task/{taskId}/status
      * 权限：商户管理员（只能操作自己的任务）
      */
     @PutMapping("/{taskId}/status")

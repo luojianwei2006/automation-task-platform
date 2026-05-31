@@ -8,9 +8,12 @@ export interface UserItem {
   nickname: string
   avatarUrl: string
   realAuthStatus: number // 0未认证 1审核中 2已认证 3失败
+  realName?: string   // 真实姓名
+  idCard?: string     // 脱敏身份证号
   inviteCode: string
   status: number      // 0封禁 1正常
   createdAt: string
+  balance?: number    // 余额
 }
 
 export interface UserListParams {
@@ -38,6 +41,19 @@ export function getUserDetail(userId: number) {
   return request.get<UserItem>(`/users/${userId}`)
 }
 
+/** 新增C端用户（管理员操作）*/
+export function createUser(data: { phone: string; password: string; nickname?: string }) {
+  return request.post('/users', data)
+}
+
+/** 编辑C端用户（可重置密码）*/
+export function updateUser(
+  userId: number,
+  data: { nickname?: string; newPassword?: string; status?: number }
+) {
+  return request.put(`/users/${userId}`, data)
+}
+
 /** 封禁/解封用户 */
 export function toggleUserStatus(userId: number, enable: boolean) {
   return request.put(`/users/${userId}/status`, { enable })
@@ -55,4 +71,14 @@ export function reviewRealAuth(
 /** 获取用户实名认证详情 */
 export function getRealAuthDetail(userId: number) {
   return request.get(`/users/${userId}/real-auth`)
+}
+
+/** 获取用户当前余额 */
+export function getUserBalance(userId: number) {
+  return request.get<any>(`/users/${userId}/balance`)
+}
+
+/** 分页获取用户收益流水 */
+export function getUserEarnings(userId: number, params: { page?: number; size?: number }) {
+  return request.get<any>(`/users/${userId}/earnings`, { params })
 }

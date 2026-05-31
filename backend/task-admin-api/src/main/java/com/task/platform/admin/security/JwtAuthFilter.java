@@ -17,19 +17,43 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * JWT认证过滤器（管理后台）
  * 解析 Authorization: Bearer {token}，验证后注入 SecurityContext
+ *
+ * 通过 SecurityConfig 的 addFilterBefore 注册，不添加 @Component
+ * 以避免成为全局 Servlet 过滤器导致 shouldNotFilter() 失效
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final AdminUserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
+
+    // 公开路径列表（无需 Token 即可访问）
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/admin/auth/login",
+            "/uploads/"
+    );
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+        
+        // 放过 OPTIONS 请求（CORS 预检请求）
+        if ("OPTIONS".equalsIgnoreCase(method)) {
+            return true;
+        }
+        
+        // 放过公开路径
+        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -38,7 +62,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
 
-        // 无Token，直接放行（公开端点由 SecurityConfig 控制）
+        // 无Token，直接放行（公开端点由 shouldNotFilter 控制，这里只处理需要认证的请求）
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
@@ -75,11 +99,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
-            Map<String, Object> errorBody = Map.of(
-                    "code", 401,
-                    "msg", "Token无效或已过期，请重新登录",
-                    "data", null
-            );
+            // ✅ 使用 HashMap 而非 Map.of()，因为 HashMap 允许 null 值
+            Map<String, Object> errorBody = new HashMap<>();
+            errorBody.put("code", 401);
+            errorBody.put("msg", "Token无效或已过期，请重新登录");
+            errorBody.put("data", null);
+
             response.getWriter().write(objectMapper.writeValueAsString(errorBody));
         }
     }

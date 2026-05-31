@@ -12,7 +12,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 3. 对账（微信支付/支付宝）
  * 4. 任务奖励发放
  */
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = "com.task.platform")
 public class PayServiceApplication {
 
     public static void main(String[] args) {

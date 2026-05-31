@@ -1,17 +1,22 @@
 package com.task.platform.network
 
 import android.content.Context
+import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
+import com.task.platform.model.EarningsRecord
+import com.task.platform.model.EarningsSummary
+import com.task.platform.model.LoginResponse
+import com.task.platform.model.PageResponse
+import com.task.platform.model.TaskDTO
+import com.task.platform.model.TaskRecordDTO
 import com.task.platform.service.RealAuthStatus
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import okhttp3.MultipartBody
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import java.util.concurrent.TimeUnit
-import com.task.platform.model.LoginResponse
-import com.task.platform.model.PageResponse
-import com.task.platform.model.TaskDTO
-import com.task.platform.model.EarningsSummary
 
 /**
  * API接口定义
@@ -19,46 +24,62 @@ import com.task.platform.model.EarningsSummary
  */
 interface ApiService {
 
-    // ========== 认证模块 ==========
+    // ==================== 认证模块 ====================
 
     /** 发送验证码 */
-    @POST("api/v1/auth/sms/send")
+    @POST("api/user/auth/sms/send")
     suspend fun sendSmsCode(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Void>
 
     /** 用户注册 */
-    @POST("api/v1/auth/register")
+    @POST("api/user/auth/register")
     suspend fun register(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<LoginResponse>
 
     /** 密码登录 */
-    @POST("api/v1/auth/login")
+    @POST("api/user/auth/login")
     suspend fun login(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<LoginResponse>
 
     /** 验证码登录 */
-    @POST("api/v1/auth/login/sms")
+    @POST("api/user/auth/login/sms")
     suspend fun loginWithSms(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<LoginResponse>
 
-    // ========== 用户信息模块（第3-6周新增） ==========
+    // ==================== 用户信息模块（第3-6周新增） ====================
 
     /** 获取用户实名认证状态 */
-    @GET("api/v1/user/real-auth/status")
+    @GET("api/user/real-auth/status")
     suspend fun getRealAuthStatus(): ApiResponse<RealAuthStatus>
 
     /** 提交实名认证 */
-    @POST("api/v1/user/real-auth")
+    @POST("api/user/real-auth")
     suspend fun submitRealAuth(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Void>
 
     /** 更新用户资料 */
-    @PUT("api/v1/user/profile")
+    @PUT("api/user/profile")
     suspend fun updateProfile(@Body body: Map<String, @JvmSuppressWildcards String?>): ApiResponse<Void>
 
+    /** 获取用户资料（返回 Map，含 nickname/avatarUrl/phone 等） */
+    @GET("api/user/profile")
+    suspend fun getUserProfile(): ApiResponse<Map<String, @JvmSuppressWildcards Any>>
+
     /** 获取邀请链接 */
-    @GET("api/v1/user/invite/link")
+    @GET("api/user/invite/link")
     suspend fun getInviteLink(): ApiResponse<Map<String, String>>
 
-    // ========== 任务模块 ==========
+    /** 修改密码 */
+    @PUT("api/user/password")
+    suspend fun changePassword(@Body body: Map<String, @JvmSuppressWildcards String>): ApiResponse<Void>
+
+    /** 绑定钱包 */
+    @POST("api/user/wallet/bind")
+    suspend fun bindWallet(@Body body: Map<String, @JvmSuppressWildcards String>): ApiResponse<Void>
+
+    /** 解绑钱包 */
+    @DELETE("api/user/wallet/{type}")
+    suspend fun unbindWallet(@Path("type") type: Int): ApiResponse<Void>
+
+    // ==================== 任务模块 ====================
 
     /** 任务列表（分页+筛选） */
-    @GET("api/v1/tasks")
+    @GET("api/task/tasks")
     suspend fun getTasks(
         @Query("platform") platform: Int?,
         @Query("type") type: Int?,
@@ -67,18 +88,69 @@ interface ApiService {
     ): ApiResponse<PageResponse<TaskDTO>>
 
     /** 任务详情 */
-    @GET("api/v1/tasks/{id}")
+    @GET("api/task/tasks/{id}")
     suspend fun getTaskDetail(@Path("id") id: Long): ApiResponse<TaskDTO>
 
     /** 接受任务 */
-    @POST("api/v1/tasks/{id}/accept")
+    @POST("api/task/tasks/{id}/accept")
     suspend fun acceptTask(@Path("id") id: Long): ApiResponse<Void>
 
-    // ========== 收益模块 ==========
+    /** 放弃任务 */
+    @POST("api/task/tasks/{id}/abandon")
+    suspend fun abandonTask(@Path("id") id: Long): ApiResponse<Void>
+
+    /** 我的任务记录 */
+    @GET("api/task/tasks/records")
+    suspend fun getMyTasks(
+        @Query("page") page: Int = 1,
+        @Query("size") size: Int = 20
+    ): ApiResponse<PageResponse<TaskDTO>>
+
+    /** 提交任务截图 */
+    @POST("api/task/tasks/{id}/submit")
+    suspend fun submitTask(
+        @Path("id") id: Long,
+        @Body body: Map<String, @JvmSuppressWildcards Any>
+    ): ApiResponse<Void>
+
+    /** 获取当前用户对指定任务的记录 */
+    @GET("api/task/tasks/{id}/record")
+    suspend fun getTaskRecord(@Path("id") id: Long): ApiResponse<TaskRecordDTO>
+
+    /** 获取任务记录详情 */
+    @GET("api/task/tasks/records/{recordId}")
+    suspend fun getTaskRecordDetail(@Path("recordId") recordId: Long): ApiResponse<TaskRecordDTO>
+
+    // ==================== 收益模块 ====================
 
     /** 收益概览 */
-    @GET("api/v1/earnings/summary")
+    @GET("api/user/earnings/summary")
     suspend fun getEarningsSummary(): ApiResponse<EarningsSummary>
+
+    /** 收益明细记录 */
+    @GET("api/user/earnings/records")
+    suspend fun getEarningsRecords(
+        @Query("type") type: Int? = null,
+        @Query("page") page: Int = 1,
+        @Query("size") size: Int = 20
+    ): ApiResponse<PageResponse<EarningsRecord>>
+
+    // ==================== 文件上传 ====================
+
+    /** 上传收款码 */
+    @Multipart
+    @POST("api/user/upload/wallet-qrcode")
+    suspend fun uploadWalletQrcode(
+        @Part file: MultipartBody.Part
+    ): ApiResponse<String>
+
+    /** 提交任务截图（一步完成：上传文件 + 提交审核） */
+    @Multipart
+    @POST("api/task/tasks/{id}/submit-with-upload")
+    suspend fun submitWithUpload(
+        @Path("id") id: Long,
+        @Part parts: List<MultipartBody.Part>
+    ): ApiResponse<Void>
 }
 
 /**
@@ -89,7 +161,7 @@ interface ApiService {
  *   ApiClient.setToken(token)         // 登录成功后设置Token
  */
 object ApiClient {
-    private const val BASE_URL = "https://api.taskplatform.com/"
+    private const val BASE_URL = BuildConfig.BASE_URL
 
     private var _instance: ApiService? = null
     private var token: String = ""
@@ -98,7 +170,7 @@ object ApiClient {
     val apiService: ApiService
         get() {
             if (_instance == null) {
-                _instance = createApiWithoutContext()
+                _instance = createApiService()
             }
             return _instance!!
         }
@@ -116,15 +188,29 @@ object ApiClient {
         _instance = null
     }
 
-    private fun createApiWithoutContext(): ApiService {
+    private fun createApiService(): ApiService {
+        // 添加日志拦截器
+        val loggingInterceptor = HttpLoggingInterceptor { message ->
+            android.util.Log.d("ApiClient", "OkHttp: $message")
+        }.apply {
+            level = HttpLoggingInterceptor.Level.BODY // 打印完整请求和响应
+        }
+
         val client = OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor) // 添加日志拦截器
             .addInterceptor { chain ->
                 val original = chain.request()
                 val builder = original.newBuilder()
                 if (token.isNotEmpty()) {
                     builder.addHeader("Authorization", "Bearer $token")
                 }
-                chain.proceed(builder.build())
+                android.util.Log.d("ApiClient", "===== 发送请求 =====")
+                android.util.Log.d("ApiClient", "URL: ${original.url}")
+                android.util.Log.d("ApiClient", "Method: ${original.method}")
+                builder.build().let { request ->
+                    android.util.Log.d("ApiClient", "Headers: ${request.headers}")
+                    chain.proceed(request)
+                }
             }
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
