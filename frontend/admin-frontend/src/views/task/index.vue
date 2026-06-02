@@ -535,7 +535,12 @@ function getImagesFromRecord(record: any): string[] {
   if (!record || !record.screenshotUrl) {
     return []
   }
-  return record.screenshotUrl.split(',').filter((url: string) => url.trim() !== '')
+  return record.screenshotUrl.split(',').filter((url: string) => url.trim() !== '').map((url: string) => {
+    // 相对路径加 /api 前缀过 Vite proxy → Gateway
+    const trimmed = url.trim()
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed
+    return '/api' + (trimmed.startsWith('/') ? trimmed : '/' + trimmed)
+  })
 }
 // 加载商户列表（用于发布/编辑任务时的下拉选择）
 async function loadMerchantList() {
@@ -855,12 +860,13 @@ async function customUpload(options: any) {
   uploadLoading.value = true
 
   try {
-    const url = await uploadImage(file)
-    if (!url) {
+    const result = await uploadImage(file)
+    if (!result || !result.accessUrl) {
       throw new Error('上传成功但未返回图片地址')
     }
-    imageUrls.value.push(url)
-    onSuccess(url)
+    // 存储 accessUrl 用于图片展示，relativePath 用于提交到后端
+    imageUrls.value.push(result.accessUrl)
+    onSuccess(result.accessUrl)
     ElMessage.success('上传成功')
   } catch (error: any) {
     ElMessage.error(error.message || '上传失败')

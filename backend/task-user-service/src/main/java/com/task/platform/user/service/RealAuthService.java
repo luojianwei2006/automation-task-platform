@@ -71,6 +71,8 @@ public class RealAuthService {
 
         user.setRealName(req.getRealName());
         user.setIdCard(encryptedIdCard);
+        user.setIdCardFrontUrl(req.getIdCardFrontUrl());
+        user.setIdCardBackUrl(req.getIdCardBackUrl());
         user.setRealAuthStatus(STATUS_PENDING);
 
         userMapper.updateById(user);

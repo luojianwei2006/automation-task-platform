@@ -36,12 +36,6 @@ spring:
           max-active: 8
           min-idle: 0
 
-# 文件上传路径配置
-file:
-  upload:
-    path: /Users/luojianwei/WorkBuddy/automation_project/uploads
-    url-prefix: http://localhost:8084/uploads
-
 mybatis-plus:
   configuration:
     map-underscore-to-camel-case: true

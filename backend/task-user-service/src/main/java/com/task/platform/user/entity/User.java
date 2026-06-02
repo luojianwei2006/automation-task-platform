@@ -34,6 +34,14 @@ public class User {
     /** 身份证号（AES加密） */
     private String idCard;
 
+    /** 身份证正面照URL */
+    @TableField("id_card_front_url")
+    private String idCardFrontUrl;
+
+    /** 身份证背面照URL */
+    @TableField("id_card_back_url")
+    private String idCardBackUrl;
+
     /**
      * 实名认证状态：0未认证 1审核中 2已认证 3失败
      */

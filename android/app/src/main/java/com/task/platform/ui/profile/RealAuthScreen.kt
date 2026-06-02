@@ -335,6 +335,8 @@ private fun FormContent(
     var idCardBackUri by remember { mutableStateOf<Uri?>(null) }
     var idCardFrontUrl by remember { mutableStateOf("") }
     var idCardBackUrl by remember { mutableStateOf("") }
+    var uploadingFront by remember { mutableStateOf(false) }
+    var uploadingBack by remember { mutableStateOf(false) }
 
     val isSubmitting by viewModel.isSubmitting.collectAsState()
     val context = LocalContext.current
@@ -353,8 +355,16 @@ private fun FormContent(
     ) { uri: Uri? ->
         uri?.let {
             idCardFrontUri = it
-            idCardFrontUrl = "https://placeholder.url/front.jpg"
-            // TODO: 上传到 COS 获取真实 URL
+            uploadingFront = true
+            viewModel.uploadIdCardImage(it) { success, url ->
+                uploadingFront = false
+                if (success) {
+                    idCardFrontUrl = url
+                } else {
+                    // 上传失败，uri 仍可本地预览但不提交
+                    idCardFrontUrl = ""
+                }
+            }
         }
     }
 
@@ -363,8 +373,16 @@ private fun FormContent(
     ) { uri: Uri? ->
         uri?.let {
             idCardBackUri = it
-            idCardBackUrl = "https://placeholder.url/back.jpg"
-            // TODO: 上传到 COS 获取真实 URL
+            uploadingBack = true
+            viewModel.uploadIdCardImage(it) { success, url ->
+                uploadingBack = false
+                if (success) {
+                    idCardBackUrl = url
+                } else {
+                    // 上传失败，uri 仍可本地预览但不提交
+                    idCardBackUrl = ""
+                }
+            }
         }
     }
 
@@ -495,12 +513,14 @@ private fun FormContent(
                     PhotoBox(
                         label = "身份证正面",
                         uri = idCardFrontUri,
+                        uploading = uploadingFront,
                         modifier = Modifier.weight(1f),
                         onClick = { frontLauncher.launch("image/*") }
                     )
                     PhotoBox(
                         label = "身份证背面",
                         uri = idCardBackUri,
+                        uploading = uploadingBack,
                         modifier = Modifier.weight(1f),
                         onClick = { backLauncher.launch("image/*") }
                     )
@@ -514,6 +534,8 @@ private fun FormContent(
                         && idCard.length == 18
                         && idCardFrontUrl.isNotBlank()
                         && idCardBackUrl.isNotBlank()
+                        && !uploadingFront
+                        && !uploadingBack
 
                 Button(
                     onClick = {
@@ -554,6 +576,7 @@ private fun FormContent(
 private fun PhotoBox(
     label: String,
     uri: Uri?,
+    uploading: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
@@ -561,6 +584,7 @@ private fun PhotoBox(
         modifier = modifier.height(140.dp),
         shape = RoundedCornerShape(12.dp),
         onClick = onClick,
+        enabled = !uploading,
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = if (uri == null)
             androidx.compose.foundation.BorderStroke(1.5.dp, Gray300)
@@ -571,7 +595,18 @@ private fun PhotoBox(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            if (uri == null) {
+            if (uploading) {
+                // 上传中
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(32.dp),
+                        color = Orange,
+                        strokeWidth = 2.5.dp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text("上传中...", fontSize = 12.sp, color = Orange)
+                }
+            } else if (uri == null) {
                 // 未选择
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(

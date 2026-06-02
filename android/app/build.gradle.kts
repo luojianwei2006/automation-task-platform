@@ -31,7 +31,7 @@ android {
         }
         debug {
             // 开发环境API地址 - 模拟器访问本地后端
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8080/\"")
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8085/\"")
         }
     }
 

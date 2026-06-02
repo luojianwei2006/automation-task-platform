@@ -25,14 +25,18 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -52,6 +56,7 @@ import coil.compose.AsyncImage
 import com.task.platform.model.UserInfo
 import com.task.platform.navigation.TaskRoutes
 import com.task.platform.viewmodel.ProfileViewModel
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 
@@ -81,6 +86,7 @@ fun ProfileScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userInfo by viewModel.userInfo.collectAsState()
+    val context = LocalContext.current
     val realAuthStatus by viewModel.realAuthStatus.collectAsState()
     val balance by viewModel.balance.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -100,6 +106,18 @@ fun ProfileScreen(
             }
             viewModel.resetLogoutSuccess()
         }
+    }
+
+    // 自动模式选择弹窗
+    var showAutoModeDialog by remember { mutableStateOf(false) }
+    val currentMode = userInfo?.autoMode ?: 0
+
+    // 消息通知 & 关于我们
+    var showNotificationDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+    @Suppress("DEPRECATION")
+    val appVersion = remember {
+        try { context.packageManager.getPackageInfo(context.packageName, 0).versionName } catch (_: Exception) { "1.0.0" }
     }
 
     Column(
@@ -130,13 +148,20 @@ fun ProfileScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     if (!userInfo?.avatarUrl.isNullOrBlank()) {
+                        val url = userInfo!!.avatarUrl
+                        android.util.Log.d("Profile", "ProfileScreen: loading avatarUrl=$url")
                         AsyncImage(
-                            model = userInfo!!.avatarUrl,
+                            model = url,
                             contentDescription = "头像",
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(CircleShape),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            onLoading = { android.util.Log.d("Profile", "AsyncImage loading: $url") },
+                            onError = {
+                                android.util.Log.e("Profile", "AsyncImage error: $url, ${it.result.throwable?.message}")
+                            },
+                            onSuccess = { android.util.Log.d("Profile", "AsyncImage success: $url") }
                         )
                     } else {
                         Icon(
@@ -233,8 +258,8 @@ fun ProfileScreen(
                     MenuItemRow(
                         icon = MenuIcon.AutoMode,
                         title = "自动模式",
-                        subtitle = "手动",
-                        onClick = { /* TODO */ }
+                        subtitle = when (currentMode) { 1 -> "半自动" 2 -> "深度自动" else -> "手动" },
+                        onClick = { showAutoModeDialog = true }
                     )
                 }
             }
@@ -250,13 +275,13 @@ fun ProfileScreen(
                     MenuItemRow(
                         icon = MenuIcon.Notification,
                         title = "消息通知",
-                        onClick = { /* TODO */ }
+                        onClick = { showNotificationDialog = true }
                     )
                     MenuDivider()
                     MenuItemRow(
                         icon = MenuIcon.About,
                         title = "关于我们",
-                        onClick = { /* TODO */ }
+                        onClick = { showAboutDialog = true }
                     )
                     MenuDivider()
                     MenuItemRow(
@@ -310,6 +335,99 @@ fun ProfileScreen(
             inviteCode = inviteCode,
             inviteUrl = inviteUrl,
             onDismiss = { viewModel.dismissInviteDialog() }
+        )
+    }
+
+    if (showAutoModeDialog) {
+        val options = listOf("手动", "半自动", "深度自动")
+        val scope = rememberCoroutineScope()
+        AlertDialog(
+            onDismissRequest = { showAutoModeDialog = false },
+            title = { Text("选择自动模式", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    options.forEachIndexed { index, label ->
+                        val selected = currentMode == index
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp)
+                                .clickable {
+                                    scope.launch {
+                                        viewModel.updateAutoMode(index) { success, msg ->
+                                            if (!success) {
+                                                // Toast handled by caller if needed
+                                            }
+                                        }
+                                    }
+                                    showAutoModeDialog = false
+                                },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (selected) HallOrangeBg else Color.Transparent
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(
+                                    selected = selected,
+                                    onClick = null,
+                                    colors = RadioButtonDefaults.colors(selectedColor = HallOrange)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAutoModeDialog = false }) {
+                    Text("关闭")
+                }
+            }
+        )
+    }
+
+    // ─── 消息通知弹窗 ───
+    if (showNotificationDialog) {
+        var pushEnabled by remember { mutableStateOf(true) }
+        var soundEnabled by remember { mutableStateOf(true) }
+        AlertDialog(
+            onDismissRequest = { showNotificationDialog = false },
+            title = { Text("消息通知", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("推送通知"); Switch(checked = pushEnabled, onCheckedChange = { pushEnabled = it })
+                    }
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
+                        Text("声音提醒"); Switch(checked = soundEnabled, onCheckedChange = { soundEnabled = it })
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showNotificationDialog = false }) { Text("关闭") } }
+        )
+    }
+
+    // ─── 关于我们弹窗 ───
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = { Text("关于我们", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text("自动化任务平台", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("版本 $appVersion", fontSize = 13.sp, color = Gray500)
+                    Spacer(Modifier.height(12.dp))
+                    Text("高效完成自动化任务，轻松赚取收益", fontSize = 13.sp, color = Gray700)
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showAboutDialog = false }) { Text("关闭") } }
         )
     }
 }

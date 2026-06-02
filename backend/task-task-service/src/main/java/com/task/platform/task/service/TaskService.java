@@ -308,7 +308,7 @@ public class TaskService {
      * 提交任务截图
      */
     @Transactional(rollbackFor = Exception.class)
-    public UserTaskRecord submitTask(Long userId, Long taskId, String screenshotUrl, Double latitude, Double longitude) {
+    public UserTaskRecord submitTask(Long userId, Long taskId, List<String> screenshotUrls, Double latitude, Double longitude) {
         // 1. 查找任务记录
         LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
                 .eq(UserTaskRecord::getUserId, userId)
@@ -335,7 +335,10 @@ public class TaskService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "提交次数已达上限");
         }
 
-        // 5. 更新截图URL、提交次数、状态
+        // 5. 更新截图URL（多个URL用逗号拼接）、提交次数、状态
+        String screenshotUrl = screenshotUrls != null && !screenshotUrls.isEmpty()
+                ? String.join(",", screenshotUrls)
+                : "";
         record.setScreenshotUrl(screenshotUrl);
         record.setSubmitCount(record.getSubmitCount() + 1);
         record.setStatus(1); // 待审核
@@ -493,7 +496,7 @@ public class TaskService {
 
     @Data
     public static class SubmitTaskRequest {
-        private String screenshotUrl;
+        private List<String> screenshotUrls;
         private Double latitude;
         private Double longitude;
     }

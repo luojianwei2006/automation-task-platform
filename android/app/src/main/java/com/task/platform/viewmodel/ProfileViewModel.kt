@@ -1,5 +1,7 @@
 package com.task.platform.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
@@ -8,11 +10,15 @@ import com.task.platform.network.ApiClient
 import com.task.platform.repository.UserRepository
 import com.task.platform.storage.DataStoreManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 /**
@@ -21,7 +27,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val dataStoreManager: DataStoreManager,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _userInfo = MutableStateFlow<UserInfo?>(null)
@@ -90,6 +97,7 @@ class ProfileViewModel @Inject constructor(
                         avatarUrl = profile["avatarUrl"] as? String ?: _userInfo.value?.avatarUrl,
                         realAuthStatus = (profile["realAuthStatus"] as? Double)?.toInt()
                             ?: _userInfo.value?.realAuthStatus ?: 0,
+                        autoMode = (profile["autoMode"] as? Double)?.toInt() ?: _userInfo.value?.autoMode ?: 0,
                         inviteCode = profile["inviteCode"] as? String ?: _userInfo.value?.inviteCode,
                         wechatAccount = profile["wechatAccount"] as? String ?: _userInfo.value?.wechatAccount,
                         alipayAccount = profile["alipayAccount"] as? String ?: _userInfo.value?.alipayAccount,
@@ -104,6 +112,7 @@ class ProfileViewModel @Inject constructor(
                         inviteCode = profile["inviteCode"] as? String
                     )
                     _userInfo.value = updated
+                    android.util.Log.d("Profile", "loadProfile updated: avatarUrl=${updated.avatarUrl}, nickname=${updated.nickname}")
                     _realAuthStatus.value = updated.realAuthStatus
                     dataStoreManager.saveUserInfo(Gson().toJson(updated))
 
@@ -233,6 +242,39 @@ class ProfileViewModel @Inject constructor(
     // ==================== 编辑资料 ====================
 
     /**
+     * 上传头像到 upload-service
+     * callback: (success, accessUrl)
+     */
+    fun uploadAvatar(uri: Uri, callback: (Boolean, String) -> Unit) {
+        android.util.Log.d("Profile", "uploadAvatar start, uri=$uri")
+        viewModelScope.launch {
+            kotlin.runCatching {
+                val inputStream = appContext.contentResolver.openInputStream(uri)
+                    ?: throw Exception("无法读取图片")
+                val bytes = inputStream.use { it.readBytes() }
+                android.util.Log.d("Profile", "uploadAvatar fileSize=${bytes.size}")
+                val requestBody = bytes.toRequestBody("image/*".toMediaTypeOrNull())
+                val filename = "avatar_" + System.currentTimeMillis() + ".jpg"
+                val part = MultipartBody.Part.createFormData("file", filename, requestBody)
+                val typeRb = "avatar".toRequestBody("text/plain".toMediaTypeOrNull())
+                val resp = ApiClient.apiService.uploadImage(part, typeRb)
+                android.util.Log.d("Profile", "uploadAvatar response code=${resp.code}, data=${resp.data}")
+                if (resp.code == 200 && resp.data != null) {
+                    val url = resp.data.accessUrl
+                    android.util.Log.d("Profile", "uploadAvatar success, accessUrl=$url, relativePath=${resp.data.relativePath}")
+                    callback(true, url)
+                } else {
+                    android.util.Log.e("Profile", "uploadAvatar failed: code=${resp.code}, msg=${resp.msg}")
+                    callback(false, resp.msg ?: "上传失败")
+                }
+            }.onFailure {
+                android.util.Log.e("Profile", "uploadAvatar error", it)
+                callback(false, it.message ?: "网络错误")
+            }
+        }
+    }
+
+    /**
      * 更新用户资料
      * callback: (success, message)
      */
@@ -241,6 +283,7 @@ class ProfileViewModel @Inject constructor(
         avatarUrl: String,
         callback: (Boolean, String) -> Unit
     ) {
+        android.util.Log.d("Profile", "updateProfile nickname=$nickname, avatarUrl=$avatarUrl")
         viewModelScope.launch {
             kotlin.runCatching {
                 val body = mapOf<String, String?>(
@@ -253,6 +296,27 @@ class ProfileViewModel @Inject constructor(
                     callback(true, "更新成功")
                 } else {
                     callback(false, response.msg ?: "更新失败")
+                }
+            }.onFailure {
+                callback(false, it.message ?: "网络错误")
+            }
+        }
+    }
+
+    /**
+     * 更新自动模式
+     * @param mode 0=手动, 1=半自动, 2=深度自动
+     */
+    fun updateAutoMode(mode: Int, callback: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            kotlin.runCatching {
+                val body = mapOf<String, String?>("autoMode" to mode.toString())
+                val response = ApiClient.apiService.updateProfile(body)
+                if (response.code == 200) {
+                    loadProfile()
+                    callback(true, "切换成功")
+                } else {
+                    callback(false, response.msg ?: "切换失败")
                 }
             }.onFailure {
                 callback(false, it.message ?: "网络错误")
@@ -329,7 +393,9 @@ class ProfileViewModel @Inject constructor(
                             val profile = profileResp.data
                             val updated = _userInfo.value?.copy(
                                 wechatAccount = if (type == 1) null else _userInfo.value?.wechatAccount,
-                                alipayAccount = if (type == 2) null else _userInfo.value?.alipayAccount
+                                alipayAccount = if (type == 2) null else _userInfo.value?.alipayAccount,
+                                wechatQrcode = if (type == 1) null else _userInfo.value?.wechatQrcode,
+                                alipayQrcode = if (type == 2) null else _userInfo.value?.alipayQrcode
                             )
                             if (updated != null) {
                                 _userInfo.value = updated
@@ -340,6 +406,71 @@ class ProfileViewModel @Inject constructor(
                     callback(true, "已解绑")
                 } else {
                     callback(false, response.msg ?: "解绑失败")
+                }
+            }.onFailure {
+                callback(false, it.message ?: "网络错误")
+            }
+        }
+    }
+
+    /**
+     * 绑定/更新收款账户（传入 Uri，内部先上传图片）
+     * callback: (success, message)
+     */
+    fun bindWalletWithUri(
+        type: Int,
+        account: String,
+        uri: Uri,
+        callback: (Boolean, String) -> Unit
+    ) {
+        viewModelScope.launch {
+            kotlin.runCatching {
+                // 1. 将 Uri 转为 MultipartBody.Part
+                val inputStream = appContext.contentResolver.openInputStream(uri)
+                    ?: throw Exception("无法读取图片文件")
+                val bytes = inputStream.use { it.readBytes() }
+                val requestBody = bytes.toRequestBody("image/*".toMediaTypeOrNull(), 0, bytes.size)
+                val filename = "wallet_" + System.currentTimeMillis() + ".jpg"
+                val part = MultipartBody.Part.createFormData("file", filename, requestBody)
+
+                // 2. 上传图片
+                val uploadResp = ApiClient.apiService.uploadWalletQrcode(part)
+                if (uploadResp.code != 200 || uploadResp.data == null) {
+                    throw Exception(uploadResp.msg ?: "上传图片失败")
+                }
+                val qrcodeUrl = uploadResp.data.relativePath
+
+                // 3. 调用绑定 API
+                val body = mutableMapOf<String, String>("type" to type.toString())
+                if (account.isNotBlank()) body["account"] = account
+                body["qrcodeUrl"] = qrcodeUrl
+
+                val response = ApiClient.apiService.bindWallet(body)
+                if (response.code == 200) {
+                    // 刷新用户信息
+                    kotlin.runCatching {
+                        val profileResp = ApiClient.apiService.getUserProfile()
+                        if (profileResp.code == 200 && profileResp.data != null) {
+                            val profile = profileResp.data
+                            val updated = _userInfo.value?.copy(
+                                wechatAccount = profile["wechatAccount"] as? String
+                                    ?: _userInfo.value?.wechatAccount,
+                                alipayAccount = profile["alipayAccount"] as? String
+                                    ?: _userInfo.value?.alipayAccount,
+                                wechatQrcode = profile["wechatQrcode"] as? String
+                                    ?: _userInfo.value?.wechatQrcode,
+                                alipayQrcode = profile["alipayQrcode"] as? String
+                                    ?: _userInfo.value?.alipayQrcode
+                            )
+                            if (updated != null) {
+                                _userInfo.value = updated
+                                dataStoreManager.saveUserInfo(Gson().toJson(updated))
+                            }
+                        }
+                    }
+                    callback(true, "绑定成功")
+                } else {
+                    callback(false, response.msg ?: "绑定失败")
                 }
             }.onFailure {
                 callback(false, it.message ?: "网络错误")

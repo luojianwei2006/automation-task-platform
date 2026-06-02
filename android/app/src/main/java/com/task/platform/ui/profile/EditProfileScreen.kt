@@ -54,7 +54,15 @@ import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.task.platform.R
 import com.task.platform.viewmodel.ProfileViewModel
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 编辑资料屏幕
@@ -71,8 +79,12 @@ fun EditProfileScreen(
 
     var nickname by remember { mutableStateOf("") }
     var avatarUrl by remember { mutableStateOf("") }
+    var avatarLocalUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var showImagePicker by remember { mutableStateOf(false) }
     var showSaveConfirm by remember { mutableStateOf(false) }
+    var uploadingAvatar by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     // 初始化：从 userInfo 恢复
     LaunchedEffect(userInfo) {
@@ -82,12 +94,25 @@ fun EditProfileScreen(
         }
     }
 
-    // 图片选择器
+    // 图片选择器 — 选图后立刻显示本地预览，同时后台上传
     val pickImageLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             uri?.let {
-                avatarUrl = it.toString()
+                android.util.Log.d("Profile", "EditProfile: picked image uri=$it")
+                avatarLocalUri = it       // 立即显示本地图片
+                uploadingAvatar = true
+                scope.launch {
+                    viewModel.uploadAvatar(it) { success, url ->
+                        uploadingAvatar = false
+                        android.util.Log.d("Profile", "EditProfile: upload result success=$success, url=$url")
+                        if (success) {
+                            avatarUrl = url
+                        } else {
+                            android.widget.Toast.makeText(context, "头像上传失败", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             }
         }
     )
@@ -133,7 +158,21 @@ fun EditProfileScreen(
                         .clickable { showImagePicker = true },
                     tonalElevation = 2.dp,
                 ) {
-                    if (avatarUrl.isNotBlank()) {
+                    if (avatarLocalUri != null) {
+                        ThumbnailImage(
+                            uri = avatarLocalUri!!,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // 上传中蒙层
+                        if (uploadingAvatar) {
+                            Box(
+                                modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                            }
+                        }
+                    } else if (avatarUrl.isNotBlank()) {
                         AsyncImage(
                             model = avatarUrl,
                             contentDescription = "头像",
@@ -183,17 +222,6 @@ fun EditProfileScreen(
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // 头像 URL 输入（简化版，实际应上传）
-            Text(text = "头像链接（可选）", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = avatarUrl,
-                onValueChange = { avatarUrl = it },
-                placeholder = { Text("请输入头像链接") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
         }
     }
 
@@ -234,7 +262,12 @@ fun EditProfileScreen(
                     onClick = {
                         showSaveConfirm = false
                         viewModel.updateProfile(nickname, avatarUrl) { success, msg ->
-                            // 可以在这里处理保存结果
+                            if (success) {
+                                android.widget.Toast.makeText(context, "保存成功", android.widget.Toast.LENGTH_SHORT).show()
+                                navController.popBackStack()
+                            } else {
+                                android.widget.Toast.makeText(context, msg.ifBlank { "保存失败" }, android.widget.Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     enabled = !isLoading
@@ -252,5 +285,50 @@ fun EditProfileScreen(
                 }
             }
         )
+    }
+}
+
+/** 从本地 URI 加载并显示图片（与 WalletBindingScreen 相同实现） */
+@Composable
+private fun ThumbnailImage(uri: Uri, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    var bitmap by remember(uri) { mutableStateOf<ImageBitmap?>(null) }
+    var errored by remember(uri) { mutableStateOf(false) }
+
+    LaunchedEffect(uri) {
+        try {
+            val result = withContext(Dispatchers.IO) {
+                var bmp: android.graphics.Bitmap? = null
+                try {
+                    val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+                    if (pfd != null) {
+                        val opts = BitmapFactory.Options().apply { inSampleSize = 2 }
+                        bmp = BitmapFactory.decodeFileDescriptor(pfd.fileDescriptor, null, opts)
+                        pfd.close()
+                    }
+                } catch (_: Exception) { }
+                if (bmp == null) {
+                    try {
+                        context.contentResolver.openInputStream(uri)?.use { stream ->
+                            bmp = BitmapFactory.decodeStream(stream, null, BitmapFactory.Options().apply { inSampleSize = 2 })
+                        }
+                    } catch (_: Exception) { }
+                }
+                bmp?.asImageBitmap()
+            }
+            bitmap = result
+            errored = (result == null)
+        } catch (_: Exception) {
+            errored = true
+        }
+    }
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        val bmp = bitmap
+        when {
+            bmp != null -> Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+            errored -> Text("加载失败", fontSize = 10.sp, color = androidx.compose.ui.graphics.Color.Gray)
+            else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        }
     }
 }

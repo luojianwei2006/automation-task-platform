@@ -1,8 +1,8 @@
 import axios from 'axios'
 
-// 上传专用 axios 实例 —— 直连 admin-api，绕过 Gateway（Gateway 基于 WebFlux，无法正确转发 multipart 请求体）
+// 上传专用 axios 实例 —— 直连 upload-service，绕过 Gateway（Gateway 基于 WebFlux，无法正确转发 multipart 请求体）
 const uploadRequest = axios.create({
-  baseURL: import.meta.env.VITE_UPLOAD_BASE_URL || 'http://localhost:8084',
+  baseURL: import.meta.env.VITE_UPLOAD_BASE_URL || 'http://localhost:8086',
   timeout: 60000,
 })
 
@@ -48,24 +48,40 @@ uploadRequest.interceptors.response.use(
   }
 )
 
-// 文件上传 API
+// ==================== 类型定义 ====================
+
+/** 文件上传结果（与后端 UploadResult 对应） */
+export interface UploadResult {
+  /** 相对路径，格式: /upload/uploads/{type}/{filename}，用于存入数据库 */
+  relativePath: string
+  /** 客户端可直接访问的 URL，格式: /api/upload/uploads/{type}/{filename} */
+  accessUrl: string
+  /** 原始文件名 */
+  filename: string
+  /** 文件大小（字节） */
+  size: number
+}
+
+// ==================== 文件上传 API ====================
 
 /**
  * 上传单张图片
+ * @returns UploadResult（响应拦截器自动提取 res.data）
  */
-export function uploadImage(file: File) {
+export function uploadImage(file: File): Promise<UploadResult> {
   const formData = new FormData()
   formData.append('file', file)
-  return uploadRequest.post<string>('/admin/upload/image', formData)
+  return uploadRequest.post('/upload/image', formData)
 }
 
 /**
  * 上传多张图片（最多4张）
+ * @returns UploadResult[]（响应拦截器自动提取 res.data）
  */
-export function uploadImages(files: File[]) {
+export function uploadImages(files: File[]): Promise<UploadResult[]> {
   const formData = new FormData()
   files.forEach((file) => {
     formData.append('files', file)
   })
-  return uploadRequest.post<string[]>('/admin/upload/images', formData)
+  return uploadRequest.post('/upload/images', formData)
 }

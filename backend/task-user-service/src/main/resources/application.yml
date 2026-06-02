@@ -40,11 +40,9 @@ jwt:
   secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890
   expiration: 2592000000  # 30天（毫秒）
 
-# 文件上传配置
-file:
-  upload:
-    path: /Users/luojianwei/Documents/Workbuddy/automation_project/uploads/user
-    url-prefix: http://10.0.2.2:8080/api/user/uploads
+# 应用基础域名（拼接钱包图片等相对路径时使用）
+app:
+  upload-domain: http://10.0.2.2:8085
 
 # 日志配置
 logging:

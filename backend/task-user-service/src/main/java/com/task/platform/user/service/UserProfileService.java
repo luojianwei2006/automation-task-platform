@@ -12,6 +12,7 @@ import com.task.platform.user.mapper.InviteRelationMapper;
 import com.task.platform.user.mapper.UserMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +29,10 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UserProfileService {
+
+    /** 上传域名前缀（用于拼接钱包图片等相对路径） */
+    @Value("${app.upload-domain:http://10.0.2.2:8085}")
+    private String uploadDomain;
 
     private final UserMapper userMapper;
     private final InviteRelationMapper inviteRelationMapper;
@@ -68,6 +73,11 @@ public class UserProfileService {
 
         if (req.getAvatarUrl() != null && !req.getAvatarUrl().isBlank()) {
             user.setAvatarUrl(req.getAvatarUrl().trim());
+            updated = true;
+        }
+
+        if (req.getAutoMode() != null) {
+            user.setAutoMode(req.getAutoMode());
             updated = true;
         }
 
@@ -272,14 +282,15 @@ public class UserProfileService {
         vo.setId(user.getId());
         vo.setPhone(maskPhone(user.getPhone()));
         vo.setNickname(user.getNickname());
-        vo.setAvatarUrl(user.getAvatarUrl());
+        vo.setAvatarUrl(prependDomain(user.getAvatarUrl()));
         vo.setRealAuthStatus(user.getRealAuthStatus());
         vo.setInviteCode(user.getInviteCode());
         // 收款账户脱敏展示（只显示前3后2）
         vo.setWechatAccount(maskAccount(user.getWechatAccount()));
         vo.setAlipayAccount(maskAccount(user.getAlipayAccount()));
-        vo.setWechatQrcode(user.getWechatQrcode());
-        vo.setAlipayQrcode(user.getAlipayQrcode());
+        // 收款码相对路径拼接域名后返回（如果已是完整URL则保持不变）
+        vo.setWechatQrcode(prependDomain(user.getWechatQrcode()));
+        vo.setAlipayQrcode(prependDomain(user.getAlipayQrcode()));
         vo.setAutoMode(user.getAutoMode());
         vo.setCreatedAt(user.getCreatedAt());
         // 查询当前余额（t_user_earnings 最新一条记录的 balance_after）
@@ -296,5 +307,21 @@ public class UserProfileService {
     private String maskAccount(String account) {
         if (account == null || account.length() < 5) return account;
         return account.substring(0, 3) + "***" + account.substring(account.length() - 2);
+    }
+
+    /**
+     * 拼接上传域名到相对路径
+     * 如果路径为 null/空、或已是完整 URL（http/https 开头），则保持不变
+     * 如果路径已包含 /api/ 前缀，直接拼接域名；否则补 /api
+     */
+    private String prependDomain(String path) {
+        if (path == null || path.isBlank()) return path;
+        if (path.startsWith("http://") || path.startsWith("https://")) return path;
+        String base = uploadDomain.endsWith("/") ? uploadDomain.substring(0, uploadDomain.length() - 1) : uploadDomain;
+        String rel = path.startsWith("/") ? path : "/" + path;
+        if (rel.startsWith("/api/")) {
+            return base + rel;          // 已有 /api 前缀，直接拼域名
+        }
+        return base + "/api" + rel;     // 补 /api 前缀
     }
 }

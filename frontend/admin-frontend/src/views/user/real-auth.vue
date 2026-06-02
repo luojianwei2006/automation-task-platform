@@ -110,7 +110,7 @@
     <el-dialog
       v-model="reviewDialog.visible"
       title="实名认证审核"
-      width="500px"
+      width="650px"
       :close-on-click-modal="false"
     >
       <el-descriptions :column="2" border>
@@ -121,6 +121,26 @@
         </el-descriptions-item>
         <el-descriptions-item label="身份证号">
           <span class="id-card-font">{{ reviewDialog.detail?.idCardMasked }}</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="身份证正面">
+          <el-image
+            v-if="reviewDialog.detail?.idCardFrontUrl"
+            :src="reviewDialog.detail.idCardFrontUrl"
+            style="width:120px;height:80px;border-radius:4px"
+            fit="cover"
+            :preview-src-list="[reviewDialog.detail.idCardFrontUrl]"
+          />
+          <span v-else style="color:#c0c4cc">未上传</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="身份证背面">
+          <el-image
+            v-if="reviewDialog.detail?.idCardBackUrl"
+            :src="reviewDialog.detail.idCardBackUrl"
+            style="width:120px;height:80px;border-radius:4px"
+            fit="cover"
+            :preview-src-list="[reviewDialog.detail.idCardBackUrl]"
+          />
+          <span v-else style="color:#c0c4cc">未上传</span>
         </el-descriptions-item>
         <el-descriptions-item label="当前状态">
           <el-tag :type="statusTagType(reviewDialog.row?.realAuthStatus)" size="small">
@@ -219,7 +239,7 @@ const reviewDialog = reactive({
   visible: false,
   loading: false,
   row: null as UserItem | null,
-  detail: null as { realName: string; idCardMasked: string } | null,
+  detail: null as { realName: string; idCardMasked: string; idCardFrontUrl?: string; idCardBackUrl?: string } | null,
   balance: null as number | null
 })
 

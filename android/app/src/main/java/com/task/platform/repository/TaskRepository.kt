@@ -92,12 +92,14 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    /** 提交任务截图+定位 */
+    /** 提交任务截图+定位（JSON body） */
     suspend fun submitTask(id: Long, screenshotUrl: String, latitude: Double?, longitude: Double?): Result<Void?> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val body = mutableMapOf<String, Any>("screenshotUrl" to screenshotUrl)
-            latitude?.let { body["latitude"] = it }
-            longitude?.let { body["longitude"] = it }
+            val body = mutableMapOf<String, Any>(
+                "screenshotUrls" to listOf(screenshotUrl),
+                "latitude" to (latitude ?: 0),
+                "longitude" to (longitude ?: 0)
+            )
             val response = apiClient.apiService.submitTask(id, body)
             if (response.code == 200) {
                 Result.success(null)
@@ -151,14 +153,14 @@ class TaskRepository @Inject constructor(
         }
     }
 
-    // ==================== 文件上传 + 任务提交（一步完成）====================
+    // ==================== 文件上传 + 任务提交（分步完成）====================
 
     /**
      * Uri → MultipartBody.Part（用于文件上传）
      * @param uri 图片 Uri
-     * @param fieldName 表单字段名（默认 "files"）
+     * @param fieldName 表单字段名（默认 "file"，upload-service 单文件上传用 "file"）
      */
-    private fun uriToMultipartBodyPart(uri: Uri, fieldName: String = "files"): MultipartBody.Part {
+    private fun uriToMultipartBodyPart(uri: Uri, fieldName: String = "file"): MultipartBody.Part {
         val inputStream: InputStream = appContext.contentResolver.openInputStream(uri)!!
         val bytes = inputStream.readBytes()
         inputStream.close()
@@ -168,7 +170,11 @@ class TaskRepository @Inject constructor(
     }
 
     /**
-     * 一步完成：上传截图 + 提交任务
+     * 分步完成：逐个上传截图 → JSON 提交任务
+     *
+     * 步骤1: 逐个调用 upload-service 的 /upload/image 上传截图
+     * 步骤2: 拿到的 relativePath 列表通过 JSON body 提交到 task-service 的 /tasks/{id}/submit
+     *
      * @param taskId 任务ID
      * @param uris 截图 Uri 列表
      * @param latitude 纬度（可空）
@@ -181,28 +187,30 @@ class TaskRepository @Inject constructor(
         longitude: Double?
     ): Result<Void?> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val parts = mutableListOf<MultipartBody.Part>()
-
-            // 添加截图文件（字段名 "files"，与后端 @RequestParam("files") 对应）
-            uris.forEach { uri ->
-                parts.add(uriToMultipartBodyPart(uri, "files"))
+            // 步骤1: 逐个上传截图
+            val urls = mutableListOf<String>()
+            val typeRb = "screenshot".toRequestBody("text/plain".toMediaTypeOrNull())
+            for (uri in uris) {
+                val part = uriToMultipartBodyPart(uri, "file")
+                val resp = apiClient.apiService.uploadImage(part, typeRb)
+                if (resp.code == 200 && resp.data != null) {
+                    urls.add(resp.data.relativePath)
+                } else {
+                    return@withContext Result.failure(Exception(resp.msg ?: "上传截图失败"))
+                }
             }
 
-            // 添加定位信息（可选）
-            latitude?.let {
-                val body = it.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                parts.add(MultipartBody.Part.createFormData("latitude", null, body))
-            }
-            longitude?.let {
-                val body = it.toString().toRequestBody("text/plain".toMediaTypeOrNull())
-                parts.add(MultipartBody.Part.createFormData("longitude", null, body))
-            }
-
-            val response = apiClient.apiService.submitWithUpload(taskId, parts)
-            if (response.code == 200) {
+            // 步骤2: JSON 提交任务
+            val body = mutableMapOf<String, Any>(
+                "screenshotUrls" to urls,
+                "latitude" to (latitude ?: 0),
+                "longitude" to (longitude ?: 0)
+            )
+            val submitResp = apiClient.apiService.submitTask(taskId, body)
+            if (submitResp.code == 200) {
                 Result.success(null)
             } else {
-                Result.failure(Exception(response.msg ?: "未知错误"))
+                Result.failure(Exception(submitResp.msg ?: "提交任务失败"))
             }
         } catch (e: Exception) {
             Result.failure(e)

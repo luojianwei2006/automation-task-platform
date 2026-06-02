@@ -403,4 +403,12 @@ private fun parseImages(json: String?): List<String> {
     } catch (e: Exception) { emptyList() }
 }
 
-private fun mapImageUrl(url: String) = url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+private fun mapImageUrl(url: String): String {
+    // 已是完整 URL
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+    }
+    // 相对路径，拼接 base URL（去掉尾部 /）
+    val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
+    return base + (if (url.startsWith("/")) url else "/$url")
+}

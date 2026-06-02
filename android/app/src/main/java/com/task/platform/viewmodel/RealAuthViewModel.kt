@@ -1,14 +1,21 @@
 package com.task.platform.viewmodel
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.task.platform.network.ApiClient
 import com.task.platform.repository.UserRepository
 import com.task.platform.service.RealAuthStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import javax.inject.Inject
 
 /**
@@ -16,7 +23,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class RealAuthViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     sealed class UiState {
@@ -82,6 +90,37 @@ class RealAuthViewModel @Inject constructor(
                     _uiState.value = UiState.Error(it.message ?: "提交失败，请稍后重试")
                 }
             _isSubmitting.value = false
+        }
+    }
+
+    /**
+     * 上传身份证照片到 COS
+     *
+     * @param uri      本地图片 URI
+     * @param callback  回调 (success: Boolean, urlOrErrorMsg: String)
+     */
+    fun uploadIdCardImage(uri: Uri, callback: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            kotlin.runCatching {
+                val inputStream = appContext.contentResolver.openInputStream(uri)
+                    ?: throw Exception("无法读取图片")
+                val bytes = inputStream.use { it.readBytes() }
+                val requestBody = bytes.toRequestBody("image/*".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData(
+                    "file",
+                    "idcard_${System.currentTimeMillis()}.jpg",
+                    requestBody
+                )
+                val typeRb = "idcard".toRequestBody("text/plain".toMediaTypeOrNull())
+                val resp = ApiClient.apiService.uploadImage(part, typeRb)
+                if (resp.code == 200 && resp.data != null) {
+                    callback(true, resp.data.relativePath)
+                } else {
+                    callback(false, resp.msg ?: "上传失败")
+                }
+            }.onFailure {
+                callback(false, it.message ?: "网络错误")
+            }
         }
     }
 

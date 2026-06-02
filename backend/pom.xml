@@ -29,6 +29,7 @@
         <module>task-pay-service</module>
         <module>task-admin-api</module>
         <module>task-job</module>
+        <module>task-upload-service</module>
     </modules>
 
     <properties>

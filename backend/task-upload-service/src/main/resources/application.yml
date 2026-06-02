@@ -1,0 +1,26 @@
+server:
+  port: 8086
+  tomcat:
+    max-swallow-size: 10MB
+
+spring:
+  application:
+    name: task-upload-service
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 20MB
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+
+file:
+  upload:
+    path: /Users/luojianwei/Documents/Workbuddy/automation_project/uploads
+    url-prefix: /api/upload/uploads
+
+logging:
+  level:
+    com.task.platform.upload: DEBUG

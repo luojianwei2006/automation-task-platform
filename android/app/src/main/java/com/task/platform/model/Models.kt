@@ -31,6 +31,7 @@ data class UserInfo(
     val nickname: String?,
     val avatarUrl: String?,
     @SerializedName("realAuthStatus") val realAuthStatus: Int,
+    val autoMode: Int = 0,
     @SerializedName("inviteCode") val inviteCode: String?,
     @SerializedName("wechatAccount") val wechatAccount: String? = null,
     @SerializedName("alipayAccount") val alipayAccount: String? = null,
@@ -93,6 +94,16 @@ data class EarningsSummary(
 /**
  * 收益明细记录
  */
+/**
+ * 文件上传结果（与后端 UploadResult 对应）
+ */
+data class UploadResult(
+    @SerializedName("relativePath") val relativePath: String,
+    @SerializedName("accessUrl") val accessUrl: String,
+    @SerializedName("filename") val filename: String,
+    @SerializedName("size") val size: Long
+)
+
 data class EarningsRecord(
     val id: Long,
     /** 1任务收益 2邀请奖励 3提现 4其他 */
@@ -101,4 +112,19 @@ data class EarningsRecord(
     /** 正数=收入 负数=支出 */
     val amount: Double,
     val createdAt: String
+)
+
+/** 提现记录 */
+data class WithdrawRecord(
+    val id: Long,
+    @SerializedName("withdrawNo") val withdrawNo: String,
+    val amount: Double,
+    val method: String,
+    val account: String?,
+    @SerializedName("realName") val realName: String?,
+    val status: Int,
+    @SerializedName("rejectReason") val rejectReason: String?,
+    @SerializedName("transferVoucherUrl") val transferVoucherUrl: String?,
+    @SerializedName("createdAt") val createdAt: String,
+    @SerializedName("processedAt") val processedAt: String?
 )

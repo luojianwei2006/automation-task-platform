@@ -1,5 +1,6 @@
 server:
-  port: 8080
+  port: 8085
+  address: 0.0.0.0
   servlet:
     context-path: /
 
@@ -11,17 +12,17 @@ spring:
   cloud:
     gateway:
       routes:
-        # 用户认证服务路由（注册/登录/验证码）
+        # 用户认证服务路由（注册/登录/验证码/实名认证/钱包绑定）
         - id: task-user-service
-          uri: http://localhost:8081
+          uri: http://127.0.0.1:8081
           predicates:
             - Path=/api/user/**
           filters:
             - StripPrefix=1  # 移除 /api 前缀，转发 /user/** 到 user-service
 
-        # 用户信息服务路由
+        # 用户信息服务路由（ Profile 相关）
         - id: task-user-info-service
-          uri: http://localhost:8081
+          uri: http://127.0.0.1:8081
           predicates:
             - Path=/api/user-info/**
           filters:
@@ -29,7 +30,7 @@ spring:
 
         # 任务服务路由
         - id: task-task-service
-          uri: http://localhost:8083
+          uri: http://127.0.0.1:8082
           predicates:
             - Path=/api/task/**
           filters:
@@ -37,15 +38,31 @@ spring:
 
         # 支付服务路由
         - id: task-pay-service
-          uri: http://localhost:8083
+          uri: http://127.0.0.1:8083
           predicates:
             - Path=/api/pay/**
           filters:
             - StripPrefix=1
 
+        # 文件上传服务路由
+        - id: task-upload-service
+          uri: http://127.0.0.1:8086
+          predicates:
+            - Path=/api/upload/**
+          filters:
+            - StripPrefix=1
+
+        # 管理后台文件访问路由（提现凭证等静态文件）
+        - id: admin-uploads
+          uri: http://127.0.0.1:8084
+          predicates:
+            - Path=/api/uploads/**
+          filters:
+            - StripPrefix=1
+
         # 管理后台 API 路由
         - id: task-admin-api
-          uri: http://localhost:8084
+          uri: http://127.0.0.1:8084
           predicates:
             - Path=/api/admin/**
           filters:

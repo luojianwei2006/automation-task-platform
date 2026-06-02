@@ -1,0 +1,53 @@
+classDiagram
+    class UploadServiceApplication {
+        +main(String[] args) void
+    }
+
+    class UploadProperties {
+        -String path
+        -String urlPrefix
+        +getPath() String
+        +getUrlPrefix() String
+    }
+
+    class FileStorageService {
+        <<interface>>
+        +upload(MultipartFile file, String type) String
+        +getAccessUrl(String relativePath) String
+        +delete(String relativePath) boolean
+    }
+
+    class LocalFileStorageService {
+        -UploadProperties properties
+        +upload(MultipartFile file, String type) String
+        +getAccessUrl(String relativePath) String
+        +delete(String relativePath) boolean
+        -validateFile(MultipartFile file) void
+        -generateFilename(String originalFilename) String
+        -ensureDirectory(Path dir) void
+    }
+
+    class StaticResourceConfig {
+        -UploadProperties properties
+        +addResourceHandlers(ResourceHandlerRegistry registry) void
+    }
+
+    class UploadController {
+        -FileStorageService storageService
+        +uploadImage(MultipartFile file, String type) ApiResponse~UploadResult~
+        +uploadImages(MultipartFile[] files) ApiResponse~List~UploadResult~~
+        +uploadWalletQrcode(MultipartFile file) ApiResponse~UploadResult~
+    }
+
+    class UploadResult {
+        -String relativePath
+        -String accessUrl
+        -String filename
+        -Long size
+    }
+
+    FileStorageService <|.. LocalFileStorageService : implements
+    UploadController --> FileStorageService : uses
+    UploadController --> UploadResult : returns
+    LocalFileStorageService --> UploadProperties : reads config
+    StaticResourceConfig --> UploadProperties : reads config

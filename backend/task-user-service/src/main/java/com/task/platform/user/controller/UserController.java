@@ -127,6 +127,9 @@ public class UserController {
 
         @Size(max = 512, message = "头像URL过长")
         private String avatarUrl;
+
+        /** 自动化模式：0手动 1半自动 2深度自动 */
+        private Integer autoMode;
     }
 
     /** 绑定收款账户请求 */

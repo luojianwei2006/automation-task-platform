@@ -58,6 +58,8 @@ public class AdminUserService {
             idCard = idCard.substring(11);
         }
         vo.setIdCardMasked(maskIdCard(idCard));
+        vo.setIdCardFrontUrl(toAccessUrl(user.getIdCardFrontUrl()));
+        vo.setIdCardBackUrl(toAccessUrl(user.getIdCardBackUrl()));
         vo.setStatusDesc(getStatusDesc(vo.getStatus()));
         return vo;
     }
@@ -197,6 +199,8 @@ public class AdminUserService {
         private String statusDesc;
         private String realName;
         private String idCardMasked;
+        private String idCardFrontUrl;
+        private String idCardBackUrl;
     }
 
     // =================== 私有工具 ===================
@@ -215,6 +219,16 @@ public class AdminUserService {
     /**
      * 身份证脱敏：保留前6位和后4位
      */
+    /**
+     * 将相对路径转为客户端可访问的 URL（拼 /api 前缀走 Gateway）
+     * 已为 http 开头的完整 URL 则保持不变
+     */
+    private String toAccessUrl(String path) {
+        if (path == null || path.isBlank()) return path;
+        if (path.startsWith("http://") || path.startsWith("https://")) return path;
+        return "/api" + (path.startsWith("/") ? path : "/" + path);
+    }
+
     private String maskIdCard(String idCard) {
         if (idCard == null || idCard.length() != 18) return idCard;
         return idCard.substring(0, 6) + "********" + idCard.substring(14);

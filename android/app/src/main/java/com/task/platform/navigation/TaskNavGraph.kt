@@ -147,5 +147,10 @@ fun TaskNavGraph(
         composable(TaskRoutes.EARNINGS) {
             EarningsScreen(navController = navController)
         }
+
+        // ===== 提现页 =====
+        composable(TaskRoutes.WITHDRAW) {
+            com.task.platform.ui.earnings.WithdrawScreen(navController = navController)
+        }
     }
 }

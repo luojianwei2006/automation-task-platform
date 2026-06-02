@@ -3,12 +3,14 @@ package com.task.platform.network
 import android.content.Context
 import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
+import com.task.platform.model.WithdrawRecord
 import com.task.platform.model.EarningsRecord
 import com.task.platform.model.EarningsSummary
 import com.task.platform.model.LoginResponse
 import com.task.platform.model.PageResponse
 import com.task.platform.model.TaskDTO
 import com.task.platform.model.TaskRecordDTO
+import com.task.platform.model.UploadResult
 import com.task.platform.service.RealAuthStatus
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -67,6 +69,14 @@ interface ApiService {
     /** 修改密码 */
     @PUT("api/user/password")
     suspend fun changePassword(@Body body: Map<String, @JvmSuppressWildcards String>): ApiResponse<Void>
+
+    /** 申请提现 */
+    @POST("api/user/withdraw/apply")
+    suspend fun applyWithdraw(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Void>
+
+    /** 提现记录 */
+    @GET("api/user/withdraw/records")
+    suspend fun getWithdrawRecords(): ApiResponse<List<WithdrawRecord>>
 
     /** 绑定钱包 */
     @POST("api/user/wallet/bind")
@@ -137,20 +147,20 @@ interface ApiService {
 
     // ==================== 文件上传 ====================
 
-    /** 上传收款码 */
+    /** 上传收款码（迁移至 task-upload-service） */
     @Multipart
-    @POST("api/user/upload/wallet-qrcode")
+    @POST("api/upload/wallet-qrcode")
     suspend fun uploadWalletQrcode(
         @Part file: MultipartBody.Part
-    ): ApiResponse<String>
+    ): ApiResponse<UploadResult>
 
-    /** 提交任务截图（一步完成：上传文件 + 提交审核） */
+    /** 上传单张图片（迁移至 task-upload-service） */
     @Multipart
-    @POST("api/task/tasks/{id}/submit-with-upload")
-    suspend fun submitWithUpload(
-        @Path("id") id: Long,
-        @Part parts: List<MultipartBody.Part>
-    ): ApiResponse<Void>
+    @POST("api/upload/image")
+    suspend fun uploadImage(
+        @Part file: MultipartBody.Part,
+        @Part("type") type: okhttp3.RequestBody
+    ): ApiResponse<UploadResult>
 }
 
 /**

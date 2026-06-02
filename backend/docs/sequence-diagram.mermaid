@@ -1,0 +1,28 @@
+sequenceDiagram
+    actor Client
+    participant GW as Gateway (8085)
+    participant CT as UploadController
+    participant LS as LocalFileStorageService
+    participant FS as FileSystem
+
+    Client->>GW: POST /api/upload/image<br/>Authorization: Bearer {token}<br/>multipart: file + type
+    GW->>GW: JwtAuthGlobalFilter 校验 Token
+    GW->>GW: StripPrefix=1, 路径变为 /upload/image
+    GW->>CT: POST /upload/image → 8086
+
+    CT->>CT: 校验 file 非空
+    CT->>LS: upload(file, type)
+
+    LS->>LS: validateFile(file)<br/>检查 Content-Type 是否为 image/*<br/>检查 size ≤ 5MB
+    LS->>LS: generateFilename(originalFilename)<br/>UUID + 原始扩展名
+    LS->>LS: ensureDirectory({path}/{type}/)
+    LS->>FS: Files.copy(inputStream, destPath, REPLACE_EXISTING)
+    FS-->>LS: 写入成功
+
+    LS->>LS: getAccessUrl(relativePath)<br/>拼接: {urlPrefix}/{type}/{filename}
+    LS-->>CT: 返回 relativePath
+
+    CT->>CT: 构造 UploadResult(relativePath, accessUrl, filename, size)
+    CT-->>GW: ApiResponse~UploadResult~
+
+    GW-->>Client: {"code":200,"msg":"success","data":{...}}

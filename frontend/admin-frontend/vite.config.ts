@@ -13,9 +13,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 将所有 /api 请求代理到 Gateway (:8080)，由 Gateway 统一路由
+      // 将所有 /api 请求代理到 Gateway (:8085)，由 Gateway 统一路由
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8085',
         changeOrigin: true,
       },
       // 文件上传等直连 admin-api，绕过 Gateway（Gateway 基于 WebFlux，无法正确转发 multipart 请求体）

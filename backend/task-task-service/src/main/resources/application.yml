@@ -43,12 +43,6 @@ mybatis-plus:
 jwt:
   secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890
 
-# 文件上传配置
-file:
-  upload:
-    path: ./uploads
-    url-prefix: http://10.0.2.2:8080/api/task/uploads
-
 logging:
   level:
     com.task.platform: DEBUG

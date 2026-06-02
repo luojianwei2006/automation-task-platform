@@ -53,6 +53,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.task.platform.model.EarningsRecord
 import com.task.platform.viewmodel.EarningsViewModel
+import com.task.platform.navigation.TaskRoutes
 
 // ─── 配色（复用 TaskHallScreen） ───────────────────────────────────────
 private val HallOrange = Color(0xFFFF8C00)
@@ -183,7 +184,7 @@ fun EarningsScreen(
                         .fillMaxWidth()
                         .height(48.dp)
                         .clickable {
-                            navController.navigate("withdraw")
+                            navController.navigate(TaskRoutes.WITHDRAW)
                         },
                     border = androidx.compose.foundation.BorderStroke(1.5.dp, HallOrange)
                 ) {

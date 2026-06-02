@@ -2,6 +2,7 @@ package com.task.platform.ui.profile
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -57,9 +58,14 @@ fun WalletBindingScreen(
 ) {
     val userInfo by viewModel.userInfo.collectAsState()
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var showAddEditDialog by remember { mutableStateOf(false) }
     var editingWallet by remember { mutableStateOf<WalletItem?>(null) }
+
+    // 删除确认弹窗状态
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<WalletItem?>(null) }
 
     val wallets = userInfo?.let { info ->
         listOfNotNull(
@@ -127,11 +133,8 @@ fun WalletBindingScreen(
                             showAddEditDialog = true
                         },
                         onDelete = {
-                            scope.launch {
-                                viewModel.unbindWallet(wallet.type) { success, _ ->
-                                    if (success) viewModel.loadProfile()
-                                }
-                            }
+                            deleteTarget = wallet
+                            showDeleteConfirm = true
                         }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -182,6 +185,44 @@ fun WalletBindingScreen(
         }
     }
 
+    if (showDeleteConfirm && deleteTarget != null) {
+        val target = deleteTarget!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            shape = RoundedCornerShape(20.dp),
+            title = {
+                Text("确认删除", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            },
+            text = {
+                Text("确定要删除「${target.name}」吗？\n删除后可重新添加。")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirm = false
+                        scope.launch {
+                            viewModel.unbindWallet(target.type) { success, msg ->
+                                if (!success) {
+                                    Toast.makeText(context, msg.ifBlank { "删除失败，请重试" }, Toast.LENGTH_SHORT).show()
+                                }
+                                // 成功后 unbindWallet 内部已刷新 profile，无需再 loadProfile
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935)),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("删除", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("取消", color = Color(0xFF5F6368))
+                }
+            }
+        )
+    }
+
     if (showAddEditDialog) {
         AddEditDialog(
             existing = editingWallet,
@@ -189,14 +230,22 @@ fun WalletBindingScreen(
             onConfirm = { type, account, uri ->
                 // 先关闭弹窗
                 showAddEditDialog = false
-                // 再异步调用 API
+                // 再异步调用 API：先上传图片，再绑定钱包
                 scope.launch {
-                    viewModel.bindWallet(
+                    viewModel.bindWalletWithUri(
                         type = type,
                         account = account,
-                        qrcodeUrl = uri.toString()
-                    ) { success, _ ->
-                        if (success) viewModel.loadProfile()
+                        uri = uri
+                    ) { success, msg ->
+                        if (success) {
+                            viewModel.loadProfile()
+                        } else {
+                            // 绑定失败，重新打开弹窗让用户重试
+                            editingWallet = if (account.isNotBlank()) {
+                                com.task.platform.ui.profile.WalletItem(type, "", "")
+                            } else null
+                            showAddEditDialog = true
+                        }
                     }
                 }
             }

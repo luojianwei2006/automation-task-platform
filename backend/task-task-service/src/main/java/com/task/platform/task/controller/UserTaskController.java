@@ -1,6 +1,5 @@
 package com.task.platform.task.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.common.response.ApiResponse;
 import com.task.platform.task.entity.Task;
@@ -9,19 +8,10 @@ import com.task.platform.task.security.JwtClaims;
 import com.task.platform.task.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.http.MediaType;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * 用户端任务接口（任务大厅）
@@ -33,12 +23,6 @@ import java.util.UUID;
 public class UserTaskController {
 
     private final TaskService taskService;
-
-    @Value("${file.upload.path:./uploads}")
-    private String uploadPath;
-
-    @Value("${file.upload.url-prefix:http://10.0.2.2:8080/api/task/uploads}")
-    private String urlPrefix;
 
     /**
      * 任务列表（任务大厅）
@@ -123,7 +107,7 @@ public class UserTaskController {
             return ApiResponse.error(401, "未登录或Token无效");
         }
 
-        taskService.submitTask(currentUser.getUserId(), taskId, req.getScreenshotUrl(), req.getLatitude(), req.getLongitude());
+        taskService.submitTask(currentUser.getUserId(), taskId, req.getScreenshotUrls(), req.getLatitude(), req.getLongitude());
         return ApiResponse.success(null, "截图已提交，等待审核");
     }
 
@@ -202,88 +186,4 @@ public class UserTaskController {
         return ApiResponse.success(record, "审核完成");
     }
 
-    /**
-     * 提交任务截图（一步完成：上传文件 + 提交审核）
-     * POST /task/tasks/{taskId}/submit-with-upload
-     * 权限：普通用户
-     * Content-Type: multipart/form-data
-     *
-     * 请求参数：
-     *   - files: 截图文件（可多张）
-     *   - latitude:  纬度（可选）
-     *   - longitude: 经度（可选）
-     */
-    @PostMapping(value = "/{taskId}/submit-with-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Void> submitWithUpload(
-            @AuthenticationPrincipal JwtClaims currentUser,
-            @PathVariable Long taskId,
-            @RequestParam("files") List<MultipartFile> files,
-            @RequestParam(value = "latitude", required = false) Double latitude,
-            @RequestParam(value = "longitude", required = false) Double longitude) {
-
-        if (currentUser == null || currentUser.getUserId() == null) {
-            return ApiResponse.error(401, "未登录或Token无效");
-        }
-
-        // 校验文件
-        if (files == null || files.isEmpty()) {
-            return ApiResponse.error(400, "请至少上传一张截图");
-        }
-
-        List<String> urls = new ArrayList<>();
-        try {
-            // 确保上传目录存在
-            File uploadDir = new File(uploadPath);
-            if (!uploadDir.exists()) {
-                uploadDir.mkdirs();
-            }
-
-            for (MultipartFile file : files) {
-                // 校验文件类型
-                String contentType = file.getContentType();
-                if (contentType == null || !contentType.startsWith("image/")) {
-                    return ApiResponse.error(400, "只能上传图片文件");
-                }
-                // 校验文件大小（5MB）
-                if (file.getSize() > 5 * 1024 * 1024) {
-                    return ApiResponse.error(400, "单张图片大小不能超过5MB");
-                }
-
-                // 生成唯一文件名
-                String originalFilename = file.getOriginalFilename();
-                String extension = originalFilename != null
-                        ? originalFilename.substring(originalFilename.lastIndexOf("."))
-                        : ".jpg";
-                String filename = "screenshot_" + UUID.randomUUID() + extension;
-
-                // 保存文件：用手动流拷贝，避免 transferTo() 在 Tomcat 下的路径问题
-                File dest = new File(uploadDir, filename);
-                dest.getParentFile().mkdirs();
-                try (InputStream in = file.getInputStream();
-                     FileOutputStream out = new FileOutputStream(dest)) {
-                    byte[] buf = new byte[8192];
-                    int len;
-                    while ((len = in.read(buf)) != -1) {
-                        out.write(buf, 0, len);
-                    }
-                }
-
-                // 拼接访问 URL
-                String fileUrl = urlPrefix.endsWith("/")
-                        ? urlPrefix + filename
-                        : urlPrefix + "/" + filename;
-                urls.add(fileUrl);
-                log.info("用户截图上传成功: {}", fileUrl);
-            }
-        } catch (IOException e) {
-            log.error("文件上传失败", e);
-            return ApiResponse.error(500, "文件上传失败: " + e.getMessage());
-        }
-
-        // 提交任务（传入拼接好的 URL 字符串）
-        String urlsString = String.join(",", urls);
-        taskService.submitTask(currentUser.getUserId(), taskId, urlsString, latitude, longitude);
-
-        return ApiResponse.success(null, "截图已提交，等待审核");
-    }
 }
