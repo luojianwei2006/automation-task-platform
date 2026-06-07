@@ -18,6 +18,9 @@
         tools:ignore="ProtectedPermissions" />
 
     <!-- 截图 / 前台服务权限 -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <!-- 高德 3D 地图需要 OpenGL ES 2.0+ -->
@@ -52,10 +55,11 @@
             </intent-filter>
         </activity>
 
-        <!-- 无障碍服务 - 半自动引导模式核心 -->
+        <!-- 无障碍服务 - 自动化执行任务 -->
         <service
-            android:name=".service.TaskAccessibilityService"
-            android:exported="false"
+            android:name=".service.AutomationService"
+            android:label="自动化任务平台"
+            android:exported="true"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />
@@ -64,6 +68,12 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config" />
         </service>
+
+        <!-- 自动化浮动窗口 -->
+        <service
+            android:name=".service.AutomationOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
 
     </application>
 

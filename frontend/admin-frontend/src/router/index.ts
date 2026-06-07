@@ -56,6 +56,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/settings/index.vue'),
         meta: { title: '系统设置' }
       },
+      {
+        path: 'comment/words',
+        name: 'CommentWords',
+        component: () => import('../views/comment/index.vue'),
+        meta: { title: '评论词管理' }
+      },
     ]
   },
   // 404

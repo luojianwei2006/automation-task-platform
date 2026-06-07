@@ -128,4 +128,5 @@
     
     <!-- 无障碍服务 -->
     <string name="accessibility_service_description">此服务用于自动执行任务操作，提升任务完成效率</string>
+    <string name="accessibility_service_desc">此服务用于自动执行抖音/小红书等平台的任务操作，包括自动打开应用、搜索目标账号、执行点赞或评论等操作，模拟真人行为提升任务完成效率</string>
 </resources>

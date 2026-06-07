@@ -218,6 +218,18 @@
               <el-input v-model="form.targetUrl" placeholder="请输入目标链接" />
             </el-form-item>
 
+            <el-form-item label="评论词分类">
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <el-check-tag
+                  v-for="cat in commentCategories"
+                  :key="cat.id"
+                  :checked="selectedCatIds.includes(cat.id)"
+                  :disabled="cat.isDefault === 1"
+                  @change="(checked: boolean) => toggleCat(cat.id, checked)"
+                >{{ cat.name }}</el-check-tag>
+              </div>
+            </el-form-item>
+
             <el-form-item label="任务要求">
               <el-input
                 v-model="form.requirements"
@@ -461,6 +473,7 @@ import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getTaskRe
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
 import { getAllMerchants } from '@/api/merchant'
 import { uploadImage } from '@/api/upload'
+import { getCategories } from '@/api/comment'
 
 const loading = ref(false)
 const tableData = ref<any[]>([])
@@ -581,6 +594,8 @@ const form = reactive({
 // 图片上传相关
 const uploadFileList = ref<any[]>([])
 const imageUrls = ref<string[]>([])
+const commentCategories = ref<any[]>([])
+const selectedCatIds = ref<number[]>([])
 const uploadLoading = ref(false)
 
 const formRules: FormRules = {
@@ -761,6 +776,10 @@ async function showEditDialog(row: any) {
   // 处理已有图片
   imageUrls.value = []
   uploadFileList.value = []
+  // 评论分类
+  selectedCatIds.value = row.commentCategoryIds
+    ? row.commentCategoryIds.split(',').filter(Boolean).map(Number)
+    : commentCategories.value.filter((c: any) => c.isDefault === 1).map((c: any) => c.id)
   if (row.requirementImages) {
     try {
       const urls = JSON.parse(row.requirementImages)
@@ -803,6 +822,8 @@ function resetForm() {
   // 清除上传的图片
   uploadFileList.value = []
   imageUrls.value = []
+  // 默认勾选通用分类
+  selectedCatIds.value = commentCategories.value.filter((c: any) => c.isDefault === 1).map(c => c.id)
 
   // 清除表单校验
   formRef.value?.clearValidate()
@@ -825,6 +846,7 @@ async function handleSubmit() {
       platform: form.platform!,
       taskType: form.taskType!,
       requirementImages: requirementImagesStr,
+      commentCategoryIds: selectedCatIds.value.join(','),
       // 定位相关字段
       requireLocation: form.requireLocation,
       locationLat: form.locationLat ?? null,
@@ -904,6 +926,23 @@ function handleExceed() {
   ElMessage.warning('最多上传4张图片')
 }
 
+function toggleCat(id: number, checked: boolean) {
+  if (checked) selectedCatIds.value.push(id)
+  else selectedCatIds.value = selectedCatIds.value.filter(c => c !== id)
+}
+
+async function loadCommentCategories() {
+  try {
+    const res = await getCategories()
+    commentCategories.value = (res as any) ?? []
+    // 默认勾选通用分类
+    const defaultCat = commentCategories.value.find((c: any) => c.isDefault === 1)
+    if (defaultCat && !selectedCatIds.value.includes(defaultCat.id)) {
+      selectedCatIds.value.push(defaultCat.id)
+    }
+  } catch {}
+}
+
 // ==================== 辅助函数 ====================
 
 function getImagesFromTask(task: any): string[] {
@@ -922,6 +961,7 @@ function getImagesFromTask(task: any): string[] {
 
 onMounted(() => {
   loadTasks()
+  loadCommentCategories()
 })
 </script>
 

@@ -41,6 +41,10 @@ public class Task {
     /** 任务要求（文字说明） */
     private String requirements;
 
+    /** 评论词分类ID（逗号分隔） */
+    @TableField("comment_category_ids")
+    private String commentCategoryIds;
+
     /** 任务要求图片（JSON数组） */
     @TableField("requirement_images")
     private String requirementImages;

@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,6 +27,8 @@ import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.task.platform.model.TaskDTO
 import com.task.platform.model.TaskRecordDTO
+import com.task.platform.model.UserInfo
+import com.task.platform.viewmodel.AutoViewModel
 import com.task.platform.viewmodel.TaskViewModel
 import java.util.Locale
 
@@ -39,18 +42,34 @@ private val Gray300 = Color(0xFFE0E0E0)
 private val Gray500 = Color(0xFF9E9E9E)
 private val Gray700 = Color(0xFF616161)
 private val Gray900 = Color(0xFF212121)
+private val GreenSuccess = Color(0xFF4CAF50)
+private val RedFail = Color(0xFFE53935)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskDetailScreen(
     navController: NavController,
     taskId: Long
 ) {
     val viewModel: TaskViewModel = hiltViewModel()
+    val autoVM: AutoViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val currentTask by viewModel.currentTask.collectAsState()
     val currentRecord by viewModel.currentRecord.collectAsState()
     val actionError by viewModel.actionError.collectAsState()
+    val autoUiState by autoVM.autoUiState.collectAsState()
+    val autoSteps by autoVM.steps.collectAsState()
+    val userInfo by autoVM.userInfo.collectAsState()
     var showAcceptDialog by remember { mutableStateOf(false) }
+    var showAutoConfirmDialog by remember { mutableStateOf(false) }
+    var showProgressSheet by remember { mutableStateOf(false) }
+    var accessibilityGuideRequested by remember { mutableStateOf(false) }
+    var autoError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // 每次进入页面刷新 autoMode 状态
+    LaunchedEffect(Unit) { autoVM.refreshUserInfo() }
 
     LaunchedEffect(taskId) {
         viewModel.resetDetailLoadFlags()
@@ -60,6 +79,24 @@ fun TaskDetailScreen(
 
     LaunchedEffect(actionError) {
         actionError?.let { viewModel.clearActionError() }
+    }
+
+    // 监听自动化状态，控制进度面板
+    LaunchedEffect(autoUiState) {
+        when (autoUiState) {
+            is AutoViewModel.AutoUiState.Running -> showProgressSheet = true
+            is AutoViewModel.AutoUiState.Completed -> {
+                // 完成后保持面板打开 1 秒再关
+                kotlinx.coroutines.delay(1500)
+                showProgressSheet = false
+                autoVM.resetAutoState()
+                viewModel.loadTaskRecord(taskId)
+            }
+            is AutoViewModel.AutoUiState.Error -> {
+                autoError = (autoUiState as AutoViewModel.AutoUiState.Error).message
+            }
+            else -> { }
+        }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Gray50)) {
@@ -86,8 +123,11 @@ fun TaskDetailScreen(
                 currentTask != null -> TaskContent(
                     task = currentTask!!,
                     record = currentRecord,
+                    userInfo = userInfo,
+                    autoUiState = autoUiState,
                     onUploadClick = { navController.navigate("screenshot_upload/$taskId") },
-                    onAcceptClick = { showAcceptDialog = true }
+                    onAcceptClick = { showAcceptDialog = true },
+                    onAutoClick = { showAutoConfirmDialog = true }
                 )
             }
         }
@@ -109,6 +149,95 @@ fun TaskDetailScreen(
                 TextButton(onClick = { showAcceptDialog = false }) { Text("取消") }
             }
         )
+    }
+
+    // ===== 自动执行确认对话框 =====
+    if (showAutoConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showAutoConfirmDialog = false },
+            title = { Text("自动执行任务", fontWeight = FontWeight.Bold) },
+            text = { Text("将自动打开抖音并完成任务，是否继续？\n\n请确保：\n1. 手机已安装抖音APP\n2. 已开启无障碍服务权限") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showAutoConfirmDialog = false
+                        val error = autoVM.startAutomation(currentTask!!)
+                        if (error != null) {
+                            when (error) {
+                                "ACCESSIBILITY_NEEDED" -> accessibilityGuideRequested = true
+                                else -> autoError = error
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                ) { Text("开始执行") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAutoConfirmDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // ===== 无障碍服务引导对话框 =====
+    if (accessibilityGuideRequested) {
+        AlertDialog(
+            onDismissRequest = { accessibilityGuideRequested = false },
+            title = { Text("需要开启无障碍服务", fontWeight = FontWeight.Bold) },
+            text = { Text("自动化任务需要开启无障碍服务权限。\n\n点击「去设置」，找到本应用并开启无障碍服务。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        accessibilityGuideRequested = false
+                        autoVM.openAccessibilitySettings()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                ) { Text("去设置") }
+            },
+            dismissButton = {
+                TextButton(onClick = { accessibilityGuideRequested = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // ===== 错误提示对话框 =====
+    autoError?.let { error ->
+        AlertDialog(
+            onDismissRequest = { autoError = null },
+            title = { Text("提示", fontWeight = FontWeight.Bold) },
+            text = { Text(error) },
+            confirmButton = {
+                Button(
+                    onClick = { autoError = null },
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                ) { Text("确定") }
+            }
+        )
+    }
+
+    // ===== 自动化进度底部面板 =====
+    if (showProgressSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                // 不允许在执行中关闭
+                if (autoUiState !is AutoViewModel.AutoUiState.Running) {
+                    showProgressSheet = false
+                }
+            },
+            sheetState = sheetState,
+            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        ) {
+            AutomationProgressSheet(
+                autoUiState = autoUiState,
+                steps = autoSteps,
+                onStop = { autoVM.stopAutomation() },
+                onClose = {
+                    if (autoUiState !is AutoViewModel.AutoUiState.Running) {
+                        showProgressSheet = false
+                        autoVM.resetAutoState()
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -142,8 +271,11 @@ private fun ErrorView(message: String, onRetry: () -> Unit) {
 private fun TaskContent(
     task: TaskDTO,
     record: TaskRecordDTO?,
+    userInfo: UserInfo?,
+    autoUiState: AutoViewModel.AutoUiState,
     onUploadClick: () -> Unit,
-    onAcceptClick: () -> Unit
+    onAcceptClick: () -> Unit,
+    onAutoClick: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxSize()) {
         // 可滚动内容
@@ -181,7 +313,15 @@ private fun TaskContent(
         }
 
         // 固定底部操作栏
-        BottomActionBar(record = record, onUploadClick = onUploadClick, onAcceptClick = onAcceptClick)
+        BottomActionBar(
+            record = record,
+            task = task,
+            userInfo = userInfo,
+            autoUiState = autoUiState,
+            onUploadClick = onUploadClick,
+            onAcceptClick = onAcceptClick,
+            onAutoClick = onAutoClick
+        )
     }
 }
 
@@ -318,29 +458,61 @@ private fun StatusBanner(record: TaskRecordDTO) {
 @Composable
 private fun BottomActionBar(
     record: TaskRecordDTO?,
+    task: TaskDTO,
+    userInfo: UserInfo?,
+    autoUiState: AutoViewModel.AutoUiState,
     onUploadClick: () -> Unit,
-    onAcceptClick: () -> Unit
+    onAcceptClick: () -> Unit,
+    onAutoClick: () -> Unit
 ) {
     Surface(shadowElevation = 8.dp, color = Color.White) {
         when {
             record == null -> {
-                Button(
-                    onClick = onAcceptClick,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
-                ) { Text("接受任务", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+                Column {
+                    Button(
+                        onClick = onAcceptClick,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    ) { Text("接受任务", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
+                }
             }
             record.status == 0 -> {
-                Button(
-                    onClick = onUploadClick,
-                    modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
-                ) {
-                    Icon(Icons.Default.Upload, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("上传截图", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                Column {
+                    // 自动执行按钮（仅当 autoMode >= 1 时显示，且状态为进行中）
+                    if (userInfo != null && userInfo.autoMode >= 1) {
+                        val isRunning = autoUiState is AutoViewModel.AutoUiState.Running
+                        OutlinedButton(
+                            onClick = if (isRunning) { {} } else onAutoClick,
+                            enabled = !isRunning,
+                            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp).height(48.dp),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (isRunning) Gray500 else Orange
+                            ),
+                            border = ButtonDefaults.outlinedButtonBorder
+                        ) {
+                            if (isRunning) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Orange, strokeWidth = 2.dp)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("执行中...", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            } else {
+                                Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(20.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("自动执行", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = onUploadClick,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
+                        shape = RoundedCornerShape(26.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    ) {
+                        Icon(Icons.Default.Upload, null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("上传截图", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
             record.status == 1 -> {

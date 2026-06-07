@@ -69,7 +69,9 @@ data class TaskDTO(
     /** 任务位置经度 */
     @SerializedName("locationLng") val locationLng: Double? = null,
     /** 位置描述 */
-    @SerializedName("locationDesc") val locationDesc: String? = null
+    @SerializedName("locationDesc") val locationDesc: String? = null,
+    /** 评论词分类ID（逗号分隔） */
+    @SerializedName("commentCategoryIds") val commentCategoryIds: String? = null
 )
 
 /**
@@ -127,4 +129,33 @@ data class WithdrawRecord(
     @SerializedName("transferVoucherUrl") val transferVoucherUrl: String?,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("processedAt") val processedAt: String?
+)
+
+/**
+ * 自动化操作记录
+ * 对应后端 t_auto_record 表
+ */
+data class AutoRecord(
+    val id: Long = 0,
+    val userId: Long,
+    val taskId: Long,
+    val step: String,
+    val action: String,
+    val status: Int = 0,
+    val result: String? = null,
+    val createdAt: String? = null
+)
+
+/**
+ * 自动化任务配置（内部模型，非API实体）
+ * 传递给 AutomationService/DouyinAutomator 的参数对象
+ */
+data class AutoTask(
+    val platform: Int,
+    val taskType: Int,
+    val targetUrl: String?,
+    val requirements: String?,
+    val taskId: Long,
+    val userId: Long,
+    val commentCategoryIds: String? = null
 )

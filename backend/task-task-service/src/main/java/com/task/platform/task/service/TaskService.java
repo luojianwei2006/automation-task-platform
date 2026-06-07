@@ -233,18 +233,25 @@ public class TaskService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "任务未上架");
         }
 
-        // 2. 检查配额是否充足
-        if (task.getUsedQuota() >= task.getTotalQuota()) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务配额已用完");
-        }
-
-        // 3. 检查是否已经接取过（同一用户同一任务只能接一次）
+        // 2. 先查是否已有记录（已有记录=允许重接，不占配额）
         LambdaQueryWrapper<UserTaskRecord> recordWrapper = new LambdaQueryWrapper<UserTaskRecord>()
                 .eq(UserTaskRecord::getUserId, userId)
                 .eq(UserTaskRecord::getTaskId, taskId);
         UserTaskRecord existingRecord = userTaskRecordMapper.selectOne(recordWrapper);
+
+        // 3. 配额检查（已有记录的重接不占配额）
+        if (existingRecord == null && task.getUsedQuota() >= task.getTotalQuota()) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "任务配额已用完");
+        }
+
+        // 4. 已有记录 → 重置状态后返回
         if (existingRecord != null) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "您已接取此任务");
+            existingRecord.setStatus(0);
+            existingRecord.setAcceptedAt(LocalDateTime.now());
+            existingRecord.setScreenshotUrl(null);
+            existingRecord.setSubmittedAt(null);
+            userTaskRecordMapper.updateById(existingRecord);
+            return existingRecord;
         }
 
         // 4. 检查任务截止时间（截止前1小时不能接取）

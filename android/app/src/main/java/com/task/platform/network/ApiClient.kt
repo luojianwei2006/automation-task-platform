@@ -3,6 +3,7 @@ package com.task.platform.network
 import android.content.Context
 import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
+import com.task.platform.model.AutoRecord
 import com.task.platform.model.WithdrawRecord
 import com.task.platform.model.EarningsRecord
 import com.task.platform.model.EarningsSummary
@@ -161,6 +162,20 @@ interface ApiService {
         @Part file: MultipartBody.Part,
         @Part("type") type: okhttp3.RequestBody
     ): ApiResponse<UploadResult>
+
+    // ==================== 自动化操作记录模块 ====================
+
+    /** 保存自动化操作日志 */
+    @POST("api/task/auto/record")
+    suspend fun saveAutoRecord(@Body body: Map<String, @JvmSuppressWildcards Any>): ApiResponse<AutoRecord>
+
+    /** 查询某任务的自动化操作日志 */
+    @GET("api/task/auto/records")
+    suspend fun getAutoRecords(@Query("taskId") taskId: Long): ApiResponse<List<AutoRecord>>
+
+    /** 获取评论词（按分类ID） */
+    @GET("api/task/auto/comment-words")
+    suspend fun getCommentWords(@Query("categoryIds") categoryIds: String): ApiResponse<List<String>>
 }
 
 /**
@@ -174,7 +189,9 @@ object ApiClient {
     private const val BASE_URL = BuildConfig.BASE_URL
 
     private var _instance: ApiService? = null
-    private var token: String = ""
+    @Volatile
+    var token: String = ""
+        private set
 
     /** 便捷属性：直接访问 ApiService（无 Context 依赖的场景） */
     val apiService: ApiService

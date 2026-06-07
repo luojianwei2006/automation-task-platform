@@ -27,6 +27,7 @@
           <template #title><el-icon><List /></el-icon>业务管理</template>
           <el-menu-item index="/task/list">任务管理</el-menu-item>
           <el-menu-item index="/withdraw/list">提现审核</el-menu-item>
+          <el-menu-item index="/comment/words">评论词库</el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="merchant-group">
           <template #title><el-icon><OfficeBuilding /></el-icon>商户管理</template>
