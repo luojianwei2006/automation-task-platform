@@ -250,6 +250,13 @@ public class TaskService {
             existingRecord.setAcceptedAt(LocalDateTime.now());
             existingRecord.setScreenshotUrl(null);
             existingRecord.setSubmittedAt(null);
+            existingRecord.setSubmitCount(0);
+            // 重置提交截止时间（原来没重置导致重接后立即超时）
+            if (task.getSubmitDeadlineHours() != null && task.getSubmitDeadlineHours() > 0) {
+                existingRecord.setAcceptDeadline(LocalDateTime.now().plusHours(task.getSubmitDeadlineHours()));
+            } else {
+                existingRecord.setAcceptDeadline(LocalDateTime.now().plusHours(24));
+            }
             userTaskRecordMapper.updateById(existingRecord);
             return existingRecord;
         }

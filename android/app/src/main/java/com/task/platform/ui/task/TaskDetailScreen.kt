@@ -30,6 +30,7 @@ import com.task.platform.model.TaskRecordDTO
 import com.task.platform.model.UserInfo
 import com.task.platform.viewmodel.AutoViewModel
 import com.task.platform.viewmodel.TaskViewModel
+import com.task.platform.navigation.TaskRoutes
 import java.util.Locale
 
 // ─── 配色 ───────────────────────────────────────
@@ -96,6 +97,15 @@ fun TaskDetailScreen(
                 autoError = (autoUiState as AutoViewModel.AutoUiState.Error).message
             }
             else -> { }
+        }
+    }
+
+    // 自动化完成后，若 automator 标记了 UPLOAD:taskId，则跳转到截图上传页
+    LaunchedEffect(Unit) {
+        autoVM.navigateToUpload.collect { uploadTaskId ->
+            navController.navigate(TaskRoutes.SCREENSHOT_UPLOAD.replace("{taskId}", uploadTaskId.toString())) {
+                popUpTo(TaskRoutes.TASK_DETAIL.replace("{taskId}", taskId.toString())) { inclusive = true }
+            }
         }
     }
 

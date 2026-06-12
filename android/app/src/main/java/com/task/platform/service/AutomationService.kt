@@ -77,6 +77,7 @@ class AutomationService : AccessibilityService() {
 
     /** 自动化引擎 */
     private val douyinAutomator: DouyinAutomator by lazy { DouyinAutomator(this) }
+    private val xhsAutomator: XhsAutomator by lazy { XhsAutomator(this) }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -125,6 +126,7 @@ class AutomationService : AccessibilityService() {
             try {
                 when (task.platform) {
                     1 -> douyinAutomator.execute(task)
+                    2 -> xhsAutomator.execute(task)
                     else -> {
                         onActionResult?.invoke(false, "暂不支持该平台: ${task.platform}")
                         isRunning = false

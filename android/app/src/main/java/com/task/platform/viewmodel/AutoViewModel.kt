@@ -10,6 +10,7 @@ import com.task.platform.model.TaskDTO
 import com.task.platform.model.UserInfo
 import com.task.platform.network.ApiClient
 import com.task.platform.service.AutomationService
+import com.task.platform.service.AutomationOverlayService
 import com.task.platform.storage.DataStoreManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -67,6 +68,10 @@ class AutoViewModel @Inject constructor(
     /** 自动化日志记录 */
     private val _autoRecords = MutableStateFlow<List<AutoRecord>>(emptyList())
     val autoRecords: StateFlow<List<AutoRecord>> = _autoRecords.asStateFlow()
+
+    /** 当自动化完成后需要跳转到截图上传页时，发射 taskId（一次性事件） */
+    private val _navigateToUpload = MutableSharedFlow<Long>(replay = 0, extraBufferCapacity = 1)
+    val navigateToUpload: SharedFlow<Long> = _navigateToUpload.asSharedFlow()
 
     init {
         loadUserInfo()
@@ -166,8 +171,21 @@ class AutoViewModel @Inject constructor(
                 }
 
                 // 最终完成
-                if (message.contains("自动化任务执行完成")) {
+                if (message.contains("自动化任务执行完成") || message.contains("任务完成")) {
                     _autoUiState.value = AutoUiState.Completed(success = true, message = "任务执行完成")
+
+                    // 检查是否需要跳转到截图上传页（automator 在消息中附带 UPLOAD:taskId）
+                    val uploadMarker = "UPLOAD:"
+                    val uploadIdx = message.indexOf(uploadMarker)
+                    if (uploadIdx >= 0) {
+                        val taskIdStr = message.substring(uploadIdx + uploadMarker.length)
+                            .trim().split(" ").firstOrNull()
+                        val taskId = taskIdStr?.toLongOrNull()
+                        if (taskId != null) {
+                            _navigateToUpload.tryEmit(taskId)
+                        }
+                    }
+
                     AutomationService.onActionResult = null
                 } else if (message.contains("异常") || message.contains("失败") || message.contains("停止")) {
                     if (!success && !message.contains("STEP:")) {
@@ -177,6 +195,9 @@ class AutoViewModel @Inject constructor(
                 }
             }
         }
+
+        // 5.5 在主线程启动悬浮窗（必须在 execute 之前，确保 instance 已设置）
+        AutomationOverlayService.show(ctx, task.requirements?.take(15) ?: "自动化任务")
 
         // 6. 启动自动化服务
         val service = AutomationService.instance

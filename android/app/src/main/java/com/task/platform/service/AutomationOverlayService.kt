@@ -25,12 +25,46 @@ class AutomationOverlayService : Service() {
         private const val NOTIFICATION_ID = 2001
         const val CHANNEL_ID = "automation_overlay"
 
+        // 重试机制：最多 100 次 × 50ms = 5 秒等待窗口（覆盖 Service 重启/冷启动）
+        private const val MAX_RETRY_COUNT = 100
+        private const val RETRY_DELAY_MS = 50L
+
+        /** 待处理更新队列：当 instance==null 且重试耗尽时，存入此队列，Service 就绪后回放 */
+        private val pendingUpdates = mutableListOf<Runnable>()
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+        /**
+         * 代数计数器：每次 show() +1，防止旧任务 updateComplete 的 3s hide 定时器
+         * 误杀新任务的悬浮窗。updateComplete 只会在代数匹配时执行 hide。
+         */
+        @Volatile private var generation = 0
+
         fun show(context: Context, taskName: String) {
+            android.util.Log.d("AutomationOverlay", "show() 调用: taskName=$taskName, sdk=${Build.VERSION.SDK_INT}")
+
+            // 检查悬浮窗权限
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
                 !android.provider.Settings.canDrawOverlays(context)) {
-                android.util.Log.w("AutomationOverlay", "悬浮窗权限未开启，跳过")
+                android.util.Log.e("AutomationOverlay", "show() 被跳过：悬浮窗权限(SYSTEM_ALERT_WINDOW)未开启！请在 设置→应用→权限 中开启")
                 return
             }
+
+            // 检查通知权限 (Android 13+, targetSdk >= 33)
+            if (Build.VERSION.SDK_INT >= 33) {
+                val notifGranted = if (Build.VERSION.SDK_INT >= 33) {
+                    context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+                } else true
+                android.util.Log.d("AutomationOverlay", "show() POST_NOTIFICATIONS 权限: ${if (notifGranted) "已授权" else "未授权！startForeground 会崩溃"}")
+                if (!notifGranted) {
+                    android.util.Log.e("AutomationOverlay", 
+                        "show() POST_NOTIFICATIONS 未授权！Service startForeground() 将抛出 SecurityException。" +
+                        "请在 设置→应用→通知 中开启通知权限，或等待 APK 下次启动时的权限弹窗。")
+                }
+            }
+
+            generation++
+            android.util.Log.d("AutomationOverlay", "show() generation=$generation, 准备启动 Service")
             val intent = Intent(context, AutomationOverlayService::class.java).apply {
                 putExtra("taskName", taskName)
             }
@@ -45,24 +79,75 @@ class AutomationOverlayService : Service() {
             context.stopService(Intent(context, AutomationOverlayService::class.java))
         }
 
-        fun updateStep(step: String, status: String) {
-            instance?.apply {
-                handler.post {
-                    stepText?.text = step
-                    statusText?.text = status
+        /** 检查 Service 是否存活（避免竞态：instance 非 null 不代表 View 已创建） */
+        fun isActive(): Boolean = instance != null && instance?.overlayView != null
+
+        fun updateStep(step: String, status: String, retryCount: Int = 0) {
+            val inst = instance
+            if (inst != null && inst.overlayView != null) {
+                inst.handler.post {
+                    inst.stepText?.text = step
+                    inst.statusText?.text = status
                 }
+            } else if (retryCount < MAX_RETRY_COUNT) {
+                mainHandler.postDelayed({
+                    updateStep(step, status, retryCount + 1)
+                }, RETRY_DELAY_MS)
+            } else {
+                android.util.Log.e("AutomationOverlay", "updateStep 重试耗尽(${MAX_RETRY_COUNT}次): step=$step, instance=$instance, overlayView=${instance?.overlayView}")
+                // 保存到待处理队列，Service 就绪后回放
+                pendingUpdates.add(Runnable {
+                    instance?.let {
+                        it.stepText?.text = step
+                        it.statusText?.text = status
+                    }
+                })
             }
         }
 
-        fun updateComplete(success: Boolean) {
-            instance?.apply {
-                handler.post {
+        fun updateComplete(success: Boolean, retryCount: Int = 0) {
+            val inst = instance
+            val gen = generation  // 捕获当前代数，防止旧定时器误杀新任务
+            if (inst != null && inst.overlayView != null) {
+                inst.handler.post {
                     val text = if (success) "✓ 任务完成" else "✗ 任务失败"
-                    stepText?.text = text
-                    statusText?.visibility = View.GONE
-                    handler.postDelayed({ instance?.let { hide(it) } }, 3000)
+                    inst.stepText?.text = text
+                    inst.statusText?.visibility = View.GONE
+                    inst.handler.postDelayed({
+                        // 仅当代数匹配且 instance 仍是同一个时才 hide（防止误杀新任务）
+                        if (generation == gen && instance == inst) hide(inst)
+                    }, 3000)
                 }
+            } else if (retryCount < MAX_RETRY_COUNT) {
+                mainHandler.postDelayed({
+                    updateComplete(success, retryCount + 1)
+                }, RETRY_DELAY_MS)
+            } else {
+                android.util.Log.e("AutomationOverlay", "updateComplete 重试耗尽(${MAX_RETRY_COUNT}次): success=$success, instance=$instance, overlayView=${instance?.overlayView}")
+                // 保存到待处理队列（含 3 秒后自动隐藏，同样用代数保护）
+                pendingUpdates.add(Runnable {
+                    instance?.let { inst2 ->
+                        val gen2 = generation
+                        val text = if (success) "✓ 任务完成" else "✗ 任务失败"
+                        inst2.stepText?.text = text
+                        inst2.statusText?.visibility = View.GONE
+                        inst2.handler.postDelayed({
+                            if (generation == gen2 && instance == inst2) hide(inst2)
+                        }, 3000)
+                    }
+                })
             }
+        }
+
+        /** Service 就绪后回放所有待处理更新 */
+        private fun flushPending() {
+            if (pendingUpdates.isEmpty()) return
+            android.util.Log.d("AutomationOverlay", "回放 ${pendingUpdates.size} 条待处理更新")
+            val inst = instance ?: return
+            for (update in pendingUpdates) {
+                inst.handler.post(update)
+            }
+            pendingUpdates.clear()
         }
     }
 
@@ -78,16 +163,29 @@ class AutomationOverlayService : Service() {
         super.onCreate()
         instance = this
         createNotificationChannel()
+        android.util.Log.d("AutomationOverlay", "Service onCreate: instance=$this")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val taskName = intent?.getStringExtra("taskName") ?: "自动化任务"
-        startForeground(NOTIFICATION_ID, buildNotification(taskName))
+        try {
+            startForeground(NOTIFICATION_ID, buildNotification(taskName))
+            android.util.Log.d("AutomationOverlay", "Service onStartCommand: startForeground 成功")
+        } catch (e: SecurityException) {
+            android.util.Log.e("AutomationOverlay",
+                "startForeground 失败（缺少 POST_NOTIFICATIONS 权限），但仍继续创建悬浮窗。" +
+                "注意：无前台通知，系统可能在 5 秒后杀掉 Service。", e)
+        } catch (e: Exception) {
+            android.util.Log.e("AutomationOverlay", "startForeground 未知异常", e)
+        }
         createOverlay(taskName)
+        flushPending()
+        android.util.Log.d("AutomationOverlay", "Service onStartCommand: overlay ready, flushed pending")
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
+        android.util.Log.d("AutomationOverlay", "Service onDestroy: clearing instance, pending=${pendingUpdates.size}")
         super.onDestroy()
         instance = null
         removeOverlay()

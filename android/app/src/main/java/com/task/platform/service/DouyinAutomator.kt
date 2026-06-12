@@ -2,7 +2,10 @@ package com.task.platform.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.view.accessibility.AccessibilityNodeInfo
 import com.task.platform.model.AutoTask
 import com.task.platform.network.ApiClient
@@ -10,6 +13,9 @@ import kotlinx.coroutines.*
 import kotlin.random.Random
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.FileOutputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * 抖音自动化引擎
@@ -96,10 +102,6 @@ class DouyinAutomator(
     fun execute(task: AutoTask) {
         cancelled = false
         currentTask = task
-
-        // 显示浮动窗口
-        val taskDesc = task.requirements?.take(15) ?: "自动化任务"
-        AutomationOverlayService.show(service, taskDesc)
 
         try {
             // Step 1: 打开抖音
@@ -218,11 +220,14 @@ class DouyinAutomator(
                 notifyStep("submit", "正在提交任务...", 0)
                 if (uploadAndSubmit(task, localFile)) {
                     notifyStepComplete("submit", "任务提交成功", 1, "截图已上传")
+                    AutomationOverlayService.updateComplete(true)
                 } else {
                     notifyStepComplete("submit", "提交失败", 2, "上传异常")
+                    AutomationOverlayService.updateComplete(false)
                 }
             } else {
                 notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
+                AutomationOverlayService.updateComplete(false)
             }
             // 返回应用
             returnToApp()
@@ -576,58 +581,327 @@ class DouyinAutomator(
         }
     }
 
+    // ─── 截图 + 返回 ──────────────────────────────────────
+
     /**
-     * 截图并保存（screencap 命令，兼容所有版本）
+     * 截图 — 多策略降级方案
+     *
+     * 策略优先级：
+     *   1. AccessibilityService.takeScreenshot() — API 34+，原生无障碍截图
+     *   2. screencap 写文件到 /sdcard/（shell 可写目录，绕过 stdout pipe 限制）
+     *   3. screencap -p stdout（传统方式）
+     *   4. GLOBAL_ACTION_TAKE_SCREENSHOT + 多目录/MediaStore 扫描
+     *   5. SurfaceControl 反射
      */
     private fun takeScreenshot(): String? {
-        android.util.Log.d("DouyinAutomator", "=== 开始截图 ===")
+        android.util.Log.d("DouyinAutomator", "=== 开始截图 (SDK=${Build.VERSION.SDK_INT}) ===")
+
+        // 策略1：Android 14+ 原生 API
+        if (Build.VERSION.SDK_INT >= 34) {
+            val result = takeScreenshotApi34()
+            if (result != null) return result
+            android.util.Log.w("DouyinAutomator", "takeScreenshot API 失败, 降级 screencap")
+        }
+
+        // 策略2：screencap 写文件到 /sdcard/（绕过 stdout pipe 权限问题）
+        val result = takeScreenshotScreencapToFile("douyin")
+        if (result != null) return result
+
+        // 策略3：screencap -p stdout（传统方式）
+        android.util.Log.d("DouyinAutomator", "screencap 写文件失败, 尝试 stdout 管道")
+        val result3 = takeScreenshotScreencapStdout("douyin")
+        if (result3 != null) return result3
+
+        // 策略4：系统截图键 + 目录扫描 / MediaStore
+        android.util.Log.w("DouyinAutomator", "screencap stdout 失败, 尝试系统截图键")
+        val result4 = takeScreenshotGlobalAction()
+        if (result4 != null) return result4
+
+        // 策略5：SurfaceControl 反射
+        android.util.Log.w("DouyinAutomator", "系统截图失败, 尝试 SurfaceControl 反射")
+        return takeScreenshotReflection()
+    }
+
+    @android.annotation.SuppressLint("NewApi")
+    private fun takeScreenshotApi34(): String? {
+        if (Build.VERSION.SDK_INT < 34) return null
         return try {
-            // 用系统截图键（可靠，自动保存到 Pictures/Screenshots）
-            android.util.Log.d("DouyinAutomator", "触发系统截图...")
-            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
-            // 等待系统截图完成
-            Thread.sleep(2000)
+            val latch = CountDownLatch(1)
+            var bitmap: Bitmap? = null
 
-            // 查找最新截图文件
-            val screenshotDir = java.io.File("/sdcard/Pictures/Screenshots")
-            val latestScreenshot = screenshotDir.listFiles()
-                ?.filter { it.name.endsWith(".png") || it.name.endsWith(".jpg") }
-                ?.maxByOrNull { it.lastModified() }
+            val wm = service.getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
+            val displayId = wm.defaultDisplay?.displayId ?: 0
+            android.util.Log.d("DouyinAutomator", "调用 takeScreenshot API, displayId=$displayId")
 
-            if (latestScreenshot != null && latestScreenshot.length() > 0) {
-                android.util.Log.d("DouyinAutomator", "找到截图: ${latestScreenshot.absolutePath}, size=${latestScreenshot.length()}")
-                // 复制到 app 目录
-                val destDir = service.getExternalFilesDir(null)
-                val dest = java.io.File(destDir, "auto_${System.currentTimeMillis()}.png")
-                latestScreenshot.copyTo(dest, overwrite = true)
-                android.util.Log.d("DouyinAutomator", "截图已复制: ${dest.absolutePath}")
-                dest.absolutePath
-            } else {
-                android.util.Log.w("DouyinAutomator", "未找到系统截图文件")
-                null
+            service.takeScreenshot(
+                displayId,
+                service.mainExecutor,
+                object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                        try {
+                            bitmap = Bitmap.wrapHardwareBuffer(result.hardwareBuffer, result.colorSpace)
+                        } catch (e: Exception) {
+                            android.util.Log.e("DouyinAutomator", "wrapHardwareBuffer 失败", e)
+                        } finally {
+                            result.hardwareBuffer.close()
+                        }
+                        latch.countDown()
+                    }
+                    override fun onFailure(errorCode: Int) {
+                        android.util.Log.e("DouyinAutomator", "takeScreenshot onFailure: errorCode=$errorCode")
+                        latch.countDown()
+                    }
+                }
+            )
+
+            if (!latch.await(5, TimeUnit.SECONDS) || bitmap == null) {
+                android.util.Log.e("DouyinAutomator", "takeScreenshot API 超时或返回 null")
+                return null
             }
+
+            val dest = prepareDestFile("douyin") ?: run { bitmap!!.recycle(); return null }
+            FileOutputStream(dest).use { out -> bitmap!!.compress(Bitmap.CompressFormat.PNG, 95, out) }
+            bitmap!!.recycle()
+            android.util.Log.d("DouyinAutomator", "API截图成功: ${dest.absolutePath} (${dest.length()} bytes)")
+            dest.absolutePath
         } catch (e: Exception) {
-            android.util.Log.e("DouyinAutomator", "截图异常", e)
+            android.util.Log.e("DouyinAutomator", "takeScreenshot API 异常", e)
             null
         }
     }
 
     /**
-     * 保存 Bitmap 到系统相册
+     * 策略2：screencap 直接写文件到 /sdcard/（shell 用户可写目录）
      */
-    private fun saveToGallery(bitmap: android.graphics.Bitmap): android.net.Uri? {
-        val values = android.content.ContentValues().apply {
-            put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "auto_task_${System.currentTimeMillis()}.jpg")
-            put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/TaskPlatform")
-        }
-        val uri = service.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        uri?.let {
-            service.contentResolver.openOutputStream(it)?.use { out ->
-                bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+    private fun takeScreenshotScreencapToFile(prefix: String): String? {
+        return try {
+            if (!hasStoragePermission()) {
+                android.util.Log.w("DouyinAutomator", "无存储权限, 跳过 screencap 写文件")
+                return null
             }
+
+            val dest = prepareDestFile(prefix) ?: return null
+            val sdcardDirs = listOf("/sdcard/Download", "/sdcard/Pictures", "/sdcard")
+            val ts = System.currentTimeMillis()
+            val fileName = "${prefix}_screenshot_$ts.png"
+
+            for (sdcardDir in sdcardDirs) {
+                val tmpPath = "$sdcardDir/$fileName"
+                for (cmd in listOf("screencap", "/system/bin/screencap")) {
+                    android.util.Log.d("DouyinAutomator", "尝试: $cmd -p $tmpPath")
+                    val process = Runtime.getRuntime().exec(arrayOf(cmd, "-p", tmpPath))
+                    val stderr = process.errorStream.bufferedReader().readText()
+                    val exitCode = process.waitFor()
+                    android.util.Log.d("DouyinAutomator", "$cmd 写文件 退出码=$exitCode, stderr=[${stderr.take(200)}]")
+
+                    val tmpFile = java.io.File(tmpPath)
+                    if (exitCode == 0 && tmpFile.exists() && tmpFile.length() > 100) {
+                        tmpFile.copyTo(dest, overwrite = true)
+                        tmpFile.delete()
+                        android.util.Log.d("DouyinAutomator", "screencap 写文件成功: ${dest.absolutePath} (${dest.length()} bytes)")
+                        return dest.absolutePath
+                    }
+                    tmpFile.delete()
+                }
+            }
+
+            // su 兜底
+            android.util.Log.d("DouyinAutomator", "尝试 su -c screencap...")
+            try {
+                val suTmpPath = "/sdcard/Download/$fileName"
+                val suProcess = Runtime.getRuntime().exec(arrayOf("su", "-c", "screencap -p $suTmpPath"))
+                val suExit = suProcess.waitFor()
+                val suFile = java.io.File(suTmpPath)
+                if (suExit == 0 && suFile.exists() && suFile.length() > 100) {
+                    suFile.copyTo(dest, overwrite = true)
+                    suFile.delete()
+                    return dest.absolutePath
+                }
+                suFile.delete()
+            } catch (e: Exception) {
+                android.util.Log.d("DouyinAutomator", "su 不可用: ${e.message}")
+            }
+
+            null
+        } catch (e: Exception) {
+            android.util.Log.e("DouyinAutomator", "screencap 写文件异常", e)
+            null
         }
-        return uri
+    }
+
+    /** 检查是否有存储读取权限 */
+    private fun hasStoragePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= 33) {
+            service.checkSelfPermission(android.Manifest.permission.READ_MEDIA_IMAGES) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            service.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    /**
+     * 策略3：screencap -p stdout（传统方式）
+     */
+    private fun takeScreenshotScreencapStdout(prefix: String): String? {
+        return try {
+            val dest = prepareDestFile(prefix) ?: return null
+            for (cmd in listOf("screencap", "/system/bin/screencap")) {
+                val process = Runtime.getRuntime().exec(arrayOf(cmd, "-p"))
+                val bytes = process.inputStream.readBytes()
+                val stderr = process.errorStream.bufferedReader().readText()
+                val exitCode = process.waitFor()
+                android.util.Log.d("DouyinAutomator", "$cmd stdout exit=$exitCode, stdout=${bytes.size}B, stderr=[${stderr.take(200)}]")
+                if (bytes.size > 100 && bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte()) {
+                    dest.writeBytes(bytes)
+                    android.util.Log.d("DouyinAutomator", "screencap stdout成功: ${dest.absolutePath} (${dest.length()} bytes)")
+                    return dest.absolutePath
+                }
+            }
+            null
+        } catch (e: Exception) {
+            android.util.Log.e("DouyinAutomator", "screencap stdout 异常", e)
+            null
+        }
+    }
+
+    /**
+     * 策略4：GLOBAL_ACTION_TAKE_SCREENSHOT + 多目录/MediaStore 扫描
+     */
+    private fun takeScreenshotGlobalAction(): String? {
+        return try {
+            android.util.Log.d("DouyinAutomator", "触发系统截图键...")
+            service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT)
+            Thread.sleep(5000)
+
+            val searchDirs = listOf(
+                "/sdcard/Pictures/Screenshots", "/sdcard/DCIM/Screenshots",
+                "/sdcard/Screenshots", "/sdcard/Pictures", "/sdcard/DCIM",
+                "/sdcard/Download", "/storage/emulated/0/Pictures/Screenshots",
+                "/storage/emulated/0/DCIM/Screenshots",
+                "/storage/emulated/0/Pictures", "/storage/emulated/0/DCIM",
+                "/sdcard/windows/BstSharedFolder",
+                "/data/media/0/Pictures/Screenshots",
+                "/mnt/sdcard/Pictures/Screenshots"
+            )
+            var latestFile: java.io.File? = null
+            var latestTime = 0L
+            for (dirPath in searchDirs) {
+                val dir = java.io.File(dirPath)
+                if (!dir.exists() || !dir.isDirectory) continue
+                val files = try {
+                    dir.listFiles()?.filter {
+                        val n = it.name.lowercase()
+                        (n.endsWith(".png") || n.endsWith(".jpg")) && it.isFile
+                    }
+                } catch (e: Exception) { null }
+                files?.forEach { f -> if (f.lastModified() > latestTime) { latestTime = f.lastModified(); latestFile = f } }
+            }
+            if (latestFile != null && latestFile!!.length() > 0) {
+                android.util.Log.d("DouyinAutomator", "找到截图: ${latestFile!!.absolutePath} (${System.currentTimeMillis()-latestTime}ms前)")
+                return copyScreenshot(latestFile!!, "douyin")
+            }
+
+            // MediaStore fallback（扩大窗口到 30 秒）
+            android.util.Log.d("DouyinAutomator", "尝试 MediaStore（30s窗口）...")
+            val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            val cursor = service.contentResolver.query(
+                uri,
+                arrayOf(android.provider.MediaStore.Images.Media.DATA, android.provider.MediaStore.Images.Media.DATE_ADDED),
+                "${android.provider.MediaStore.Images.Media.DATE_ADDED} > ?",
+                arrayOf((System.currentTimeMillis() / 1000 - 30).toString()),
+                "${android.provider.MediaStore.Images.Media.DATE_ADDED} DESC"
+            )
+            cursor?.use {
+                if (it.moveToFirst()) {
+                    val idx = it.getColumnIndex(android.provider.MediaStore.Images.Media.DATA)
+                    if (idx >= 0) {
+                        val path = it.getString(idx)
+                        val f = java.io.File(path)
+                        if (f.exists() && f.length() > 0) return copyScreenshot(f, "douyin")
+                    }
+                }
+            }
+            null
+        } catch (e: Exception) {
+            android.util.Log.e("DouyinAutomator", "系统截图键异常", e)
+            null
+        }
+    }
+
+    private fun copyScreenshot(src: java.io.File, prefix: String): String? {
+        val dest = prepareDestFile(prefix) ?: return null
+        return try {
+            src.copyTo(dest, overwrite = true)
+            android.util.Log.d("DouyinAutomator", "截图已复制: ${dest.absolutePath}")
+            dest.absolutePath
+        } catch (e: Exception) {
+            android.util.Log.w("DouyinAutomator", "复制失败, 用原路径: ${e.message}")
+            src.absolutePath
+        }
+    }
+
+    /**
+     * 策略4：SurfaceControl.screenshot() 反射 — getMethods 含继承兜底
+     */
+    private fun takeScreenshotReflection(): String? {
+        return try {
+            val sc = Class.forName("android.view.SurfaceControl")
+            val dm = service.resources.displayMetrics
+            val w = dm.widthPixels
+            val h = dm.heightPixels
+            val crop = Rect(0, 0, w, h)
+
+            val methods = sc.declaredMethods.filter {
+                it.name == "screenshot" && it.returnType == Bitmap::class.java
+            }.ifEmpty {
+                android.util.Log.w("DouyinAutomator", "declaredMethods empty, 尝试 getMethods...")
+                sc.methods.filter {
+                    it.name == "screenshot" && it.returnType == Bitmap::class.java
+                }.distinctBy { it.parameterTypes.contentToString() }
+            }
+            if (methods.isEmpty()) {
+                android.util.Log.e("DouyinAutomator", "SurfaceControl 未找到 screenshot 方法")
+                return null
+            }
+            android.util.Log.d("DouyinAutomator", "找到 ${methods.size} 个 screenshot 方法")
+
+            for (m in methods) {
+                val n = m.parameterTypes.size
+                val args: Array<Any?> = when (n) {
+                    2 -> arrayOf(w, h)
+                    4 -> arrayOf(crop, w, h, 0)
+                    7 -> arrayOf(crop, w, h, 0, 0, false, 0)
+                    else -> continue
+                }
+                try {
+                    val bitmap = m.invoke(null, *args) as? Bitmap
+                    if (bitmap != null && bitmap.width > 0) {
+                        val dest = prepareDestFile("douyin") ?: run { bitmap.recycle(); return null }
+                        FileOutputStream(dest).use { out -> bitmap.compress(Bitmap.CompressFormat.PNG, 95, out) }
+                        bitmap.recycle()
+                        android.util.Log.d("DouyinAutomator", "反射成功(${n}参数): ${dest.absolutePath}")
+                        return dest.absolutePath
+                    }
+                    bitmap?.recycle()
+                } catch (e: Exception) {
+                    android.util.Log.w("DouyinAutomator", "screenshot(${n}参数) 失败: ${e.message}")
+                }
+            }
+            android.util.Log.e("DouyinAutomator", "所有 SurfaceControl 签名均失败")
+            null
+        } catch (e: Exception) {
+            android.util.Log.e("DouyinAutomator", "SurfaceControl 反射失败", e)
+            null
+        }
+    }
+
+    private fun prepareDestFile(prefix: String): java.io.File? {
+        val destDir = service.getExternalFilesDir(null) ?: run {
+            android.util.Log.e("DouyinAutomator", "getExternalFilesDir 返回 null")
+            return null
+        }
+        return java.io.File(destDir, "${prefix}_${System.currentTimeMillis()}.png")
     }
 
     /**
@@ -1662,10 +1936,13 @@ class DouyinAutomator(
      * 通知步骤进度（通过回调 + 服务端日志）
      */
     private fun notifyStep(step: String, action: String, status: Int) {
-        AutomationService.onActionResult?.let { callback ->
-            // 通过 onActionResult 传递步骤进度信息
-            // 格式: STEP|stepName|action|status
-            // AutoViewModel 解析此格式更新 UI
+        // 更新悬浮窗
+        if (AutomationOverlayService.instance == null) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                AutomationOverlayService.updateStep(action, "进行中...")
+            }
+        } else {
+            AutomationOverlayService.updateStep(action, "进行中...")
         }
     }
 
