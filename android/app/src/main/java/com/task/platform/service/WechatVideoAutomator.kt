@@ -306,30 +306,59 @@ class WechatVideoAutomator(
 
     /* 进入视频号：底部 Tab 找到"发现" → 在发现页找到"视频号"入口 */
     private fun enterVideoChannel(): Boolean {
-        // 1. 点底部"发现"tab
-        val tabResult = retryFindNode({
+        val screenW = service.resources.displayMetrics.widthPixels.toFloat()
+        val screenH = service.resources.displayMetrics.heightPixels.toFloat()
+
+        // 1. 找底部"发现" tab（文本匹配 + 坐标兜底）
+        dumpAllNodes("微信首页")
+        var found = retryFindNode({
             findNodeByText(TAB_DISCOVER_TEXTS)
         }) { tab ->
-            tab.parent?.let { parent ->
-                parent.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            } ?: tab.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            val clickable = if (tab.isClickable) tab else tab.parent ?: tab
+            dispatchTapOnNode(clickable)
             android.util.Log.d("WechatVAM", "点击底部Tab: 发现")
         }
-        if (!tabResult) return false
 
-        randomDelay(1000, 2000)
+        // 坐标兜底：微信底部4个Tab（发现是第3个，约 x=62%）
+        if (!found) {
+            android.util.Log.d("WechatVAM", "文本未找到'发现'，用坐标兜底: x=${screenW * 0.62f}, y=${screenH * 0.98f}")
+            dispatchTap(screenW * 0.62f, screenH * 0.98f)
+            randomDelay(500, 1000)
+        }
+
+        randomDelay(1500, 2500)
         if (cancelled) return false
 
         // 2. 在发现页找"视频号"
+        dumpAllNodes("发现页")
+        val videoChannelResult = retryFindNode({
+            findNodeByText(TAB_VIDEO_CHANNEL_TEXTS)
+        }) { node ->
+            dispatchTapOnNode(node)
+            android.util.Log.d("WechatVAM", "点击: 视频号(文本)")
+        }
+
+        if (videoChannelResult) return true
+
+        // 文本没找到 → 尝试在发现页滑动并重试
+        android.util.Log.d("WechatVAM", "发现页未找到'视频号'文字，尝试滑动手势...")
+        // 从下往上滑（屏幕中间偏下 → 屏幕中间偏上）
+        val path = android.graphics.Path().apply {
+            moveTo(screenW * 0.5f, screenH * 0.75f)
+            lineTo(screenW * 0.5f, screenH * 0.25f)
+        }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+            .build()
+        service.dispatchGesture(gesture, null, null)
+        randomDelay(1000, 2000)
+
+        // 重试
         return retryFindNode({
             findNodeByText(TAB_VIDEO_CHANNEL_TEXTS)
         }) { node ->
-            val parent = node.parent ?: node
-            // 如果节点本身不可点击，找可点击的父节点
-            val clickable = if (parent.isClickable) parent else findClickableAncestor(parent)
-            clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                ?: dispatchTapOnNode(parent)
-            android.util.Log.d("WechatVAM", "点击: 视频号")
+            dispatchTapOnNode(node)
+            android.util.Log.d("WechatVAM", "点击: 视频号(滑动后)")
         }
     }
 
