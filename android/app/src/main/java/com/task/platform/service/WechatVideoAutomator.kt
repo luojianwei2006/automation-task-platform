@@ -304,61 +304,100 @@ class WechatVideoAutomator(
         }
     }
 
-    /* 进入视频号：底部 Tab 找到"发现" → 在发现页找到"视频号"入口 */
+    /* 进入视频号：底部 Tab → "发现" → "视频号"。
+     * 微信不开放无障碍树 → 文本查找失败时自动降级为坐标点击 */
     private fun enterVideoChannel(): Boolean {
         val screenW = service.resources.displayMetrics.widthPixels.toFloat()
         val screenH = service.resources.displayMetrics.heightPixels.toFloat()
+        var treeUsable = isTreeUsable()
 
-        // 1. 找底部"发现" tab（文本匹配 + 坐标兜底）
-        dumpAllNodes("微信首页")
-        var found = retryFindNode({
-            findNodeByText(TAB_DISCOVER_TEXTS)
-        }) { tab ->
-            val clickable = if (tab.isClickable) tab else tab.parent ?: tab
-            dispatchTapOnNode(clickable)
-            android.util.Log.d("WechatVAM", "点击底部Tab: 发现")
+        // 1. 点"发现" tab
+        if (treeUsable) {
+            val tabResult = retryFindNode({
+                findNodeByText(TAB_DISCOVER_TEXTS)
+            }) { tab ->
+                dispatchTapOnNode(tab)
+                android.util.Log.d("WechatVAM", "点击底部Tab: 发现(文本)")
+            }
+            if (!tabResult) {
+                android.util.Log.d("WechatVAM", "文本未找到'发现'，降级为坐标")
+                treeUsable = false
+            }
         }
 
-        // 坐标兜底：微信底部4个Tab（发现是第3个，约 x=62%）
-        if (!found) {
-            android.util.Log.d("WechatVAM", "文本未找到'发现'，用坐标兜底: x=${screenW * 0.62f}, y=${screenH * 0.98f}")
-            dispatchTap(screenW * 0.62f, screenH * 0.98f)
-            randomDelay(500, 1000)
+        if (!treeUsable) {
+            // 微信底部4个Tab：发现是第3个，约 x=62.5%
+            android.util.Log.d("WechatVAM", "坐标点击 发现 tab: x=${screenW * 0.625f}, y=${screenH * 0.98f}")
+            dispatchTap(screenW * 0.625f, screenH * 0.98f)
         }
 
-        randomDelay(1500, 2500)
+        randomDelay(2000, 3000)
         if (cancelled) return false
-
-        // 2. 在发现页找"视频号"
         dumpAllNodes("发现页")
-        val videoChannelResult = retryFindNode({
-            findNodeByText(TAB_VIDEO_CHANNEL_TEXTS)
-        }) { node ->
-            dispatchTapOnNode(node)
-            android.util.Log.d("WechatVAM", "点击: 视频号(文本)")
+
+        // 2. 点"视频号" entry
+        if (isTreeUsable()) {
+            val result = retryFindNode({
+                findNodeByText(TAB_VIDEO_CHANNEL_TEXTS)
+            }) { node ->
+                dispatchTapOnNode(node)
+                android.util.Log.d("WechatVAM", "点击: 视频号(文本)")
+            }
+            if (result) return true
+            android.util.Log.d("WechatVAM", "文本未找到'视频号'，降级为坐标")
         }
 
-        if (videoChannelResult) return true
+        // 坐标兜底：视频号通常在发现页上方区域（朋友圈下面）
+        // 两个候选位置：先试上方，不行滑动后再试
+        val candidateYs = floatArrayOf(screenH * 0.19f, screenH * 0.25f, screenH * 0.30f)
+        for (y in candidateYs) {
+            android.util.Log.d("WechatVAM", "坐标点击视频号: y=${y}")
+            dispatchTap(screenW * 0.5f, y)
+            randomDelay(1000, 2000)
+            if (cancelled) return false
+        }
 
-        // 文本没找到 → 尝试在发现页滑动并重试
-        android.util.Log.d("WechatVAM", "发现页未找到'视频号'文字，尝试滑动手势...")
-        // 从下往上滑（屏幕中间偏下 → 屏幕中间偏上）
+        // 滑动一下发现页（视频号可能在下方），重新试
+        android.util.Log.d("WechatVAM", "滑动发现页后重试...")
         val path = android.graphics.Path().apply {
             moveTo(screenW * 0.5f, screenH * 0.75f)
             lineTo(screenW * 0.5f, screenH * 0.25f)
         }
         val gesture = android.accessibilityservice.GestureDescription.Builder()
-            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 500))
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 600))
             .build()
         service.dispatchGesture(gesture, null, null)
-        randomDelay(1000, 2000)
+        randomDelay(1500, 2500)
 
-        // 重试
-        return retryFindNode({
-            findNodeByText(TAB_VIDEO_CHANNEL_TEXTS)
-        }) { node ->
-            dispatchTapOnNode(node)
-            android.util.Log.d("WechatVAM", "点击: 视频号(滑动后)")
+        for (y in candidateYs) {
+            dispatchTap(screenW * 0.5f, y)
+            randomDelay(1000, 2000)
+            if (cancelled) return false
+        }
+
+        // 坐标兜底完成，假定点击成功继续后续流程
+        android.util.Log.d("WechatVAM", "视频号坐标兜底完成，继续后续流程")
+        return true
+    }
+
+    /** 检查无障碍树是否可用（非空且至少有实际内容节点） */
+    private fun isTreeUsable(): Boolean {
+        val root = service.rootInActiveWindow ?: return false
+        try {
+            if (root.childCount == 0) return false
+            // 递归计数（最多查2层）
+            var total = 1
+            for (i in 0 until root.childCount) {
+                val child = root.getChild(i)
+                if (child != null) {
+                    total++
+                    total += child.childCount
+                    child.recycle()
+                }
+            }
+            return total > 2  // 根节点 + 至少2个实际节点才认为可用
+        } finally {
+            root.recycle()
         }
     }
 
