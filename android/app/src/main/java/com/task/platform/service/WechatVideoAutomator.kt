@@ -67,6 +67,8 @@ class WechatVideoAutomator(
     @Volatile
     private var cancelled = false
     private var currentTask: AutoTask? = null
+    /** 无障碍树是否可用（微信不开放无障碍，此标记为 false 时全程坐标操作） */
+    private var treeUsable = true
 
     fun cancel() {
         cancelled = true
@@ -80,6 +82,10 @@ class WechatVideoAutomator(
         currentTask = task
 
         try {
+            // 检测一次无障碍树是否可用（微信不开放，全局降级为坐标方案）
+            treeUsable = isTreeUsable()
+            android.util.Log.d("WechatVAM", "树可用性: $treeUsable")
+
             // Step 1: 打开微信
             notifyStep("open_app", "正在打开微信...", 0)
             if (!openWechat()) {
@@ -402,57 +408,104 @@ class WechatVideoAutomator(
     }
 
     private fun navigateToSearch(): Boolean {
-        return retryFindNode({
-            findNodeByText(SEARCH_ICON_TEXTS) ?: findNodeByDesc(SEARCH_ICON_DESCS)
-        }) { node ->
-            val clickable = if (node.isClickable) node else findClickableAncestor(node)
-            clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                ?: dispatchTapOnNode(node)
-            android.util.Log.d("WechatVAM", "点击搜索图标")
+        if (treeUsable) {
+            return retryFindNode({
+                findNodeByText(SEARCH_ICON_TEXTS) ?: findNodeByDesc(SEARCH_ICON_DESCS)
+            }) { node ->
+                val clickable = if (node.isClickable) node else findClickableAncestor(node)
+                clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    ?: dispatchTapOnNode(node)
+                android.util.Log.d("WechatVAM", "点击搜索图标(文本)")
+            }
         }
+
+        // 坐标兜底：搜索图标在视频号页面右上角
+        val sw = service.resources.displayMetrics.widthPixels.toFloat()
+        val sh = service.resources.displayMetrics.heightPixels.toFloat()
+        android.util.Log.d("WechatVAM", "坐标点击搜索图标: x=${sw * 0.92f}, y=${sh * 0.07f}")
+        dispatchTap(sw * 0.92f, sh * 0.07f)
+        randomDelay(1000, 2000)
+        return true
     }
 
     private fun performSearch(keyword: String): Boolean {
-        // 找到输入框并输入
-        val hasInput = retryFindNode({
-            findEditableNode()
-        }) { node ->
-            val setArgs = android.os.Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, keyword)
+        val sw = service.resources.displayMetrics.widthPixels.toFloat()
+        val sh = service.resources.displayMetrics.heightPixels.toFloat()
+
+        if (treeUsable) {
+            // 找到输入框并输入
+            val hasInput = retryFindNode({
+                findEditableNode()
+            }) { node ->
+                val setArgs = android.os.Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, keyword)
+                }
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
+                android.util.Log.d("WechatVAM", "输入搜索词: $keyword")
+                node.recycle()
             }
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
-            android.util.Log.d("WechatVAM", "输入搜索词: $keyword")
-            node.recycle()
-        }
-        if (!hasInput) {
-            android.util.Log.e("WechatVAM", "找不到搜索输入框")
-            return false
+            if (!hasInput) {
+                android.util.Log.e("WechatVAM", "找不到搜索输入框")
+                return false
+            }
+            randomDelay(500, 1000)
+            return retryFindNode({
+                findNodeByText(SEARCH_BUTTON_TEXTS)
+            }) { node ->
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                android.util.Log.d("WechatVAM", "点击搜索按钮")
+            }
         }
 
-        randomDelay(500, 1000)
+        // 坐标方案：点击顶部搜索框 → 键盘弹出 → 剪贴板粘贴
+        dispatchTap(sw * 0.5f, sh * 0.07f)  // 搜索框位置（顶部居中偏上）
+        randomDelay(800, 1500)
 
-        // 点搜索按钮
-        return retryFindNode({
-            findNodeByText(SEARCH_BUTTON_TEXTS)
-        }) { node ->
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            android.util.Log.d("WechatVAM", "点击搜索按钮")
+        try {
+            val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("search", keyword))
+            android.util.Log.d("WechatVAM", "已复制搜索词到剪贴板: $keyword")
+            randomDelay(300, 500)
+
+            // 长按搜索框 → 粘贴
+            dispatchLongTap(sw * 0.5f, sh * 0.07f)
+            randomDelay(500, 800)
+            dispatchTap(sw * 0.5f, sh * 0.15f)  // 粘贴按钮通常在输入框下方弹出
+            randomDelay(500, 800)
+        } catch (e: Exception) {
+            android.util.Log.w("WechatVAM", "粘贴搜索词失败: ${e.message}")
         }
+
+        // 点搜索按钮（键盘右下角 / 搜索按钮）
+        dispatchTap(sw * 0.92f, sh * 0.07f)  // 右上角搜索
+        randomDelay(1000, 2000)
+        android.util.Log.d("WechatVAM", "坐标搜索完成")
+        return true
     }
 
     /* 点搜索结果中第一个账号（排除广告等无关节点） */
     private fun enterFirstAccount(): Boolean {
-        val screenH = service.resources.displayMetrics.heightPixels
-        val headerEnd = (screenH * 0.12).toInt()
-        return retryFindNode({
-            val root = service.rootInActiveWindow ?: return@retryFindNode null
-            val result = findFirstAccountResult(root, headerEnd, screenH)
-            if (result != root) root.recycle()
-            result
-        }) { node ->
-            android.util.Log.d("WechatVAM", "点击搜索结果第一个账号: ${node.contentDescription} ${node.text}")
-            dispatchTapOnNode(node)
+        if (treeUsable) {
+            val screenH = service.resources.displayMetrics.heightPixels
+            val headerEnd = (screenH * 0.12).toInt()
+            return retryFindNode({
+                val root = service.rootInActiveWindow ?: return@retryFindNode null
+                val result = findFirstAccountResult(root, headerEnd, screenH)
+                if (result != root) root.recycle()
+                result
+            }) { node ->
+                android.util.Log.d("WechatVAM", "点击搜索结果第一个账号: ${node.contentDescription} ${node.text}")
+                dispatchTapOnNode(node)
+            }
         }
+
+        // 坐标兜底：第一个搜索结果通常在搜索结果页上方
+        val sw = service.resources.displayMetrics.widthPixels.toFloat()
+        val sh = service.resources.displayMetrics.heightPixels.toFloat()
+        android.util.Log.d("WechatVAM", "坐标点击搜索结果第一个账号: y=${sh * 0.18f}")
+        dispatchTap(sw * 0.5f, sh * 0.18f)
+        randomDelay(2000, 3000)
+        return true
     }
 
     private fun findFirstAccountResult(node: AccessibilityNodeInfo, minTop: Int, maxBottom: Int): AccessibilityNodeInfo? {
@@ -484,18 +537,27 @@ class WechatVideoAutomator(
 
     /* 在账号主页点第一个视频 */
     private fun clickFirstVideo(): Boolean {
-        val screenH = service.resources.displayMetrics.heightPixels
-        val headerEnd = (screenH * 0.15).toInt()
-
-        return retryFindNode({
-            val root = service.rootInActiveWindow ?: return@retryFindNode null
-            val result = findFirstVideoNode(root, headerEnd, screenH)
-            if (result != root) root.recycle()
-            result
-        }) { node ->
-            android.util.Log.d("WechatVAM", "点击第一个视频: ${node.contentDescription}")
-            dispatchTapOnNode(node)
+        if (treeUsable) {
+            val screenH = service.resources.displayMetrics.heightPixels
+            val headerEnd = (screenH * 0.15).toInt()
+            return retryFindNode({
+                val root = service.rootInActiveWindow ?: return@retryFindNode null
+                val result = findFirstVideoNode(root, headerEnd, screenH)
+                if (result != root) root.recycle()
+                result
+            }) { node ->
+                android.util.Log.d("WechatVAM", "点击第一个视频: ${node.contentDescription}")
+                dispatchTapOnNode(node)
+            }
         }
+
+        // 坐标兜底：第一个视频通常在账号主页上部区域
+        val sw = service.resources.displayMetrics.widthPixels.toFloat()
+        val sh = service.resources.displayMetrics.heightPixels.toFloat()
+        android.util.Log.d("WechatVAM", "坐标点击第一个视频: y=${sh * 0.22f}")
+        dispatchTap(sw * 0.5f, sh * 0.22f)
+        randomDelay(3000, 5000)
+        return true
     }
 
     private fun findFirstVideoNode(node: AccessibilityNodeInfo, minTop: Int, maxBottom: Int): AccessibilityNodeInfo? {
@@ -527,39 +589,49 @@ class WechatVideoAutomator(
     // ─── 点赞 ──────────────────────────────────────────────
 
     private fun performLike(): Boolean {
-        dumpAllNodes("视频页")
+        if (treeUsable) {
+            dumpAllNodes("视频页")
 
-        // 1. 检查是否已点赞
-        val alreadyLiked = run {
-            val root = service.rootInActiveWindow ?: return@run null
-            val result = findNodeRecursive(root) { node ->
-                if (!node.isClickable) return@findNodeRecursive false
-                val desc = node.contentDescription?.toString().orEmpty()
-                val text = node.text?.toString().orEmpty()
-                desc.contains("已赞") || text.contains("已赞") || desc.contains("liked")
+            // 检查是否已点赞
+            val alreadyLiked = run {
+                val root = service.rootInActiveWindow ?: return@run null
+                val result = findNodeRecursive(root) { node ->
+                    if (!node.isClickable) return@findNodeRecursive false
+                    val desc = node.contentDescription?.toString().orEmpty()
+                    val text = node.text?.toString().orEmpty()
+                    desc.contains("已赞") || text.contains("已赞") || desc.contains("liked")
+                }
+                root.recycle()
+                result
             }
-            root.recycle()
-            result
-        }
-        if (alreadyLiked != null) {
-            android.util.Log.d("WechatVAM", "已点赞，跳过")
-            alreadyLiked.recycle()
-            return true
+            if (alreadyLiked != null) {
+                android.util.Log.d("WechatVAM", "已点赞，跳过")
+                alreadyLiked.recycle()
+                return true
+            }
+
+            val screenH = service.resources.displayMetrics.heightPixels
+            val bottomThreshold = (screenH * 0.6).toInt()
+
+            return retryFindNode({
+                findNodeByTextInRegion(LIKE_TEXTS, bottomThreshold, screenH)
+                    ?: findNodeByDescInRegion(LIKE_DESCS, bottomThreshold, screenH)
+            }) { node ->
+                val clickable = if (node.isClickable) node else findClickableAncestor(node)
+                clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                randomDelay(500, 1000)
+                android.util.Log.d("WechatVAM", "点赞完成")
+            }
         }
 
-        // 2. 在底部区域找点赞按钮（y > 60% 屏高）
-        val screenH = service.resources.displayMetrics.heightPixels
-        val bottomThreshold = (screenH * 0.6).toInt()
-
-        return retryFindNode({
-            findNodeByTextInRegion(LIKE_TEXTS, bottomThreshold, screenH)
-                ?: findNodeByDescInRegion(LIKE_DESCS, bottomThreshold, screenH)
-        }) { node ->
-            val clickable = if (node.isClickable) node else findClickableAncestor(node)
-            clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            randomDelay(500, 1000)
-            android.util.Log.d("WechatVAM", "点赞完成")
-        }
+        // 坐标兜底：点赞按钮通常在视频右侧/底部
+        val sw = service.resources.displayMetrics.widthPixels.toFloat()
+        val sh = service.resources.displayMetrics.heightPixels.toFloat()
+        // 视频号点赞位置：右侧中间区域（类似抖音）
+        android.util.Log.d("WechatVAM", "坐标点击点赞: x=${sw * 0.85f}, y=${sh * 0.65f}")
+        dispatchTap(sw * 0.85f, sh * 0.65f)
+        randomDelay(500, 1000)
+        return true
     }
 
     // ─── 评论 ──────────────────────────────────────────────
@@ -916,6 +988,14 @@ class WechatVideoAutomator(
         val path = android.graphics.Path().apply { moveTo(x, y) }
         val gesture = android.accessibilityservice.GestureDescription.Builder()
             .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 80))
+            .build()
+        service.dispatchGesture(gesture, null, null)
+    }
+
+    private fun dispatchLongTap(x: Float, y: Float) {
+        val path = android.graphics.Path().apply { moveTo(x, y) }
+        val gesture = android.accessibilityservice.GestureDescription.Builder()
+            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 600))
             .build()
         service.dispatchGesture(gesture, null, null)
     }
