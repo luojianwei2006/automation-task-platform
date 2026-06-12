@@ -947,10 +947,39 @@ class WechatVideoAutomator(
     }
 
     private fun findNodeByText(texts: List<String>): AccessibilityNodeInfo? {
-        val root = service.rootInActiveWindow ?: return null
-        val result = findNodeByTextRecursive(root, texts)
-        if (result != root) root.recycle()
-        return result
+        // 先在当前活动窗口找
+        val root = service.rootInActiveWindow
+        if (root != null) {
+            val result = findNodeByTextRecursive(root, texts)
+            if (result != null) {
+                if (result != root) root.recycle()
+                return result
+            }
+            // 如果活动窗口只有1个空节点，尝试其他窗口
+            if (root.childCount == 0) {
+                root.recycle()
+                return findNodeByTextInAllWindows(texts)
+            }
+            root.recycle()
+            return null
+        }
+        return findNodeByTextInAllWindows(texts)
+    }
+
+    private fun findNodeByTextInAllWindows(texts: List<String>): AccessibilityNodeInfo? {
+        val windows = service.windows ?: return null
+        for (window in windows) {
+            val root = window.root ?: continue
+            val result = findNodeByTextRecursive(root, texts)
+            if (result != null) {
+                for (other in windows) {
+                    if (other !== window) other.root?.recycle()
+                }
+                return result
+            }
+            root.recycle()
+        }
+        return null
     }
 
     private fun findNodeByTextRecursive(node: AccessibilityNodeInfo, texts: List<String>): AccessibilityNodeInfo? {
@@ -1174,13 +1203,31 @@ class WechatVideoAutomator(
 
     /** dump 当前页面所有可见节点 */
     private fun dumpAllNodes(label: String) {
-        val root = service.rootInActiveWindow ?: return
-        try {
-            val nodes = mutableListOf<String>()
-            collectVisibleNodes(root, 0, nodes)
-            android.util.Log.d("WechatVAM", "=== [$label] 全部节点 (${nodes.size}) ===")
-            for (s in nodes.take(60)) android.util.Log.d("WechatVAM", s)
-        } finally { root.recycle() }
+        val windows = service.windows
+        if (windows != null) {
+            for (w in windows) {
+                val root = w.root ?: continue
+                try {
+                    val nodes = mutableListOf<String>()
+                    collectVisibleNodes(root, 0, nodes)
+                    val wr = android.graphics.Rect()
+                    root.getBoundsInScreen(wr)
+                    android.util.Log.d("WechatVAM", "=== [$label] window(layer=${w.layer},bounds=$wr) 节点(${nodes.size}) ===")
+                    for (s in nodes.take(60)) android.util.Log.d("WechatVAM", s)
+                } finally { root.recycle() }
+            }
+        }
+
+        // 也检查 rootInActiveWindow（兜底）
+        val root = service.rootInActiveWindow
+        if (root != null) {
+            try {
+                val nodes2 = mutableListOf<String>()
+                collectVisibleNodes(root, 0, nodes2)
+                android.util.Log.d("WechatVAM", "=== [$label] rootInActiveWindow 节点(${nodes2.size}) ===")
+                for (s in nodes2.take(60)) android.util.Log.d("WechatVAM", s)
+            } finally { root.recycle() }
+        }
     }
 
     private fun collectVisibleNodes(node: AccessibilityNodeInfo, depth: Int, out: MutableList<String>) {
