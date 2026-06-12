@@ -45,7 +45,7 @@ data class UserInfo(
 data class TaskDTO(
     val id: Long,
     val title: String?,
-    /** 1抖音 2小红书 */
+    /** 1抖音 2小红书 3微信视频号 */
     val platform: Int,
     /** 1点赞 2评论 */
     val taskType: Int,

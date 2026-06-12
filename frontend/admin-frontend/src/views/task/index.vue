@@ -17,6 +17,7 @@
           <el-select v-model="filter.platform" placeholder="全部" clearable style="width:120px">
             <el-option label="抖音" :value="1" />
             <el-option label="小红书" :value="2" />
+            <el-option label="微信视频号" :value="3" />
           </el-select>
         </el-form-item>
 
@@ -204,6 +205,7 @@
               <el-select v-model="form.platform" placeholder="请选择平台" style="width: 100%;">
                 <el-option label="抖音" :value="1" />
                 <el-option label="小红书" :value="2" />
+                <el-option label="微信视频号" :value="3" />
               </el-select>
             </el-form-item>
 

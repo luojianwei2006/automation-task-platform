@@ -572,7 +572,7 @@ private fun InfoChip(label: String, value: String, color: Color) {
     }
 }
 
-private fun platformText(platform: Int) = when (platform) { 1 -> "抖音"; 2 -> "小红书"; else -> "全平台" }
+private fun platformText(platform: Int) = when (platform) { 1 -> "抖音"; 2 -> "小红书"; 3 -> "微信视频号"; else -> "全平台" }
 private fun typeText(taskType: Int) = when (taskType) { 1 -> "点赞"; 2 -> "评论"; else -> "其他" }
 
 // ==================== 图片解析 ====================

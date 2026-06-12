@@ -282,6 +282,7 @@ private fun MyTaskCard(
                     val platformLabel = when (task.platform) {
                         1 -> "抖音"
                         2 -> "小红书"
+            3 -> "微信视频号"
                         else -> if (task.platform == 0) "广告" else "全平台"
                     }
                     TaskTag(text = platformLabel, bgColor = Gray100, textColor = Gray700)

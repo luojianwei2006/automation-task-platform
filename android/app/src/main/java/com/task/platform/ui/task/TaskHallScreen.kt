@@ -318,10 +318,11 @@ private fun TaskCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 平台标签
-                val (platformLabel, platformColor) = when (task.platform) {
-                    1 -> "抖音" to Color(0xFFE91E63)
-                    2 -> "小红书" to Color(0xFFFF2442)
-                    else -> "全平台" to Orange
+        val (platformLabel, platformColor) = when (task.platform) {
+            1 -> "抖音" to Color(0xFFE91E63)
+            2 -> "小红书" to Color(0xFFFF2442)
+            3 -> "微信视频号" to Color(0xFF07C160)
+            else -> "全平台" to Orange
                 }
                 TaskTag(text = platformLabel, color = platformColor)
 

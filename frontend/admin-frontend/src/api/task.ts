@@ -6,6 +6,7 @@ import request from '@/utils/request'
 export const PLATFORM_MAP: Record<number, string> = {
   1: '抖音',
   2: '小红书',
+  3: '微信视频号',
 }
 
 // 任务类型映射
