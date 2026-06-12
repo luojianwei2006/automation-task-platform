@@ -648,8 +648,11 @@ class XhsAutomator(
         val isBad = text.contains("反馈") || desc.contains("反馈") ||
                     text.contains("feedback") || desc.contains("feedback") ||
                     text.contains("举报") || desc.contains("举报")
-        // 用户结果卡片：高度适中（80-300px），非无关按钮
-        val heightOk = rect.height() in 80..300
+        // 用户结果卡片：高度适中（约 50-200dp），非无关按钮
+        val density = service.resources.displayMetrics.density
+        val minH = (50 * density).toInt()
+        val maxH = (200 * density).toInt()
+        val heightOk = rect.height() in minH..maxH
         if (!isBad && node.isClickable && heightOk && rect.top >= minTop && rect.bottom <= maxBottom) {
             android.util.Log.d("XhsAutomator", "用户结果: cls=${node.className} text=[$text] h=${rect.height()}")
             return node
@@ -692,12 +695,21 @@ class XhsAutomator(
         val liked = findAndClickBottomLikeButton()
         if (liked) return true
 
-        // 3. 手势兜底：底部栏从左数第2个位置（约屏宽 60% 处，y=97% 屏高）
+        // 3. 手势兜底：底部栏点赞按钮（多候选位，适配不同屏幕/布局）
         android.util.Log.d("XhsAutomator", "手势兜底: 点底部栏点赞位置")
-        val metrics = service.resources.displayMetrics
-        // 根据节点 dump：底部栏4个按钮从左: 评论输入框(0-55%)|点赞(58-70%)|收藏(72-84%)|评论(86-100%)
-        // 点赞按钮约在 x=64% 处
-        dispatchTap(metrics.widthPixels * 0.64f, metrics.heightPixels * 0.97f)
+        val mw = service.resources.displayMetrics.widthPixels.toFloat()
+        val mh = service.resources.displayMetrics.heightPixels.toFloat()
+        // 底部栏4个按钮从左: 评论输入框|点赞|收藏|评论 — 点赞约在 x=60-68%
+        val candidates = listOf(
+            mw * 0.64f to mh * 0.965f,  // 主候选
+            mw * 0.62f to mh * 0.965f,  // 稍左
+            mw * 0.66f to mh * 0.965f,  // 稍右
+            mw * 0.64f to mh * 0.94f,   // 稍上（避开导航栏）
+        )
+        for ((x, y) in candidates) {
+            dispatchTap(x, y)
+            randomDelay(100, 200)
+        }
         randomDelay(500, 1000)
         return true
     }
@@ -843,10 +855,17 @@ class XhsAutomator(
         if (inputBounds == null) {
             android.util.Log.d("XhsAutomator", "未找到 EditText，点击底部评论区域激活输入...")
 
-            // 策略A: 点击"Say something..."/评论区位置
-            val tapX = screenW * 0.5f       // 水平居中
-            val tapY = screenH * 0.98f       // 底部 2% 位置
-            dispatchTap(tapX, tapY)
+            // 策略A: 点击"Say something..."/评论区位置（多候选位，避开导航栏）
+            val commentTapCandidates = listOf(
+                screenW * 0.5f to screenH * 0.95f,   // 主候选：距底部 5%
+                screenW * 0.5f to screenH * 0.93f,   // 稍上
+                screenW * 0.3f to screenH * 0.95f,   // 偏左（部分版本输入框在左下角）
+                screenW * 0.5f to screenH * 0.90f,   // 更上
+            )
+            for ((tapX, tapY) in commentTapCandidates) {
+                dispatchTap(tapX, tapY)
+                randomDelay(200, 400)
+            }
             randomDelay(1000, 1800)           // 等待键盘弹出 + EditText 可聚焦
 
             // 再次尝试找 EditText
