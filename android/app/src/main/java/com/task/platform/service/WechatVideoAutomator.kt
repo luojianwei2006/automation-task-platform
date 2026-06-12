@@ -220,25 +220,51 @@ class WechatVideoAutomator(
     // ─── 微信操作 ──────────────────────────────────────────
 
     private fun openWechat(): Boolean {
-        return try {
-            android.util.Log.d("WechatVAM", "正在打开微信, 包名=$WECHAT_PACKAGE")
-            val intent = service.packageManager.getLaunchIntentForPackage(WECHAT_PACKAGE)
-            if (intent != null) {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                service.startActivity(intent)
-                true
-            } else {
-                android.util.Log.e("WechatVAM", "未找到微信应用($WECHAT_PACKAGE)，列出所有已安装应用：")
-                // dump 所有已安装包的名称，方便确认是否装了微信以及正确的包名
-                val pkgs = service.packageManager.getInstalledApplications(0)
+        return run {
+            try {
+                android.util.Log.d("WechatVAM", "正在打开微信, 包名=$WECHAT_PACKAGE")
+                val intent = service.packageManager.getLaunchIntentForPackage(WECHAT_PACKAGE)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    service.startActivity(intent)
+                    return@run true
+                }
+
+                // 没找到 com.tencent.mm → 尝试自动发现微信的包名
+                android.util.Log.e("WechatVAM", "未找到 $WECHAT_PACKAGE，搜索微信相关应用...")
+                val pm = service.packageManager
+                val pkgs = pm.getInstalledApplications(0)
+                var wechatPkg: String? = null
+
                 for (pkg in pkgs.sortedBy { it.packageName }) {
-                    android.util.Log.d("WechatVAM", "  installed: ${pkg.packageName}")
+                    val label = pm.getApplicationLabel(pkg).toString()
+                    if (label.contains("微信") || label.contains("WeChat", ignoreCase = true)) {
+                        wechatPkg = pkg.packageName
+                        android.util.Log.d("WechatVAM", "  ✅ 找到微信: $label → ${pkg.packageName}")
+                        break
+                    }
+                }
+
+                if (wechatPkg != null) {
+                    android.util.Log.d("WechatVAM", "使用自动发现的微信包名: $wechatPkg")
+                    val intent2 = pm.getLaunchIntentForPackage(wechatPkg!!)
+                    if (intent2 != null) {
+                        intent2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        service.startActivity(intent2)
+                        return@run true
+                    }
+                }
+
+                android.util.Log.e("WechatVAM", "仍未找到微信，列出全部已安装应用：")
+                for (pkg in pkgs.sortedBy { it.packageName }) {
+                    val label = pm.getApplicationLabel(pkg).toString()
+                    android.util.Log.d("WechatVAM", "  ${pkg.packageName}  [$label]")
                 }
                 false
+            } catch (e: Exception) {
+                android.util.Log.e("WechatVAM", "打开微信失败", e)
+                false
             }
-        } catch (e: Exception) {
-            android.util.Log.e("WechatVAM", "打开微信失败", e)
-            false
         }
     }
 
