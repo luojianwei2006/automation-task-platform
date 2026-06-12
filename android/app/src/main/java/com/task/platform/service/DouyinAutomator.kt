@@ -1223,8 +1223,9 @@ class DouyinAutomator(
                 val m = service.resources.displayMetrics
                 android.graphics.Rect(0, 0, m.widthPixels, m.heightPixels)
             }
-            // 发送按钮在输入框右侧，垂直居中
-            val sendX = (rect.right + 40).toFloat().coerceAtMost(service.resources.displayMetrics.widthPixels - 20f)
+            // 发送按钮在输入框右侧约 40dp 处，垂直居中
+            val density = service.resources.displayMetrics.density
+            val sendX = (rect.right + 40 * density).toFloat().coerceAtMost(service.resources.displayMetrics.widthPixels - 20f)
             val sendY = rect.centerY().toFloat()
             android.util.Log.d("DouyinAutomator", "手势点击发送区域: ($sendX, $sendY)")
             val path = android.graphics.Path().apply { moveTo(sendX, sendY) }
@@ -1307,21 +1308,33 @@ class DouyinAutomator(
     }
 
     /**
-     * 手势点击屏幕右下角（键盘发送键典型位置）
+     * 手势点击键盘发送键区域（无障碍键盘节点不可用时的兜底方案）
+     * 使用屏幕百分比 + 多候选位，适配不同分辨率/密度/键盘高度
      */
     private fun tapBottomRight(): Boolean {
         return try {
             if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.N) return false
             val metrics = service.resources.displayMetrics
-            val x = (metrics.widthPixels * 0.93f)
-            val y = (metrics.heightPixels * 0.82f)
-            android.util.Log.d("DouyinAutomator", "手势点击: x=$x y=$y")
-            val gesture = android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(
-                    android.graphics.Path().apply { moveTo(x, y) }, 0, 50))
-                .build()
-            service.dispatchGesture(gesture, null, null)
-            randomDelay(300, 500)
+            val w = metrics.widthPixels.toFloat()
+            val h = metrics.heightPixels.toFloat()
+
+            // 键盘约占屏幕底部 40%，发送键通常在右下角区域
+            // 多候选位：不同键盘布局下发送键的位置
+            val candidates = listOf(
+                w * 0.93f to h * 0.80f,  // 最右下角
+                w * 0.90f to h * 0.82f,  // 稍左
+                w * 0.88f to h * 0.78f,  // 更左上方
+                w * 0.95f to h * 0.83f,  // 最偏右
+            )
+            for ((x, y) in candidates) {
+                android.util.Log.d("DouyinAutomator", "手势点击键盘发送: x=$x y=$y")
+                val gesture = android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(
+                        android.graphics.Path().apply { moveTo(x, y) }, 0, 50))
+                    .build()
+                service.dispatchGesture(gesture, null, null)
+                randomDelay(150, 300)
+            }
             true
         } catch (e: Exception) {
             android.util.Log.e("DouyinAutomator", "手势失败", e)
