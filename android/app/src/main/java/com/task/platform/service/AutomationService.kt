@@ -78,6 +78,7 @@ class AutomationService : AccessibilityService() {
     /** 自动化引擎 */
     private val douyinAutomator: DouyinAutomator by lazy { DouyinAutomator(this) }
     private val xhsAutomator: XhsAutomator by lazy { XhsAutomator(this) }
+    private val wechatVideoAutomator: WechatVideoAutomator by lazy { WechatVideoAutomator(this) }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -127,6 +128,7 @@ class AutomationService : AccessibilityService() {
                 when (task.platform) {
                     1 -> douyinAutomator.execute(task)
                     2 -> xhsAutomator.execute(task)
+                    3 -> wechatVideoAutomator.execute(task)
                     else -> {
                         onActionResult?.invoke(false, "暂不支持该平台: ${task.platform}")
                         isRunning = false
