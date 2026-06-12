@@ -228,7 +228,12 @@ class WechatVideoAutomator(
                 service.startActivity(intent)
                 true
             } else {
-                android.util.Log.e("WechatVAM", "未找到微信应用")
+                android.util.Log.e("WechatVAM", "未找到微信应用($WECHAT_PACKAGE)，列出所有已安装应用：")
+                // dump 所有已安装包的名称，方便确认是否装了微信以及正确的包名
+                val pkgs = service.packageManager.getInstalledApplications(0)
+                for (pkg in pkgs.sortedBy { it.packageName }) {
+                    android.util.Log.d("WechatVAM", "  installed: ${pkg.packageName}")
+                }
                 false
             }
         } catch (e: Exception) {
