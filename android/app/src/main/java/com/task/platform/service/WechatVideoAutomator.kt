@@ -223,27 +223,46 @@ class WechatVideoAutomator(
         return run {
             try {
                 android.util.Log.d("WechatVAM", "正在打开微信, 包名=$WECHAT_PACKAGE")
+
+                // 尝试1: getLaunchIntentForPackage
                 val intent = service.packageManager.getLaunchIntentForPackage(WECHAT_PACKAGE)
                 if (intent != null) {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     service.startActivity(intent)
+                    android.util.Log.d("WechatVAM", "微信已启动(launchIntent)")
                     return@run true
                 }
 
-                // 没找到 com.tencent.mm → 尝试自动发现微信的包名
-                android.util.Log.e("WechatVAM", "未找到 $WECHAT_PACKAGE，搜索微信相关应用...")
-
-                // 通过 Intent 直接尝试打开（不依赖包名，系统会匹配能处理 MAIN 的 Activity）
-                val wechatIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
-                    addCategory(android.content.Intent.CATEGORY_LAUNCHER)
-                    setPackage(null)
-                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                // 尝试2: 直接 setClassName 指定已知的启动 Activity
+                val knownActivities = listOf(
+                    "com.tencent.mm.ui.LauncherUI",
+                    "com.tencent.mm.app.WeChatSplashActivity",
+                    "com.tencent.mm.app.MMApplication"
+                )
+                for (activityName in knownActivities) {
+                    try {
+                        val explicitIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                            setClassName(WECHAT_PACKAGE, activityName)
+                            addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        }
+                        service.startActivity(explicitIntent)
+                        android.util.Log.d("WechatVAM", "微信已启动(explicit: $activityName)")
+                        return@run true
+                    } catch (_: Exception) {
+                        android.util.Log.d("WechatVAM", "explicit $activityName 失败")
+                    }
                 }
 
-                // 列出所有 Launcher Activity（可从桌面启动的应用），从中找微信
+                // 尝试3: queryIntentActivities 以 WECHAT_PACKAGE 过滤
+                android.util.Log.d("WechatVAM", "尝试 queryIntentActivities 定位微信...")
                 val pm = service.packageManager
-                val riList = pm.queryIntentActivities(wechatIntent, android.content.pm.PackageManager.GET_RESOLVED_FILTER)
+                val queryIntent = android.content.Intent(android.content.Intent.ACTION_MAIN).apply {
+                    addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+                }
+                val riList = pm.queryIntentActivities(queryIntent, 0)
                 var wechatPkg: String? = null
+                var wechatActivity: String? = null
                 val allApps = mutableListOf<Pair<String, String>>()
 
                 for (ri in riList) {
@@ -251,26 +270,29 @@ class WechatVideoAutomator(
                     val label = ri.loadLabel(pm).toString()
                     allApps.add(pkg to label)
 
-                    if (label.contains("微信") || label.contains("WeChat", ignoreCase = true) ||
-                        pkg.lowercase().contains("tencent") || pkg.lowercase().contains("wechat")) {
+                    if (pkg == WECHAT_PACKAGE || pkg.lowercase().contains("tencent")) {
                         wechatPkg = pkg
-                        android.util.Log.d("WechatVAM", "  ✅ 找到微信: $label → $pkg")
-                        break
+                        wechatActivity = ri.activityInfo.name
+                        android.util.Log.d("WechatVAM", "  ✅ 找到微信: $label → $pkg/${ri.activityInfo.name}")
                     }
                 }
 
-                if (wechatPkg != null) {
-                    android.util.Log.d("WechatVAM", "使用自动发现的微信包名: $wechatPkg")
-                    val intent2 = pm.getLaunchIntentForPackage(wechatPkg!!)
-                    if (intent2 != null) {
-                        intent2.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        service.startActivity(intent2)
+                if (wechatPkg != null && wechatActivity != null) {
+                    val explicitIntent = android.content.Intent().apply {
+                        setClassName(wechatPkg!!, wechatActivity!!)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    try {
+                        service.startActivity(explicitIntent)
+                        android.util.Log.d("WechatVAM", "微信已启动(explicit from query)")
                         return@run true
+                    } catch (e: Exception) {
+                        android.util.Log.e("WechatVAM", "explicit启动失败", e)
                     }
                 }
 
-                // 兜底：dump 所有可从桌面启动的应用
-                android.util.Log.e("WechatVAM", "仍未找到微信，列出所有桌面应用(${allApps.size}个)：")
+                // 兜底 dump
+                android.util.Log.e("WechatVAM", "无法启动微信，列出所有桌面应用(${allApps.size}个)：")
                 for ((pkg, label) in allApps.sortedBy { it.first }) {
                     android.util.Log.d("WechatVAM", "  $pkg  [$label]")
                 }
