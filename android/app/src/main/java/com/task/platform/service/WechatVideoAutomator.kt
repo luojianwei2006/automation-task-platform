@@ -82,10 +82,6 @@ class WechatVideoAutomator(
         currentTask = task
 
         try {
-            // 检测一次无障碍树是否可用（微信不开放，全局降级为坐标方案）
-            treeUsable = isTreeUsable()
-            android.util.Log.d("WechatVAM", "树可用性: $treeUsable")
-
             // Step 1: 打开微信
             notifyStep("open_app", "正在打开微信...", 0)
             if (!openWechat()) {
@@ -96,105 +92,7 @@ class WechatVideoAutomator(
             if (cancelled) return
             notifyStepComplete("open_app", "打开微信", 1, "成功打开")
 
-            // Step 2: 进入视频号
-            notifyStep("enter_video_channel", "正在进入视频号...", 0)
-            if (!enterVideoChannel()) {
-                notifyStepComplete("enter_video_channel", "进入视频号", 2, "无法进入")
-                return
-            }
-            randomDelay(MIN_RESULT_WAIT, MAX_RESULT_WAIT)
-            if (cancelled) return
-            notifyStepComplete("enter_video_channel", "进入视频号", 1, "已进入视频号")
-
-            // Step 3: 搜索
-            val searchKeyword = extractSearchKeyword(task)
-            notifyStep("search", "搜索: $searchKeyword", 0)
-            if (!navigateToSearch()) {
-                notifyStepComplete("search", "搜索: $searchKeyword", 2, "无法进入搜索")
-                return
-            }
-            randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-            if (!performSearch(searchKeyword)) {
-                notifyStepComplete("search", "搜索: $searchKeyword", 2, "搜索失败")
-                return
-            }
-            notifyStepComplete("search", "搜索: $searchKeyword", 1, "搜索成功")
-            randomDelay(MIN_RESULT_WAIT, MAX_RESULT_WAIT)
-            if (cancelled) return
-
-            // Step 4: 进入账号 → 等列表加载 → 点击第一个视频
-            notifyStep("enter_account", "正在进入账号...", 0)
-            if (!enterFirstAccount()) {
-                notifyStepComplete("enter_account", "进入账号", 2, "无法进入账号")
-                return
-            }
-            randomDelay(8000, 12000)  // 等账号主页 + 视频列表加载
-            if (cancelled) return
-
-            dumpAllNodes("账号主页视频列表")
-            if (cancelled) return
-            if (!clickFirstVideo()) {
-                notifyStepComplete("enter_account", "进入视频", 2, "无法打开视频")
-                return
-            }
-            randomDelay(3000, 5000)  // 等视频播放页加载
-            if (cancelled) return
-            notifyStepComplete("enter_account", "进入视频", 1, "已进入视频")
-
-            // Step 5: 执行任务操作（点赞/评论）
-            var commentText: String? = null
-            when (task.taskType) {
-                1 -> {
-                    // 仅点赞
-                    notifyStep("like", "正在点赞...", 0)
-                    randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                    if (!performLike()) {
-                        notifyStepComplete("like", "点赞", 2, "点赞失败")
-                        return
-                    }
-                    notifyStepComplete("like", "点赞", 1, "点赞成功")
-                }
-                2 -> {
-                    // 点赞 + 评论
-                    notifyStep("like", "正在点赞...", 0)
-                    randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                    if (!performLike()) {
-                        notifyStepComplete("like", "点赞", 2, "点赞失败")
-                        return
-                    }
-                    notifyStepComplete("like", "点赞", 1, "点赞成功")
-                    randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                    if (cancelled) return
-
-                    notifyStep("fetch_words", "正在获取评论词...", 0)
-                    commentText = fetchCommentWord(task)
-                    if (commentText == null) {
-                        notifyStepComplete("fetch_words", "获取评论词", 2, "无可用评论词")
-                        return
-                    }
-                    notifyStepComplete("fetch_words", "评论词: $commentText", 1, commentText!!)
-                }
-                else -> {
-                    notifyStepComplete("action", "未知类型", 2, "不支持: ${task.taskType}")
-                    return
-                }
-            }
-            randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-            if (cancelled) return
-
-            // Step 6: 评论（仅 taskType=2）
-            if (task.taskType == 2 && commentText != null) {
-                notifyStep("comment", "正在评论: $commentText", 0)
-                randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                if (!performComment(commentText)) {
-                    notifyStepComplete("comment", "评论", 2, "评论失败")
-                    return
-                }
-                randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                notifyStepComplete("comment", "评论", 1, "评论成功")
-            }
-
-            // Step 7: 截图
+            // Step 2: 截图保存
             notifyStep("screenshot", "正在截图...", 0)
             val localFile = takeScreenshot()
             if (localFile != null) {
@@ -206,7 +104,7 @@ class WechatVideoAutomator(
                 AutomationOverlayService.updateComplete(false)
             }
 
-            // Step 8: 关闭微信，返回上传截图界面
+            // Step 3: 关闭微信，返回上传截图界面
             notifyStep("close_app", "正在关闭微信...", 0)
             closeWechat()
             randomDelay(800, 1200)
