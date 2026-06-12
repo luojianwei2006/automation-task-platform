@@ -419,6 +419,9 @@ class WechatVideoAutomator(
             }
         }
 
+        // 先 dump 当前页面，看搜索按钮在哪
+        dumpAllNodes("视频号页面(找搜索)")
+
         // 坐标兜底：搜索图标在视频号页面右上角区域
         val sw = service.resources.displayMetrics.widthPixels.toFloat()
         val sh = service.resources.displayMetrics.heightPixels.toFloat()
