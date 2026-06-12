@@ -419,11 +419,22 @@ class WechatVideoAutomator(
             }
         }
 
-        // 坐标兜底：搜索图标在视频号页面右上角
+        // 坐标兜底：搜索图标在视频号页面右上角区域
         val sw = service.resources.displayMetrics.widthPixels.toFloat()
         val sh = service.resources.displayMetrics.heightPixels.toFloat()
-        android.util.Log.d("WechatVAM", "坐标点击搜索图标: x=${sw * 0.92f}, y=${sh * 0.07f}")
-        dispatchTap(sw * 0.92f, sh * 0.07f)
+
+        // 多候选位：右上角不同位置逐一尝试
+        val candidates = listOf(
+            sw * 0.90f to sh * 0.055f,  // 右上角，标题栏高度
+            sw * 0.85f to sh * 0.06f,   // 稍左
+            sw * 0.93f to sh * 0.07f,   // 更偏右
+            sw * 0.50f to sh * 0.06f,   // 顶部居中（有些版本搜索栏在顶部中间）
+        )
+        for ((x, y) in candidates) {
+            android.util.Log.d("WechatVAM", "坐标点击搜索: x=$x, y=$y")
+            dispatchTap(x, y)
+            randomDelay(300, 600)
+        }
         randomDelay(1000, 2000)
         return true
     }
