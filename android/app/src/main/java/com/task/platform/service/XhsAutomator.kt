@@ -198,6 +198,7 @@ class XhsAutomator(
             }
 
             // Step 7: 截图保存
+            android.util.Log.d("XhsAutomator", "===== 开始截图（评论已发送，面板已关闭）=====")
             notifyStep("screenshot", "正在截图...", 0)
             val localFile = takeScreenshot()
             if (localFile != null) {
@@ -1078,8 +1079,8 @@ class XhsAutomator(
             return false
         }
 
-        // 等评论面板关闭 + 评论在页面上可见
-        randomDelay(2000, 3000)
+        // 等评论面板关闭
+        randomDelay(1000, 2000)
         return true
     }
 
