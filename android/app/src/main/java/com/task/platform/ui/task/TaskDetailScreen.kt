@@ -28,6 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.task.platform.model.TaskDTO
@@ -324,6 +325,7 @@ private fun TaskContent(
                 StatusBanner(record)
                 // 审核中/已通过 → 显示已提交的截图
                 if (record.status == 1 || record.status == 2) {
+                    Log.d("ScreenshotGrid", "TaskContent: record.status=${record.status}, screenshotUrl=[${record.screenshotUrl}], isNull=${record.screenshotUrl == null}, isBlank=${record.screenshotUrl.isNullOrBlank()}")
                     Spacer(modifier = Modifier.height(12.dp))
                     ScreenshotGrid(record.screenshotUrl)
                 }
@@ -610,6 +612,7 @@ private fun mapImageUrl(url: String): String {
 @Composable
 private fun ScreenshotGrid(screenshotUrl: String?) {
     val urls = parseScreenshotUrls(screenshotUrl)
+    Log.d("ScreenshotGrid", "ScreenshotGrid: raw=[$screenshotUrl], parsedCount=${urls.size}, urls=$urls")
     if (urls.isEmpty()) return
 
     var previewIndex by remember { mutableIntStateOf(-1) }
@@ -647,16 +650,25 @@ private fun ScreenshotGrid(screenshotUrl: String?) {
 }
 
 private fun parseScreenshotUrls(screenshotUrl: String?): List<String> {
+    Log.d("ScreenshotGrid", "parseScreenshotUrls: input=[$screenshotUrl], isNull=${screenshotUrl == null}, isBlank=${screenshotUrl.isNullOrBlank()}")
     if (screenshotUrl.isNullOrBlank()) return emptyList()
     return try {
         if (screenshotUrl.startsWith("[")) {
+            Log.d("ScreenshotGrid", "parseScreenshotUrls: detected JSON array format")
             val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
-            Gson().fromJson(screenshotUrl, type) ?: emptyList()
+            val result = Gson().fromJson<List<String>>(screenshotUrl, type) ?: emptyList()
+            Log.d("ScreenshotGrid", "parseScreenshotUrls: JSON array parsed, count=${result.size}, items=$result")
+            result
         } else {
-            screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            val result = screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            Log.d("ScreenshotGrid", "parseScreenshotUrls: comma-split, count=${result.size}, items=$result")
+            result
         }
-    } catch (_: Exception) {
-        screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    } catch (e: Exception) {
+        Log.w("ScreenshotGrid", "parseScreenshotUrls: primary parse failed (${e.message}), fallback to comma-split")
+        val result = screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        Log.d("ScreenshotGrid", "parseScreenshotUrls: fallback result, count=${result.size}")
+        result
     }
 }
 
