@@ -190,33 +190,47 @@ class DouyinAutomator(
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
             if (cancelled) return
 
-            // Step 6: 评论（仅评论类型，必须在切到推荐页之前——此时还在视频页才能找到评论入口）
+            // Step 6: 评论（先粘贴→截图→再发送）
             if (task.taskType == 2 && commentText != null) {
                 notifyStep("comment", "正在评论: $commentText", 0)
                 randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                if (!performComment(commentText)) {
-                    notifyStepComplete("comment", "评论", 2, "评论失败")
+                if (!pasteCommentText(commentText)) {
+                    notifyStepComplete("comment", "评论", 2, "粘贴失败")
                     return
                 }
-                randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+
+                // Step 7: 立即截图（输入框里有文字，证明已输入）
+                android.util.Log.d("DouyinAutomator", "===== 输入完成，立即截图 =====")
+                notifyStep("screenshot", "正在截图...", 0)
+                val localFile = takeScreenshot()
+                if (localFile != null) {
+                    notifyStepComplete("screenshot", "截图保存", 1, localFile)
+                    AutomationOverlayService.updateComplete(true)
+                } else {
+                    notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
+                    AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
+                    AutomationOverlayService.updateComplete(false)
+                }
+
+                // Step 8: 发送评论
+                if (!clickCommentSend()) {
+                    notifyStepComplete("comment", "评论", 2, "发送失败")
+                    return
+                }
                 notifyStepComplete("comment", "评论", 1, "评论成功")
             }
 
-            // Step 7: 截图并保存（评论已发送，直接截当前页面）
-            android.util.Log.d("DouyinAutomator", "===== 开始截图（评论已发送/面板已关闭）=====")
-            android.util.Log.d("DouyinAutomator", "===== [v2.0-fix] 2026-06-21 已修复：输入策略重排+去掉推荐页切换 =====")
-            notifyStep("screenshot", "正在截图...", 0)
-            val localFile = takeScreenshot()
-            if (localFile != null) {
-                notifyStepComplete("screenshot", "截图保存", 1, localFile)
-                AutomationOverlayService.updateComplete(true)
-            } else {
-                notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
-                AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
-                AutomationOverlayService.updateComplete(false)
-            }
-
             // Step 9: 返回应用（带 UPLOAD 标记，跳转上传页）
+            // taskType=2 的截图已在发送前完成
+            if (task.taskType != 2) {
+                android.util.Log.d("DouyinAutomator", "===== 开始截图 =====")
+                notifyStep("screenshot", "正在截图...", 0)
+                val localFile = takeScreenshot()
+                if (localFile != null) {
+                    notifyStepComplete("screenshot", "截图保存", 1, localFile)
+                    AutomationOverlayService.updateComplete(true)
+                }
+            }
             returnToApp()
             AutomationService.onActionResult?.invoke(true, "✓ 自动化任务执行完成 — UPLOAD:${task.taskId}")
         } catch (e: Exception) {
@@ -1120,40 +1134,30 @@ class DouyinAutomator(
      *
      * 修复策略：点击入口后，先等发送按钮出现在树上（确认对话框已就绪），再操作输入框。
      */
-    private fun performComment(commentText: String): Boolean {
-        android.util.Log.d("DouyinAutomator", "=== 开始评论: $commentText ===")
+    // 保存输入框坐标，用于 screenshot 后发送
+    private var commentInputBounds: android.graphics.Rect? = null
 
-        // dumpCommentPageNodes()  // DEBUG: 需要时取消注释
-
-        // ────────────────────────────────────────────────
-        // 评论输入框是视频页底部内嵌的 EditText（不是弹窗！）
-        // 直接找 y > 75% 屏幕高度的可编辑节点，不需要找入口/等对话框
-        // ────────────────────────────────────────────────
+    private fun pasteCommentText(commentText: String): Boolean {
+        android.util.Log.d("DouyinAutomator", "=== 粘贴评论: $commentText ===")
         val screenH = service.resources.displayMetrics.heightPixels
         val bottomThreshold = (screenH * 0.75).toInt()
+        commentInputBounds = null
 
-        var inputBounds: android.graphics.Rect? = null
-
-        retryFindNode({
-            findEditableNodeAtBottom(bottomThreshold)
-        }) { node ->
+        retryFindNode({ findEditableNodeAtBottom(bottomThreshold) }) { node ->
             val r = android.graphics.Rect()
             node.getBoundsInScreen(r)
-            inputBounds = android.graphics.Rect(r)
-            android.util.Log.d("DouyinAutomator", "找到评论输入框: bounds=$r text=[${node.text}]")
+            commentInputBounds = android.graphics.Rect(r)
+            android.util.Log.d("DouyinAutomator", "找到输入框: bounds=$r")
             node.recycle()
         }
-
-        if (inputBounds == null) {
-            android.util.Log.e("DouyinAutomator", "找不到评论输入框（底部无 EditText）")
+        if (commentInputBounds == null) {
+            android.util.Log.e("DouyinAutomator", "找不到评论输入框")
             return false
         }
 
-        // ── 输入+发送 ──
-        val cx = inputBounds!!.centerX().toFloat()
-        val cy = inputBounds!!.centerY().toFloat()
+        val cx = commentInputBounds!!.centerX().toFloat()
+        val cy = commentInputBounds!!.centerY().toFloat()
 
-        // 1) PASTE 一次
         val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
         cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
         randomDelay(200, 400)
@@ -1174,8 +1178,10 @@ class DouyinAutomator(
             android.util.Log.d("DouyinAutomator", "PASTE done")
             pasteNode.recycle()
         }
+        return true
+    }
 
-        // 2) 发送一次
+    private fun clickCommentSend(): Boolean {
         android.util.Log.d("DouyinAutomator", "准备发送...")
         randomDelay(500, 800)
         val sent = trySendBtn({ findNodeByText(listOf("发送", "Send", "Post", "发布")) }, "发送")
@@ -1183,9 +1189,13 @@ class DouyinAutomator(
             android.util.Log.d("DouyinAutomator", "评论已发送")
         } else {
             android.util.Log.e("DouyinAutomator", "评论发送失败")
-            return false
         }
-        return true
+        return sent
+    }
+
+    private fun performComment(commentText: String): Boolean {
+        if (!pasteCommentText(commentText)) return false
+        return clickCommentSend()
     }
 
     /**
