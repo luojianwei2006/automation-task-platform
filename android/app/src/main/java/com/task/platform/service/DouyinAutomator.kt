@@ -1228,11 +1228,12 @@ class DouyinAutomator(
 
         // 策略1：文本匹配"发送"（1 次快速尝试）
         android.util.Log.d("DouyinAutomator", "查找发送按钮(文本)...")
-        sendClicked = retryFindNode({
-            findNodeByText(listOf("发送", "Send", "Post"))
-        }, maxRetries = 1) { node ->
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        val sendBtn = retryFindNodeNoAction { findNodeByText(listOf("发送", "Send", "Post")) }
+        if (sendBtn != null) {
+            sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             android.util.Log.d("DouyinAutomator", "发送按钮(文本): 已点击")
+            sendBtn.recycle()
+            sendClicked = true
         }
 
         // 策略2：键盘发送键区域手势点击（最可靠）
