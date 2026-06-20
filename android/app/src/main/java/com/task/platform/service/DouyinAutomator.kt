@@ -204,6 +204,7 @@ class DouyinAutomator(
 
             // Step 7: 截图并保存（评论已发送，直接截当前页面）
             android.util.Log.d("DouyinAutomator", "===== 开始截图（评论已发送/面板已关闭）=====")
+            android.util.Log.d("DouyinAutomator", "===== [v2.0-fix] 2026-06-21 已修复：输入策略重排+去掉推荐页切换 =====")
             notifyStep("screenshot", "正在截图...", 0)
             val localFile = takeScreenshot()
             if (localFile != null) {

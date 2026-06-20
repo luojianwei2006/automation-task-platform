@@ -199,6 +199,7 @@ class XhsAutomator(
 
             // Step 7: 截图保存
             android.util.Log.d("XhsAutomator", "===== 开始截图（评论已发送，面板已关闭）=====")
+            android.util.Log.d("XhsAutomator", "===== [v2.0-fix] 2026-06-21 已修复：输入策略重排+去评论按钮误匹配 =====")
             notifyStep("screenshot", "正在截图...", 0)
             val localFile = takeScreenshot()
             if (localFile != null) {
