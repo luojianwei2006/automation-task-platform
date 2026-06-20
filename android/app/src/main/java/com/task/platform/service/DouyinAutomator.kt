@@ -1149,74 +1149,38 @@ class DouyinAutomator(
             return false
         }
 
-        // ── Step 2: 点击获焦 → 输入文字（SET_TEXT优先，避免异步键盘事件重复）──
+        // ── Step 2: 输入文字（仅用剪贴板 PASTE，一次到位，零重复风险）──
         val cx = inputBounds!!.centerX().toFloat()
         val cy = inputBounds!!.centerY().toFloat()
-        val pathTap = android.graphics.Path().apply { moveTo(cx, cy) }
-        val gesTap = android.accessibilityservice.GestureDescription.Builder()
-            .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(pathTap, 0, 80))
-            .build()
-        service.dispatchGesture(gesTap, null, null)
-        randomDelay(500, 800)
+        try {
+            val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
+            randomDelay(200, 400)
 
-        var textEntered = false
-
-        // 策略1: SET_TEXT（原子操作，不会重复）
-        retryFindNode({
-            findEditableNodeAtBottom(bottomThreshold)
-        }) { node ->
-            val before = node.text?.toString() ?: ""
-            val setArgs = android.os.Bundle().apply {
-                putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, commentText)
-            }
-            node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
-            val after = node.text?.toString() ?: ""
-            textEntered = after.contains(commentText) || after.contains(before + commentText)
-            android.util.Log.d("DouyinAutomator", "SET_TEXT before=[$before] after=[$after] ok=$textEntered")
-            node.recycle()
-        }
-
-        // 策略2: SET_TEXT 未生效 → PASTE
-        if (!textEntered) {
-            android.util.Log.d("DouyinAutomator", "SET_TEXT 未生效，尝试剪贴板粘贴...")
-            try {
-                val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-                randomDelay(300, 500)
-                val path2 = android.graphics.Path().apply { moveTo(cx, cy) }
-                val ges2 = android.accessibilityservice.GestureDescription.Builder()
-                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path2, 0, 80))
-                    .build()
-                service.dispatchGesture(ges2, null, null)
-                randomDelay(500, 800)
-                retryFindNode({ findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode() }) { pasteNode ->
-                    pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                    randomDelay(100, 200)
-                    pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                    val after = pasteNode.text?.toString() ?: ""
-                    textEntered = after.contains(commentText)
-                    android.util.Log.d("DouyinAutomator", "ACTION_PASTE after=[$after] ok=$textEntered")
-                    pasteNode.recycle()
-                }
-                randomDelay(600, 1000)
-            } catch (e: Exception) {
-                android.util.Log.w("DouyinAutomator", "粘贴异常: ${e.message}")
-            }
-        }
-
-        // 策略3: 终极兜底 — 键盘逐字符输入（异步，放最后）
-        if (!textEntered) {
-            android.util.Log.d("DouyinAutomator", "PASTE 也失败，尝试键盘逐字符输入...")
-            val path3 = android.graphics.Path().apply { moveTo(cx, cy) }
-            val ges3 = android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path3, 0, 80))
-                .build()
-            service.dispatchGesture(ges3, null, null)
+            // 点击获焦
+            val pathTap = android.graphics.Path().apply { moveTo(cx, cy) }
+            service.dispatchGesture(
+                android.accessibilityservice.GestureDescription.Builder()
+                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(pathTap, 0, 80))
+                    .build(), null, null
+            )
             randomDelay(500, 800)
-            val clicked = inputTextByKeyboardNodes(commentText)
-            // 给异步键盘事件充足的消化时间
-            randomDelay(1000, 1500)
-            android.util.Log.d("DouyinAutomator", "键盘节点: $clicked/${commentText.length} 字符")
+
+            // 找输入节点并粘贴（只执行一次）
+            val pasteNode = retryFindNodeNoAction {
+                findEditableNodeAtBottom(bottomThreshold)
+            }
+            if (pasteNode != null) {
+                pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                randomDelay(100, 200)
+                pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                android.util.Log.d("DouyinAutomator", "PASTE 完成, text=${pasteNode.text}")
+                pasteNode.recycle()
+            } else {
+                android.util.Log.w("DouyinAutomator", "找不到输入节点，跳过粘贴")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("DouyinAutomator", "输入异常", e)
         }
 
         // ── 输入完成，直接截图（PASTE 在部分设备上自动发送，不手动点发送按钮避免重复）──
