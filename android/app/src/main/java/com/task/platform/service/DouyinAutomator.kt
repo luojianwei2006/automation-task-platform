@@ -1184,34 +1184,36 @@ class DouyinAutomator(
         }
 
         // ── 点击发送 ──
-        randomDelay(500, 1000)
+        android.util.Log.d("DouyinAutomator", "准备查找发送按钮...")
+
         var sendClicked = false
         repeat(MAX_RETRIES) { attempt ->
             if (cancelled) return false
             android.util.Log.d("DouyinAutomator", "查找发送按钮，尝试 ${attempt + 1}/$MAX_RETRIES")
 
-            // 文本匹配
-            val found1 = retryFindNode({ findNodeByText(listOf("发送", "Send", "Post", "发布")) }) { node ->
-                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                android.util.Log.d("DouyinAutomator", "发送按钮(文本): 已点击")
-            }
+            val found1 = trySendBtn({ findNodeByText(listOf("发送", "Send", "Post", "发布")) }, "发送按钮(文本)")
             if (found1) { sendClicked = true; return@repeat }
 
-            // 键盘发送键
-            val found2 = retryFindNode({ kbSend() }) { node ->
-                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                android.util.Log.d("DouyinAutomator", "发送按钮(键盘): 已点击")
-            }
+            val found2 = trySendBtn({ findNodeById(COMMENT_POST_IDS) }, "发送按钮(ViewId)")
             if (found2) { sendClicked = true; return@repeat }
 
-            randomDelay(RETRY_DELAY_MS, MIN_STEP_DELAY)
+            val found3 = trySendBtn({ kbSend() }, "发送按钮(键盘)")
+            if (found3) { sendClicked = true; return@repeat }
+
+            randomDelay(800, 1200)
         }
 
         if (!sendClicked) {
-            android.util.Log.w("DouyinAutomator", "发送按钮未找到，手势点击键盘发送区")
-            tapBottomRight()
+            android.util.Log.w("DouyinAutomator", "未找到发送按钮，使用输入框右侧手势点击")
+            sendClicked = tapSendNearInput(inputBounds)
         }
-        android.util.Log.d("DouyinAutomator", "评论已发送")
+
+        if (sendClicked) {
+            android.util.Log.d("DouyinAutomator", "评论已发送")
+        } else {
+            android.util.Log.e("DouyinAutomator", "评论发送失败")
+            return false
+        }
         return true
     }
 
