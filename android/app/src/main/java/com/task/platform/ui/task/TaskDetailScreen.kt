@@ -1,7 +1,11 @@
 package com.task.platform.ui.task
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
@@ -317,6 +322,11 @@ private fun TaskContent(
             if (record != null) {
                 Spacer(modifier = Modifier.height(12.dp))
                 StatusBanner(record)
+                // 审核中/已通过 → 显示已提交的截图
+                if (record.status == 1 || record.status == 2) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    ScreenshotGrid(record.screenshotUrl)
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -593,4 +603,115 @@ private fun mapImageUrl(url: String): String {
     // 相对路径，拼接 base URL（去掉尾部 /）
     val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
     return base + (if (url.startsWith("/")) url else "/$url")
+}
+
+// ==================== 截图九宫格 ====================
+
+@Composable
+private fun ScreenshotGrid(screenshotUrl: String?) {
+    val urls = parseScreenshotUrls(screenshotUrl)
+    if (urls.isEmpty()) return
+
+    var previewIndex by remember { mutableIntStateOf(-1) }
+
+    Text("提交的截图", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Gray900,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(3),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).heightIn(max = 400.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        itemsIndexed(urls) { index, url ->
+            AsyncImage(
+                model = mapImageUrl(url),
+                contentDescription = "截图 ${index + 1}",
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { previewIndex = index },
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
+
+    // 全屏预览弹窗
+    if (previewIndex >= 0) {
+        FullScreenImagePreview(
+            urls = urls.map { mapImageUrl(it) },
+            initialIndex = previewIndex,
+            onDismiss = { previewIndex = -1 }
+        )
+    }
+}
+
+private fun parseScreenshotUrls(screenshotUrl: String?): List<String> {
+    if (screenshotUrl.isNullOrBlank()) return emptyList()
+    return try {
+        if (screenshotUrl.startsWith("[")) {
+            val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+            Gson().fromJson(screenshotUrl, type) ?: emptyList()
+        } else {
+            screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+    } catch (_: Exception) {
+        screenshotUrl.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+    }
+}
+
+@Composable
+private fun FullScreenImagePreview(
+    urls: List<String>,
+    initialIndex: Int,
+    onDismiss: () -> Unit
+) {
+    var currentIndex by remember { mutableIntStateOf(initialIndex) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.95f))
+                .clickable { onDismiss() }
+        ) {
+            AsyncImage(
+                model = urls.getOrElse(currentIndex) { "" },
+                contentDescription = "预览",
+                modifier = Modifier.fillMaxWidth().align(Alignment.Center),
+                contentScale = ContentScale.Fit
+            )
+
+            IconButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).size(40.dp)
+            ) {
+                Icon(Icons.Default.Close, "关闭", tint = Color.White, modifier = Modifier.size(28.dp))
+            }
+
+            if (urls.size > 1) {
+                Text(
+                    "${currentIndex + 1} / ${urls.size}",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
+                )
+            }
+
+            if (currentIndex > 0) {
+                FloatingActionButton(
+                    onClick = { currentIndex-- },
+                    modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp).size(36.dp),
+                    containerColor = Color.White.copy(alpha = 0.3f)
+                ) { Icon(Icons.Default.ChevronLeft, "上一张", tint = Color.White, modifier = Modifier.size(20.dp)) }
+            }
+            if (currentIndex < urls.size - 1) {
+                FloatingActionButton(
+                    onClick = { currentIndex++ },
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp).size(36.dp),
+                    containerColor = Color.White.copy(alpha = 0.3f)
+                ) { Icon(Icons.Default.ChevronRight, "下一张", tint = Color.White, modifier = Modifier.size(20.dp)) }
+            }
+        }
+    }
 }
