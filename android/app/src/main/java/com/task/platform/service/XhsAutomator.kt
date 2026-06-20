@@ -1016,36 +1016,42 @@ class XhsAutomator(
             }
             android.util.Log.d("XhsAutomator", "键盘节点: $clicked/${commentText.length} 字符")
 
-            // SET_TEXT 兜底
-            if (clicked == 0) {
-                retryFindNode({
+            // 键盘输入不完整 → SET_TEXT 兜底（仅一次）
+            var textEntered = clicked >= commentText.length
+            if (!textEntered) {
+                val setWorked = retryFindNode({
                     findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
                 }) { node ->
+                    val before = node.text?.toString() ?: ""
                     val setArgs = android.os.Bundle().apply {
                         putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, commentText)
                     }
                     node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
-                    android.util.Log.d("XhsAutomator", "SET_TEXT 完成, text=[${node.text}]")
+                    val after = node.text?.toString() ?: ""
+                    textEntered = after.contains(commentText)
+                    android.util.Log.d("XhsAutomator", "SET_TEXT before=[$before] after=[$after] matched=$textEntered")
                     node.recycle()
                 }
                 randomDelay(400, 700)
                 dispatchTap(cx, cy)
                 randomDelay(500, 800)
 
-                // paste 兜底
-                try {
-                    val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-                    randomDelay(200, 400)
-                    retryFindNode({ findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode() }) { pasteNode ->
-                        pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                        randomDelay(100, 200)
-                        pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                        android.util.Log.d("XhsAutomator", "PASTE 完成, text=${pasteNode.text}")
-                        pasteNode.recycle()
+                // SET_TEXT 也没成功 → PASTE 终极兜底
+                if (!textEntered) {
+                    try {
+                        val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
+                        randomDelay(200, 400)
+                        retryFindNode({ findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode() }) { pasteNode ->
+                            pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                            randomDelay(100, 200)
+                            pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                            android.util.Log.d("XhsAutomator", "PASTE 完成, text=${pasteNode.text}")
+                            pasteNode.recycle()
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.w("XhsAutomator", "粘贴异常: ${e.message}")
                     }
-                } catch (e: Exception) {
-                    android.util.Log.w("XhsAutomator", "粘贴异常: ${e.message}")
                 }
             }
         }
