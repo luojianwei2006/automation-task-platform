@@ -44,6 +44,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             new WhiteListEntry("/api/user/auth/register", "POST"),
             new WhiteListEntry("/api/user/auth/sms-code", "POST"),
             new WhiteListEntry("/api/admin/auth/login", "POST"),
+            new WhiteListEntry("/api/admin/auth/captcha", "GET"),
             // 任务大厅（仅GET请求放行，POST/PUT/DELETE仍需认证）
             new WhiteListEntry("/api/task/tasks", "GET"),
             // 上传文件静态访问（图片等资源加载时浏览器不带 Token）
