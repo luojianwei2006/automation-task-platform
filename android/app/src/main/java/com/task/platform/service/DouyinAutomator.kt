@@ -558,15 +558,51 @@ class DouyinAutomator(
      * 在账号主页点击第一个视频
      */
     private fun clickFirstVideo(): Boolean {
-        // dump 页面节点用于诊断
         dumpCommentPageNodes()
         
-        return retryFindNode({ findFirstClickableInList() }) { node ->
+        // 优先：在 RecyclerView 子树中找 desc 含"视频"的第一个可点击节点
+        val found = retryFindNode({
+            val root = service.rootInActiveWindow ?: return@retryFindNode null
+            val listNode = findRecyclerView(root)
+            if (listNode != null) {
+                val result = findFirstVideoInList(listNode)
+                listNode.recycle()
+                if (result != null && result != root) root.recycle()
+                return@retryFindNode result
+            }
+            root.recycle()
+            null
+        }) { node ->
             val r = android.graphics.Rect()
             node.getBoundsInScreen(r)
-            android.util.Log.d("DouyinAutomator", "clickFirstVideo: cls=${node.className}, text=${node.text}, desc=${node.contentDescription}, bounds=$r")
+            android.util.Log.d("DouyinAutomator", "clickFirstVideo: cls=${node.className}, desc=${node.contentDescription}, bounds=$r")
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         }
+        if (found) return true
+
+        // 兜底：原始的 findFirstClickableInList
+        return retryFindNode({ findFirstClickableInList() }) { node ->
+            android.util.Log.d("DouyinAutomator", "clickFirstVideo(fallback): cls=${node.className}")
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+    }
+
+    /** 在 RecyclerView 子树中递归找第一个 desc 含"视频"的可点击节点 */
+    private fun findFirstVideoInList(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+        val desc = node.contentDescription?.toString().orEmpty()
+        if (node.isClickable && desc.contains("视频")) {
+            return AccessibilityNodeInfo.obtain(node)
+        }
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findFirstVideoInList(child)
+            if (found != null) {
+                child.recycle()
+                return found
+            }
+            child.recycle()
+        }
+        return null
     }
 
     /**
