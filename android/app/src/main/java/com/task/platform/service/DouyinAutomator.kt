@@ -202,16 +202,7 @@ class DouyinAutomator(
                 notifyStepComplete("comment", "评论", 1, "评论成功")
             }
 
-            // Step 7: 回到推荐页（截图前切回推荐流以展示任务上下文）
-            notifyStep("recommend", "切换到推荐页...", 0)
-            if (!clickRecommendTab()) {
-                notifyStepComplete("recommend", "推荐页", 2, "无法切换到推荐")
-            } else {
-                notifyStepComplete("recommend", "推荐页", 1, "已切换到推荐")
-            }
-            randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-
-            // Step 8: 截图并保存
+            // Step 7: 截图并保存（评论已发送，直接截当前页面）
             android.util.Log.d("DouyinAutomator", "===== 开始截图（评论已发送/面板已关闭）=====")
             notifyStep("screenshot", "正在截图...", 0)
             val localFile = takeScreenshot()
