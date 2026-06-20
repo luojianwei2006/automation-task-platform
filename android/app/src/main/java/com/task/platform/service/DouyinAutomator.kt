@@ -619,21 +619,40 @@ class DouyinAutomator(
         }
     }
 
-    /** 手势从屏幕中部向上快速滑动，把内容滚回顶部 */
+    /** 手势从屏幕中部向上快速滑动 + 无障碍滚动，把内容滚回顶部 */
     private fun scrollToTop() {
         val mw = service.resources.displayMetrics.widthPixels.toFloat()
         val mh = service.resources.displayMetrics.heightPixels.toFloat()
-        // 重复 3 次快速上滑，确保滚到最顶
+
+        // 策略1: 找 RecyclerView/ViewPager2 节点，用无障碍 ACTION_SCROLL 滚动到顶部
+        val listNode = run {
+            val root = service.rootInActiveWindow ?: return@run null
+            val result = findRecyclerView(root)
+            if (result != root) root.recycle()
+            result
+        }
+        if (listNode != null) {
+            // 反复快速向后滚动（向上翻页），模拟滚到顶部
+            repeat(5) {
+                try {
+                    listNode.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
+                } catch (_: Exception) {}
+                Thread.sleep(200)
+            }
+            listNode.recycle()
+        }
+
+        // 策略2: 手势快速上滑（兜底，用于非标准列表）
         repeat(3) {
             val path = android.graphics.Path().apply {
-                moveTo(mw * 0.5f, mh * 0.55f)
-                lineTo(mw * 0.5f, mh * 0.15f)
+                moveTo(mw * 0.5f, mh * 0.6f)
+                lineTo(mw * 0.5f, mh * 0.10f)
             }
             val gesture = android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 300))
+                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 400))
                 .build()
             service.dispatchGesture(gesture, null, null)
-            Thread.sleep(400)
+            Thread.sleep(500)
         }
     }
 
