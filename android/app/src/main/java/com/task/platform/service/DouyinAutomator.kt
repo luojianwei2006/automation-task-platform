@@ -567,18 +567,22 @@ class DouyinAutomator(
         }
         if (found) return true
         
-        // 无障碍树找不到 → 搜索任何可点击的视频相关节点
-        android.util.Log.d("DouyinAutomator", "clickFirstVideo: 直接查找失败，尝试全树搜索可点击节点...")
-        val fallback = retryFindNode({
-            val root = service.rootInActiveWindow ?: return@retryFindNode null
-            val result = findFirstClickableDeep(root)
-            if (result != root) root.recycle()
-            result
-        }) { node ->
-            android.util.Log.d("DouyinAutomator", "clickFirstVideo(fallback): cls=${node.className}, text=${node.text}")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        }
-        if (fallback) return true
+            // 无障碍树找不到 → 搜索视频区域的可点击节点（跳过顶部头像/关注按钮）
+            android.util.Log.d("DouyinAutomator", "clickFirstVideo: 直接查找失败，在视频区域深度搜索...")
+            val mh2 = service.resources.displayMetrics.heightPixels
+            val videoAreaStart = (mh2 * 0.3).toInt()  // 视频通常在屏幕 30% 以下
+            val fallback = retryFindNode({
+                val root = service.rootInActiveWindow ?: return@retryFindNode null
+                val result = findFirstClickableDeep(root, videoAreaStart)
+                if (result != root) root.recycle()
+                result
+            }) { node ->
+                val r = android.graphics.Rect()
+                node.getBoundsInScreen(r)
+                android.util.Log.d("DouyinAutomator", "clickFirstVideo(fallback): cls=${node.className}, text=${node.text}, bounds=$r")
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            }
+            if (fallback) return true
         
         // 最终兜底：手势点击屏幕中央偏上区域（第一个视频通常在这里）
         android.util.Log.d("DouyinAutomator", "clickFirstVideo: 手势兜底点击")
@@ -1802,18 +1806,18 @@ class DouyinAutomator(
         return null
     }
 
-    /** 递归搜索第一个可见且尺寸合理的可点击节点 */
-    private fun findFirstClickableDeep(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    /** 递归搜索第一个可见且尺寸合理的可点击节点（可选跳过顶部区域） */
+    private fun findFirstClickableDeep(node: AccessibilityNodeInfo, minTop: Int = 0): AccessibilityNodeInfo? {
         if (node.isClickable && node.isVisibleToUser) {
             val rect = android.graphics.Rect()
             node.getBoundsInScreen(rect)
-            if (rect.width() > 50 && rect.height() > 50) {
+            if (rect.width() > 50 && rect.height() > 50 && rect.top >= minTop) {
                 return AccessibilityNodeInfo.obtain(node)
             }
         }
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            val found = findFirstClickableDeep(child)
+            val found = findFirstClickableDeep(child, minTop)
             if (found != null) {
                 child.recycle()
                 return found
