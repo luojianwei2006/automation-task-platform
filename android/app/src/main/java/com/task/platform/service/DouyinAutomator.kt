@@ -140,12 +140,7 @@ class DouyinAutomator(
             if (cancelled) return
             notifyStepComplete("enter_profile", "进入账号主页", 1, "已进入账号主页")
 
-            // Step 4: 滚动到顶部（部分设备会自动滚到下方）→ 点击第一个视频
-            notifyStep("first_video", "正在滚动到顶部...", 0)
-            scrollToTop()
-            randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-            if (cancelled) return
-
+            // Step 4: 点击第一个视频
             notifyStep("first_video", "正在播放第一个视频...", 0)
             if (!clickFirstVideo()) {
                 notifyStepComplete("first_video", "点击第一个视频", 2, "无法找到视频")
