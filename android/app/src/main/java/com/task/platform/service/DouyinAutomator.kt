@@ -1184,13 +1184,14 @@ class DouyinAutomator(
         }
 
         // ── 点击发送 → 立即截图 ──
-        val sendBtn = retryFindNodeNoAction { findNodeByText(listOf("发送", "Send", "Post")) }
+        val sendBtn = retryFindNodeNoAction { findNodeByText(listOf("发送", "Send", "Post", "发布")) }
         if (sendBtn != null) {
             sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             android.util.Log.d("DouyinAutomator", "发送按钮已点击")
             sendBtn.recycle()
         } else {
-            android.util.Log.w("DouyinAutomator", "发送按钮未找到，PASTE 可能已自动发送")
+            android.util.Log.w("DouyinAutomator", "发送按钮文本未找到，手势点击键盘发送区")
+            tapBottomRight()
         }
         return true
     }
