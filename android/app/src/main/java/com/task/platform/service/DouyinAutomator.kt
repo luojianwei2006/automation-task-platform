@@ -1225,47 +1225,30 @@ class DouyinAutomator(
         android.util.Log.d("DouyinAutomator", "准备查找发送按钮...")
 
         var sendClicked = false
-        repeat(MAX_RETRIES) { attempt ->
-            if (cancelled) return false
-            android.util.Log.d("DouyinAutomator", "查找发送按钮，尝试 ${attempt + 1}/$MAX_RETRIES")
 
-            // 策略1：文本匹配"发送"/"Send"/"Post"
-            val found1 = trySendBtn({ findNodeByText(listOf("发送", "Send", "Post")) }, "发送按钮(文本)")
-            if (found1) { sendClicked = true; return@repeat }
-
-            // 策略2：ViewId 匹配
-            val found2 = trySendBtn({ findNodeById(COMMENT_POST_IDS) }, "发送按钮(ViewId)")
-            if (found2) { sendClicked = true; return@repeat }
-
-            // 策略3：键盘上的发送键
-            val found3 = trySendBtn({ kbSend() }, "发送按钮(键盘)")
-            if (found3) { sendClicked = true; return@repeat }
-
-            // 策略4：在输入框右侧区域查找可点击节点（发送按钮通常在输入框右侧）
-            val found4 = trySendBtn({ findSendNearInput() }, "发送按钮(右侧查找)")
-            if (found4) { sendClicked = true; return@repeat }
-
-            // 未找到，等待后重试
-            android.util.Log.d("DouyinAutomator", "发送按钮未找到，等待重试...")
-            randomDelay(800, 1200)
+        // 策略1：文本匹配"发送"（1 次快速尝试）
+        android.util.Log.d("DouyinAutomator", "查找发送按钮(文本)...")
+        sendClicked = retryFindNode({
+            findNodeByText(listOf("发送", "Send", "Post"))
+        }, maxRetries = 1) { node ->
+            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            android.util.Log.d("DouyinAutomator", "发送按钮(文本): 已点击")
         }
 
-        // 策略5：手势点击发送按钮（根据输入框位置计算）
+        // 策略2：键盘发送键区域手势点击（最可靠）
         if (!sendClicked) {
-            android.util.Log.w("DouyinAutomator", "未找到发送按钮，使用输入框右侧手势点击")
-            sendClicked = tapSendNearInput(inputBounds)
+            android.util.Log.d("DouyinAutomator", "文本按钮未找到，手势点击键盘发送区域")
+            sendClicked = tapBottomRight()
         }
 
-        if (sendClicked) {
-            android.util.Log.d("DouyinAutomator", "评论已发送")
-            randomDelay(1000, 2000)
-            return true
+        // PASTE 可能已自动触发发送，直接继续截图
+        if (!sendClicked) {
+            android.util.Log.w("DouyinAutomator", "发送按钮未找到——PASTE 可能已自动发送，继续截图")
         } else {
-            // 发送按钮检测失败，但 PASTE 可能已经触发了发送（抖音某些版本自动发送）
-            android.util.Log.w("DouyinAutomator", "发送按钮未找到——PASTE 可能已自动发送，继续截图流程")
-            randomDelay(1000, 2000)
-            return true  // 仍返回成功，让 exec 继续截图
+            android.util.Log.d("DouyinAutomator", "评论已发送")
         }
+        randomDelay(1000, 2000)
+        return true
     }
 
     /**
