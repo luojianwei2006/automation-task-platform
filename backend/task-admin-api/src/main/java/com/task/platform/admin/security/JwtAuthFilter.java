@@ -38,6 +38,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     // 公开路径列表（无需 Token 即可访问）
     private static final List<String> PUBLIC_PATHS = List.of(
             "/admin/auth/login",
+            "/admin/auth/captcha",
             "/uploads/"
     );
 

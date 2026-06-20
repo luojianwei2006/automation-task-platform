@@ -2,17 +2,21 @@ package com.task.platform.admin.controller;
 
 import com.task.platform.admin.security.AdminUserDetails;
 import com.task.platform.admin.service.AdminAuthService;
+import com.task.platform.admin.util.CaptchaUtil;
 import com.task.platform.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 管理后台认证 & 子账号管理接口
@@ -25,8 +29,39 @@ import java.util.Map;
 public class AdminAuthController {
 
     private final AdminAuthService adminAuthService;
+    private final StringRedisTemplate stringRedisTemplate;
+
+    private static final String CAPTCHA_PREFIX = "admin:captcha:";
+    private static final long CAPTCHA_TTL_SECONDS = 120; // 验证码 2 分钟有效
 
     // ==================== 认证 ====================
+
+    /**
+     * 获取图形验证码
+     * GET /api/admin/auth/captcha
+     * 
+     * 公开接口，无需 Token
+     * 返回 { captchaKey, captchaImage } 
+     */
+    @GetMapping("/auth/captcha")
+    public ApiResponse<Map<String, String>> captcha() {
+        CaptchaUtil.CaptchaResult result = CaptchaUtil.generate(120, 40);
+        String key = UUID.randomUUID().toString().replace("-", "");
+        
+        // 存入 Redis，2 分钟过期
+        stringRedisTemplate.opsForValue().set(
+                CAPTCHA_PREFIX + key,
+                result.getCode(),
+                CAPTCHA_TTL_SECONDS,
+                TimeUnit.SECONDS
+        );
+
+        Map<String, String> data = Map.of(
+                "captchaKey", key,
+                "captchaImage", result.getBase64()
+        );
+        return ApiResponse.success(data);
+    }
 
     /**
      * 管理员登录
@@ -36,6 +71,20 @@ public class AdminAuthController {
      */
     @PostMapping("/auth/login")
     public ApiResponse<Map<String, Object>> login(@Valid @RequestBody LoginRequest req) {
+        // 校验验证码
+        if (req.getCaptchaKey() == null || req.getCaptchaCode() == null) {
+            return ApiResponse.error(400, "请输入验证码");
+        }
+        String cacheCode = stringRedisTemplate.opsForValue().get(CAPTCHA_PREFIX + req.getCaptchaKey());
+        if (cacheCode == null) {
+            return ApiResponse.error(400, "验证码已过期，请刷新");
+        }
+        if (!cacheCode.equalsIgnoreCase(req.getCaptchaCode().trim())) {
+            return ApiResponse.error(400, "验证码错误");
+        }
+        // 验证通过，删除缓存（一次性使用）
+        stringRedisTemplate.delete(CAPTCHA_PREFIX + req.getCaptchaKey());
+
         return ApiResponse.success(adminAuthService.login(req.getUsername(), req.getPassword()));
     }
 
@@ -106,6 +155,14 @@ public class AdminAuthController {
 
         @NotBlank(message = "密码不能为空")
         private String password;
+
+        /** 验证码 Key（从 /auth/captcha 接口获取） */
+        @NotBlank(message = "验证码不能为空")
+        private String captchaKey;
+
+        /** 验证码（用户输入的） */
+        @NotBlank(message = "验证码不能为空")
+        private String captchaCode;
     }
 
     @Data

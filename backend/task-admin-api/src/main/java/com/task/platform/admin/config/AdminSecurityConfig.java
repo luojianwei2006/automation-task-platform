@@ -63,8 +63,8 @@ public class AdminSecurityConfig {
 
             // 路由权限规则
             .authorizeHttpRequests(auth -> auth
-                // 登录接口公开
-                .requestMatchers("/admin/auth/login").permitAll()
+                // 登录接口 + 验证码接口公开
+                .requestMatchers("/admin/auth/login", "/admin/auth/captcha").permitAll()
                 // 上传文件公开访问（无需认证）
                 .requestMatchers("/uploads/**").permitAll()
                 // Actuator健康检查（可选）
