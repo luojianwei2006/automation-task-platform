@@ -1183,9 +1183,15 @@ class DouyinAutomator(
             android.util.Log.e("DouyinAutomator", "输入异常", e)
         }
 
-        // ── 输入完成，直接截图（PASTE 在部分设备上自动发送，不手动点发送按钮避免重复）──
-        android.util.Log.d("DouyinAutomator", "输入完成，等待截图...")
-        randomDelay(800, 1200)
+        // ── 点击发送 → 立即截图 ──
+        val sendBtn = retryFindNodeNoAction { findNodeByText(listOf("发送", "Send", "Post")) }
+        if (sendBtn != null) {
+            sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            android.util.Log.d("DouyinAutomator", "发送按钮已点击")
+            sendBtn.recycle()
+        } else {
+            android.util.Log.w("DouyinAutomator", "发送按钮未找到，PASTE 可能已自动发送")
+        }
         return true
     }
 

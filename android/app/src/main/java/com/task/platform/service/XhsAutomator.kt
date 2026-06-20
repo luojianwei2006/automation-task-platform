@@ -1027,22 +1027,19 @@ class XhsAutomator(
             }
         }
 
-        // ── Step 7: 找发送按钮并点击（"评论"是底部入口按钮，不是发送按钮！） ──
-        randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-        val sent = retryFindNode({
+        // ── Step 7: 点击发送 → 立即截图 ──
+        val sendBtn = retryFindNodeNoAction {
             findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布"))
-        }) { node ->
-            android.util.Log.d("XhsAutomator", "点击发送: cls=${node.className}, text=${node.text}")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            android.util.Log.d("XhsAutomator", "评论已发送")
         }
-        if (!sent) {
+        if (sendBtn != null) {
+            android.util.Log.d("XhsAutomator", "点击发送: cls=${sendBtn.className}, text=${sendBtn.text}")
+            sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            android.util.Log.d("XhsAutomator", "评论已发送")
+            sendBtn.recycle()
+        } else {
             android.util.Log.e("XhsAutomator", "找不到发送按钮")
             return false
         }
-
-        // 等评论面板关闭
-        randomDelay(1000, 2000)
         return true
     }
 
