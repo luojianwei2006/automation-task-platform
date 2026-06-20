@@ -216,23 +216,16 @@ class DouyinAutomator(
             val localFile = takeScreenshot()
             if (localFile != null) {
                 notifyStepComplete("screenshot", "截图保存", 1, localFile)
-                // Step 8: 上传截图 + 提交任务
-                notifyStep("submit", "正在提交任务...", 0)
-                if (uploadAndSubmit(task, localFile)) {
-                    notifyStepComplete("submit", "任务提交成功", 1, "截图已上传")
-                    AutomationOverlayService.updateComplete(true)
-                } else {
-                    notifyStepComplete("submit", "提交失败", 2, "上传异常")
-                    AutomationOverlayService.updateComplete(false)
-                }
+                AutomationOverlayService.updateComplete(true)
             } else {
                 notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
+                AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
                 AutomationOverlayService.updateComplete(false)
             }
-            // 返回应用
-            returnToApp()
 
-            AutomationService.onActionResult?.invoke(true, "✓ 任务完成 — 已点赞并截图")
+            // Step 9: 返回应用（带 UPLOAD 标记，跳转上传页）
+            returnToApp()
+            AutomationService.onActionResult?.invoke(true, "✓ 自动化任务执行完成 — UPLOAD:${task.taskId}")
         } catch (e: Exception) {
             android.util.Log.e("DouyinAutomator", "执行异常", e)
             AutomationService.onActionResult?.invoke(false, "执行异常: ${e.message}")
