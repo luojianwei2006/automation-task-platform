@@ -560,7 +560,7 @@ class DouyinAutomator(
     private fun clickFirstVideo(): Boolean {
         dumpCommentPageNodes()
         
-        // 优先：在 RecyclerView 子树中找 desc 含"视频"的第一个可点击节点
+        // 在 RecyclerView 子树中找第一个 desc 含"视频"的节点（不管是否 isClickable，手势点击）
         val found = retryFindNode({
             val root = service.rootInActiveWindow ?: return@retryFindNode null
             val listNode = findRecyclerView(root)
@@ -576,21 +576,23 @@ class DouyinAutomator(
             val r = android.graphics.Rect()
             node.getBoundsInScreen(r)
             android.util.Log.d("DouyinAutomator", "clickFirstVideo: cls=${node.className}, desc=${node.contentDescription}, bounds=$r")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            // 用 dispatchGesture 手势点击，不依赖 isClickable
+            val path = android.graphics.Path().apply { moveTo(r.exactCenterX(), r.exactCenterY()) }
+            val gesture = android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 80))
+                .build()
+            service.dispatchGesture(gesture, null, null)
         }
         if (found) return true
 
-        // 兜底：原始的 findFirstClickableInList
-        return retryFindNode({ findFirstClickableInList() }) { node ->
-            android.util.Log.d("DouyinAutomator", "clickFirstVideo(fallback): cls=${node.className}")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-        }
+        return false
     }
 
-    /** 在 RecyclerView 子树中递归找第一个 desc 含"视频"的可点击节点 */
+    /** 在 RecyclerView 子树中递归找第一个 desc 含"视频"的节点（不要求 isClickable） */
     private fun findFirstVideoInList(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         val desc = node.contentDescription?.toString().orEmpty()
-        if (node.isClickable && desc.contains("视频")) {
+        if (desc.contains("视频")) {
+            // 视频节点通常不标记 isClickable，但仍然可以手势点击
             return AccessibilityNodeInfo.obtain(node)
         }
         for (i in 0 until node.childCount) {
