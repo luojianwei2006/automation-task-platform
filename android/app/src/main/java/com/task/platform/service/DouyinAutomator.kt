@@ -1219,36 +1219,9 @@ class DouyinAutomator(
             android.util.Log.d("DouyinAutomator", "键盘节点: $clicked/${commentText.length} 字符")
         }
 
-        // ────────────────────────────────────────────────
-        // 阶段 3：查找并点击发送按钮
-        // ────────────────────────────────────────────────
-        android.util.Log.d("DouyinAutomator", "准备查找发送按钮...")
-
-        var sendClicked = false
-
-        // 策略1：文本匹配"发送"（1 次快速尝试）
-        android.util.Log.d("DouyinAutomator", "查找发送按钮(文本)...")
-        val sendBtn = retryFindNodeNoAction { findNodeByText(listOf("发送", "Send", "Post")) }
-        if (sendBtn != null) {
-            sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            android.util.Log.d("DouyinAutomator", "发送按钮(文本): 已点击")
-            sendBtn.recycle()
-            sendClicked = true
-        }
-
-        // 策略2：键盘发送键区域手势点击（最可靠）
-        if (!sendClicked) {
-            android.util.Log.d("DouyinAutomator", "文本按钮未找到，手势点击键盘发送区域")
-            sendClicked = tapBottomRight()
-        }
-
-        // PASTE 可能已自动触发发送，直接继续截图
-        if (!sendClicked) {
-            android.util.Log.w("DouyinAutomator", "发送按钮未找到——PASTE 可能已自动发送，继续截图")
-        } else {
-            android.util.Log.d("DouyinAutomator", "评论已发送")
-        }
-        randomDelay(1000, 2000)
+        // ── 输入完成，直接截图（PASTE 在部分设备上自动发送，不手动点发送按钮避免重复）──
+        android.util.Log.d("DouyinAutomator", "输入完成，等待截图...")
+        randomDelay(800, 1200)
         return true
     }
 
