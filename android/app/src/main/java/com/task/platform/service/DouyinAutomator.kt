@@ -1149,66 +1149,37 @@ class DouyinAutomator(
             return false
         }
 
-        // ── Step 2: 输入文字（仅用剪贴板 PASTE，一次到位，零重复风险）──
+        // ── 输入+发送 ──
         val cx = inputBounds!!.centerX().toFloat()
         val cy = inputBounds!!.centerY().toFloat()
-        try {
-            val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-            randomDelay(200, 400)
 
-            // 点击获焦
-            val pathTap = android.graphics.Path().apply { moveTo(cx, cy) }
-            service.dispatchGesture(
-                android.accessibilityservice.GestureDescription.Builder()
-                    .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(pathTap, 0, 80))
-                    .build(), null, null
-            )
-            randomDelay(500, 800)
+        // 1) PASTE 一次
+        val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
+        randomDelay(200, 400)
 
-            // 找输入节点并粘贴（只执行一次）
-            val pasteNode = retryFindNodeNoAction {
-                findEditableNodeAtBottom(bottomThreshold)
-            }
-            if (pasteNode != null) {
-                pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                randomDelay(100, 200)
-                pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                android.util.Log.d("DouyinAutomator", "PASTE 完成, text=${pasteNode.text}")
-                pasteNode.recycle()
-            } else {
-                android.util.Log.w("DouyinAutomator", "找不到输入节点，跳过粘贴")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("DouyinAutomator", "输入异常", e)
+        val tapPath = android.graphics.Path().apply { moveTo(cx, cy) }
+        service.dispatchGesture(
+            android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(tapPath, 0, 80))
+                .build(), null, null
+        )
+        randomDelay(500, 800)
+
+        val pasteNode = retryFindNodeNoAction { findEditableNodeAtBottom(bottomThreshold) }
+        if (pasteNode != null) {
+            pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+            randomDelay(100, 200)
+            pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+            android.util.Log.d("DouyinAutomator", "PASTE done")
+            pasteNode.recycle()
         }
 
-        // ── 点击发送 ──
-        android.util.Log.d("DouyinAutomator", "准备查找发送按钮...")
-
-        var sendClicked = false
-        repeat(MAX_RETRIES) { attempt ->
-            if (cancelled) return false
-            android.util.Log.d("DouyinAutomator", "查找发送按钮，尝试 ${attempt + 1}/$MAX_RETRIES")
-
-            val found1 = trySendBtn({ findNodeByText(listOf("发送", "Send", "Post", "发布")) }, "发送按钮(文本)")
-            if (found1) { sendClicked = true; return@repeat }
-
-            val found2 = trySendBtn({ findNodeById(COMMENT_POST_IDS) }, "发送按钮(ViewId)")
-            if (found2) { sendClicked = true; return@repeat }
-
-            val found3 = trySendBtn({ kbSend() }, "发送按钮(键盘)")
-            if (found3) { sendClicked = true; return@repeat }
-
-            randomDelay(800, 1200)
-        }
-
-        if (!sendClicked) {
-            android.util.Log.w("DouyinAutomator", "未找到发送按钮，使用输入框右侧手势点击")
-            sendClicked = tapSendNearInput(inputBounds)
-        }
-
-        if (sendClicked) {
+        // 2) 发送一次
+        android.util.Log.d("DouyinAutomator", "准备发送...")
+        randomDelay(500, 800)
+        val sent = trySendBtn({ findNodeByText(listOf("发送", "Send", "Post", "发布")) }, "发送")
+        if (sent) {
             android.util.Log.d("DouyinAutomator", "评论已发送")
         } else {
             android.util.Log.e("DouyinAutomator", "评论发送失败")
