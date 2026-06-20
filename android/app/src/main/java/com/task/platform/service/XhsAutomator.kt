@@ -1056,15 +1056,23 @@ class XhsAutomator(
             }
         }
 
-        // ── Step 7: 找发送按钮并点击 ──
+        // ── Step 7: 找发送按钮并点击（"评论"是底部入口按钮，不是发送按钮！） ──
         randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-        return retryFindNode({
-            findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布", "评论"))
+        val sent = retryFindNode({
+            findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布"))
         }) { node ->
+            android.util.Log.d("XhsAutomator", "点击发送: cls=${node.className}, text=${node.text}")
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             android.util.Log.d("XhsAutomator", "评论已发送")
-            randomDelay(1000, 2000)
         }
+        if (!sent) {
+            android.util.Log.e("XhsAutomator", "找不到发送按钮")
+            return false
+        }
+
+        // 等评论面板关闭 + 评论在页面上可见
+        randomDelay(2000, 3000)
+        return true
     }
 
     /** 搜索 AccessibilityService 的所有窗口（含 Dialog/PopupWindow）中的可编辑节点 */
