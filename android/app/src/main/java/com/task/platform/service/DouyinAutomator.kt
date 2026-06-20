@@ -561,47 +561,12 @@ class DouyinAutomator(
         // dump 页面节点用于诊断
         dumpCommentPageNodes()
         
-        val found = retryFindNode({ findFirstClickableInList() }) { node ->
-            android.util.Log.d("DouyinAutomator", "clickFirstVideo: cls=${node.className}, text=${node.text}, desc=${node.contentDescription}")
+        return retryFindNode({ findFirstClickableInList() }) { node ->
+            val r = android.graphics.Rect()
+            node.getBoundsInScreen(r)
+            android.util.Log.d("DouyinAutomator", "clickFirstVideo: cls=${node.className}, text=${node.text}, desc=${node.contentDescription}, bounds=$r")
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
         }
-        if (found) return true
-        
-            // 无障碍树找不到 → 搜索视频区域的可点击节点（跳过顶部头像/关注按钮）
-            android.util.Log.d("DouyinAutomator", "clickFirstVideo: 直接查找失败，在视频区域深度搜索...")
-            val mh2 = service.resources.displayMetrics.heightPixels
-            val videoAreaStart = (mh2 * 0.3).toInt()  // 视频通常在屏幕 30% 以下
-            val fallback = retryFindNode({
-                val root = service.rootInActiveWindow ?: return@retryFindNode null
-                val result = findFirstClickableDeep(root, videoAreaStart)
-                if (result != root) root.recycle()
-                result
-            }) { node ->
-                val r = android.graphics.Rect()
-                node.getBoundsInScreen(r)
-                android.util.Log.d("DouyinAutomator", "clickFirstVideo(fallback): cls=${node.className}, text=${node.text}, bounds=$r")
-                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            }
-            if (fallback) return true
-        
-        // 最终兜底：手势点击屏幕中央偏上区域（第一个视频通常在这里）
-        android.util.Log.d("DouyinAutomator", "clickFirstVideo: 手势兜底点击")
-        val mw = service.resources.displayMetrics.widthPixels.toFloat()
-        val mh = service.resources.displayMetrics.heightPixels.toFloat()
-        val candidates = listOf(
-            mw * 0.5f to mh * 0.25f,
-            mw * 0.5f to mh * 0.30f,
-            mw * 0.5f to mh * 0.20f,
-        )
-        for ((x, y) in candidates) {
-            val path = android.graphics.Path().apply { moveTo(x, y) }
-            val gesture = android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 80))
-                .build()
-            service.dispatchGesture(gesture, null, null)
-            randomDelay(200, 400)
-        }
-        return true
     }
 
     /**
@@ -1827,14 +1792,6 @@ class DouyinAutomator(
                     if (root != child) root.recycle()
                     return child
                 }
-                // 直接子节点不可点击 → 递归搜索更深层级（视频卡片嵌套深）
-                val deep = findFirstClickableDeep(child)
-                if (deep != null) {
-                    child.recycle()
-                    if (listNode != root) listNode.recycle()
-                    if (root != deep) root.recycle()
-                    return deep
-                }
                 child.recycle()
             }
             if (listNode != root) listNode.recycle()
@@ -1843,30 +1800,8 @@ class DouyinAutomator(
         return null
     }
 
-    /** 递归搜索第一个可见且尺寸合理的可点击节点（可选跳过顶部区域） */
-    private fun findFirstClickableDeep(node: AccessibilityNodeInfo, minTop: Int = 0): AccessibilityNodeInfo? {
-        if (node.isClickable && node.isVisibleToUser) {
-            val rect = android.graphics.Rect()
-            node.getBoundsInScreen(rect)
-            if (rect.width() > 50 && rect.height() > 50 && rect.top >= minTop) {
-                return AccessibilityNodeInfo.obtain(node)
-            }
-        }
-        for (i in 0 until node.childCount) {
-            val child = node.getChild(i) ?: continue
-            val found = findFirstClickableDeep(child, minTop)
-            if (found != null) {
-                child.recycle()
-                return found
-            }
-            child.recycle()
-        }
-        return null
-    }
-
     private fun findRecyclerView(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-        val cls = node.className?.toString() ?: ""
-        if (cls.contains("RecyclerView") || cls.contains("ViewPager") || cls.contains("ViewPager2")) return node
+        if (node.className?.toString()?.contains("RecyclerView") == true) return node
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
             val found = findRecyclerView(child)
