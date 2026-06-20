@@ -995,64 +995,72 @@ class XhsAutomator(
             }
         }
 
-        // ── Step 4-6: 有输入框坐标时 → 点击获焦 → 输入文字 ──
+        // ── Step 4: 点击获焦 → 输入文字（SET_TEXT优先，避免键盘异步事件导致重复） ──
         if (inputBounds != null) {
             val cx = inputBounds.centerX().toFloat()
             val cy = inputBounds.centerY().toFloat()
-            dispatchTap(cx, cy)
-            randomDelay(700, 1100)
+            var textEntered = false
 
-            // 键盘节点逐字符输入
-            var clicked = 0
-            for (ch in commentText) {
-                if (cancelled) return false
-                val node = findKeyboardKey(ch.toString())
-                if (node != null) {
-                    node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    node.recycle()
-                    clicked++
-                    randomDelay(50, 110)
+            dispatchTap(cx, cy)
+            randomDelay(500, 800)
+
+            // 策略1: SET_TEXT（原子操作，不会重复）
+            retryFindNode({
+                findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
+            }) { node ->
+                val before = node.text?.toString() ?: ""
+                val setArgs = android.os.Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, commentText)
+                }
+                node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
+                val after = node.text?.toString() ?: ""
+                textEntered = after.contains(commentText) || after.contains(before + commentText)
+                android.util.Log.d("XhsAutomator", "SET_TEXT before=[$before] after=[$after] ok=$textEntered")
+                node.recycle()
+            }
+
+            // 策略2: SET_TEXT 未生效 → PASTE
+            if (!textEntered) {
+                android.util.Log.d("XhsAutomator", "SET_TEXT 未生效，尝试剪贴板粘贴...")
+                try {
+                    val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
+                    randomDelay(300, 500)
+                    dispatchTap(cx, cy)
+                    randomDelay(500, 800)
+                    retryFindNode({ findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode() }) { pasteNode ->
+                        pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                        randomDelay(100, 200)
+                        pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                        val after = pasteNode.text?.toString() ?: ""
+                        textEntered = after.contains(commentText)
+                        android.util.Log.d("XhsAutomator", "PASTE after=[$after] ok=$textEntered")
+                        pasteNode.recycle()
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.w("XhsAutomator", "粘贴异常: ${e.message}")
                 }
             }
-            android.util.Log.d("XhsAutomator", "键盘节点: $clicked/${commentText.length} 字符")
 
-            // 键盘输入不完整 → SET_TEXT 兜底（仅一次）
-            var textEntered = clicked >= commentText.length
+            // 策略3: 终极兜底 — 键盘逐字符输入（可能有异步延迟，放在最后）
             if (!textEntered) {
-                val setWorked = retryFindNode({
-                    findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
-                }) { node ->
-                    val before = node.text?.toString() ?: ""
-                    val setArgs = android.os.Bundle().apply {
-                        putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, commentText)
-                    }
-                    node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, setArgs)
-                    val after = node.text?.toString() ?: ""
-                    textEntered = after.contains(commentText)
-                    android.util.Log.d("XhsAutomator", "SET_TEXT before=[$before] after=[$after] matched=$textEntered")
-                    node.recycle()
-                }
-                randomDelay(400, 700)
+                android.util.Log.d("XhsAutomator", "PASTE 也失败，尝试键盘逐字符输入...")
                 dispatchTap(cx, cy)
                 randomDelay(500, 800)
-
-                // SET_TEXT 也没成功 → PASTE 终极兜底
-                if (!textEntered) {
-                    try {
-                        val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                        cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-                        randomDelay(200, 400)
-                        retryFindNode({ findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode() }) { pasteNode ->
-                            pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                            randomDelay(100, 200)
-                            pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                            android.util.Log.d("XhsAutomator", "PASTE 完成, text=${pasteNode.text}")
-                            pasteNode.recycle()
-                        }
-                    } catch (e: Exception) {
-                        android.util.Log.w("XhsAutomator", "粘贴异常: ${e.message}")
+                var clicked = 0
+                for (ch in commentText) {
+                    if (cancelled) return false
+                    val node = findKeyboardKey(ch.toString())
+                    if (node != null) {
+                        node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                        node.recycle()
+                        clicked++
+                        randomDelay(80, 150)  // 给系统足够时间处理每个按键
                     }
                 }
+                // 给异步键盘事件充足的消化时间
+                randomDelay(1000, 1500)
+                android.util.Log.d("XhsAutomator", "键盘节点: $clicked/${commentText.length} 字符")
             }
         }
 
