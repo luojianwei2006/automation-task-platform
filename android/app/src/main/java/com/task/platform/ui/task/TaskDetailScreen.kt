@@ -604,7 +604,12 @@ private fun mapImageUrl(url: String): String {
     }
     // 相对路径，拼接 base URL（去掉尾部 /）
     val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
-    return base + (if (url.startsWith("/")) url else "/$url")
+    // /upload/ 路径需加 /api 前缀走 Gateway（Gateway 路由 /api/upload/** → StripPrefix=1 → 8086）
+    return if (url.startsWith("/upload/")) {
+        "$base/api$url"
+    } else {
+        base + (if (url.startsWith("/")) url else "/$url")
+    }
 }
 
 // ==================== 截图九宫格 ====================
