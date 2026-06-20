@@ -140,7 +140,12 @@ class DouyinAutomator(
             if (cancelled) return
             notifyStepComplete("enter_profile", "进入账号主页", 1, "已进入账号主页")
 
-            // Step 4: 点击第一个视频
+            // Step 4: 滚动到顶部（部分设备会自动滚到下方）→ 点击第一个视频
+            notifyStep("first_video", "正在滚动到顶部...", 0)
+            scrollToTop()
+            randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+            if (cancelled) return
+
             notifyStep("first_video", "正在播放第一个视频...", 0)
             if (!clickFirstVideo()) {
                 notifyStepComplete("first_video", "点击第一个视频", 2, "无法找到视频")
@@ -611,6 +616,24 @@ class DouyinAutomator(
         return retryFindNode({ findNodeByText(TAB_RECOMMEND_TEXTS) }) { node ->
             node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+        }
+    }
+
+    /** 手势从屏幕中部向上快速滑动，把内容滚回顶部 */
+    private fun scrollToTop() {
+        val mw = service.resources.displayMetrics.widthPixels.toFloat()
+        val mh = service.resources.displayMetrics.heightPixels.toFloat()
+        // 重复 3 次快速上滑，确保滚到最顶
+        repeat(3) {
+            val path = android.graphics.Path().apply {
+                moveTo(mw * 0.5f, mh * 0.55f)
+                lineTo(mw * 0.5f, mh * 0.15f)
+            }
+            val gesture = android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 300))
+                .build()
+            service.dispatchGesture(gesture, null, null)
+            Thread.sleep(400)
         }
     }
 
