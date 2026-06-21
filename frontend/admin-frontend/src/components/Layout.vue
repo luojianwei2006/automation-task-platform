@@ -108,14 +108,9 @@ function handleCommand(command: string) {
   background-color: #001529;
   overflow-y: auto;
 }
-/* 统一侧边栏所有一级菜单项的缩进 */
-.el-menu--vertical > .el-menu-item,
-.el-menu--vertical > .el-sub-menu > .el-sub-menu__title {
-  padding-left: 32px !important;
-}
-.el-sub-menu .el-menu-item {
-  padding-left: 60px !important;
-}
+/* 侧边栏菜单缩进 */
+:deep(.el-menu-item) { padding-left: 28px !important }
+:deep(.el-sub-menu .el-menu-item) { padding-left: 56px !important }
 .logo {
   height: 60px;
   display: flex;
