@@ -60,7 +60,7 @@ public class PublishRecycleBinService {
             com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishMaterial> uw =
                 new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
             uw.eq(PublishMaterial::getId, bin.getOriginalId()).set(PublishMaterial::getDeleted, 0);
-            publishMaterialMapper.update(null, uw);
+            publishMaterialMapper.update(new PublishMaterial(), uw);
 
             // 标记回收站记录已恢复
             com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishRecycleBin> rbw =

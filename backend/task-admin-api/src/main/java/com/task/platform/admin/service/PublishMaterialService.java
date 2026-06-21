@@ -120,7 +120,7 @@ public class PublishMaterialService {
         com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishMaterial> uw =
             new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
         uw.eq(PublishMaterial::getId, id).set(PublishMaterial::getDeleted, 1);
-        publishMaterialMapper.update(null, uw);
+        publishMaterialMapper.update(new PublishMaterial(), uw);
 
         // 2. 插入 recycle_bin 快照
         try {
