@@ -28,9 +28,9 @@
         <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="{ row }">{{ row.createdAt || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" @click="handleDownload(row)">下载TXT</el-button>
+            <el-button size="small" type="primary" @click="handlePreview(row)">预览</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -176,18 +176,11 @@ async function handleUploadSubmit() {
   }
 }
 
-function handleDownload(row: Material) {
-  if (!row.content) {
-    ElMessage.warning('该文案无内容可下载')
-    return
-  }
-  const blob = new Blob([row.content], { type: 'text/plain;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${row.title || '文案'}.txt`
-  a.click()
-  URL.revokeObjectURL(url)
+function handlePreview(row: Material) {
+  ElMessageBox.alert(row.content || '(无内容)', row.title || '文案预览', {
+    confirmButtonText: '关闭',
+    customClass: 'text-preview-dialog',
+  })
 }
 
 async function handleDelete(row: Material) {
