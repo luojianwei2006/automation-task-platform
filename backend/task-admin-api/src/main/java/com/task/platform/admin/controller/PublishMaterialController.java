@@ -69,6 +69,20 @@ public class PublishMaterialController {
     }
 
     /**
+     * 素材列表（支持projectId作为查询参数，对齐前端调用）
+     * GET /api/publish/materials?projectId=1&type=text&page=1&size=20
+     */
+    @GetMapping("/materials")
+    public ApiResponse<List<MaterialListVO>> listMaterialsByQuery(
+            @RequestParam Long projectId,
+            @RequestParam(required = false) String type) {
+
+        List<PublishMaterial> list = publishMaterialService.listByProject(projectId, type);
+        List<MaterialListVO> vos = list.stream().map(this::toVO).collect(Collectors.toList());
+        return ApiResponse.success(vos);
+    }
+
+    /**
      * 下载素材文件
      * GET /api/publish/materials/{id}/download
      */
