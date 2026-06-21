@@ -143,5 +143,5 @@ function handleCommand(command: string) {
 /* 侧边栏菜单缩进（非scoped，全局覆盖 Element Plus 默认） */
 .el-menu--vertical > .el-menu-item { padding-left: 20px !important }
 .el-menu--vertical .el-sub-menu__title { padding-left: 20px !important }
-.el-menu--vertical .el-sub-menu .el-menu-item { padding-left: 54px !important }
+.el-menu--vertical .el-sub-menu .el-menu-item { padding-left: 64px !important; border-left: 1px solid rgba(255,255,255,.1); margin-left: 20px }
 </style>
