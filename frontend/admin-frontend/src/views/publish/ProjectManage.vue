@@ -32,8 +32,9 @@
         <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="{ row }">{{ row.createdAt || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
+            <el-button size="small" type="success" @click="handleEnter(row)">进入</el-button>
             <el-button size="small" type="primary" @click="showEditDialog(row)">编辑</el-button>
             <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
           </template>
@@ -84,6 +85,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
@@ -93,6 +95,8 @@ import {
   deleteProject,
 } from '@/api/publish'
 import type { Project } from '@/api/publish'
+
+const router = useRouter()
 
 const loading = ref(false)
 const submitting = ref(false)
@@ -149,6 +153,10 @@ function showEditDialog(row: Project) {
   form.name = row.name
   form.description = row.description || ''
   formVisible.value = true
+}
+
+function handleEnter(row: Project) {
+  router.push(`/publish/projects/${row.id}`)
 }
 
 function resetForm() {

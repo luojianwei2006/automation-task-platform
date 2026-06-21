@@ -7,12 +7,13 @@
         <span v-else>ATP</span>
       </div>
       <el-menu
-        :default-active="currentRoute"
+        :default-active="activeMenu"
         :collapse="isCollapse"
         router
         background-color="#001529"
         text-color="#ffffffb3"
         active-text-color="#ffffff"
+        :default-openeds="openedMenus"
       >
         <el-menu-item index="/dashboard">
           <el-icon><DataAnalysis /></el-icon>
@@ -33,15 +34,25 @@
           <template #title><el-icon><OfficeBuilding /></el-icon>商户管理</template>
           <el-menu-item index="/merchant/list">商户列表</el-menu-item>
         </el-sub-menu>
-        <el-sub-menu index="publish-group">
+
+        <!-- 项目管理：非项目详情页显示为独立菜单项，项目详情页显示为子菜单 -->
+        <el-menu-item v-if="!isInProject" index="/publish/projects">
+          <el-icon><FolderOpened /></el-icon>
+          <template #title>项目管理</template>
+        </el-menu-item>
+        <el-sub-menu v-else index="project-detail-group">
           <template #title><el-icon><FolderOpened /></el-icon>项目管理</template>
-          <el-menu-item index="/publish/projects">项目列表</el-menu-item>
-          <el-menu-item index="/publish/text">文案</el-menu-item>
-          <el-menu-item index="/publish/images">图片</el-menu-item>
-          <el-menu-item index="/publish/music">背景音乐</el-menu-item>
-          <el-menu-item index="/publish/video">视频素材</el-menu-item>
-          <el-menu-item index="/publish/recycle">回收站</el-menu-item>
+          <el-menu-item :index="`/publish/projects/${projectId}`">项目详情</el-menu-item>
+          <el-menu-item :index="`/publish/projects/${projectId}/text`">文案</el-menu-item>
+          <el-menu-item :index="`/publish/projects/${projectId}/images`">图片</el-menu-item>
+          <el-menu-item :index="`/publish/projects/${projectId}/music`">背景音乐</el-menu-item>
+          <el-menu-item :index="`/publish/projects/${projectId}/video`">视频素材</el-menu-item>
         </el-sub-menu>
+
+        <el-menu-item index="/publish/recycle-bin">
+          <el-icon><Delete /></el-icon>
+          <template #title>回收站</template>
+        </el-menu-item>
         <el-menu-item index="/publish/tasks">
           <el-icon><Promotion /></el-icon>
           <template #title>视频发布任务</template>
@@ -89,7 +100,32 @@ const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 const isCollapse = ref(false)
-const currentRoute = computed(() => route.path)
+
+/** 当前路由路径作为菜单高亮 */
+const activeMenu = computed(() => route.path)
+
+/** 判断是否在项目详情及其子路由中 */
+const isInProject = computed(() => {
+  const projectRouteNames = [
+    'ProjectDetail',
+    'ProjectTextManage',
+    'ProjectImageManage',
+    'ProjectMusicManage',
+    'ProjectVideoManage',
+  ]
+  return projectRouteNames.includes(route.name as string)
+})
+
+/** 当前项目 ID */
+const projectId = computed(() => route.params.id as string)
+
+/** 动态展开的子菜单项 */
+const openedMenus = computed(() => {
+  if (isInProject.value) {
+    return ['project-detail-group']
+  }
+  return []
+})
 
 function handleCommand(command: string) {
   if (command === 'logout') {

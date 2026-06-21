@@ -13,20 +13,6 @@
         >
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
-        <el-select
-          v-model="filterProjectId"
-          placeholder="全部项目"
-          clearable
-          style="width: 200px"
-          @change="loadData"
-        >
-          <el-option
-            v-for="p in projectList"
-            :key="p.id"
-            :label="p.name"
-            :value="p.id"
-          />
-        </el-select>
         <el-button type="primary" @click="loadData">查询</el-button>
         <el-button type="success" @click="showUploadDialog">上传图片</el-button>
       </div>
@@ -86,16 +72,6 @@
       @close="resetUploadForm"
     >
       <el-form ref="uploadFormRef" :model="uploadForm" :rules="uploadRules" label-width="80px">
-        <el-form-item label="所属项目" prop="projectId">
-          <el-select v-model="uploadForm.projectId" placeholder="请选择项目" style="width: 100%">
-            <el-option
-              v-for="p in projectList"
-              :key="p.id"
-              :label="p.name"
-              :value="p.id"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="标题" prop="title">
           <el-input v-model="uploadForm.title" placeholder="请输入图片标题" maxlength="100" />
         </el-form-item>
@@ -128,21 +104,24 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadInstance } from 'element-plus'
 import {
   getMaterialList,
   uploadMaterialFile,
   deleteMaterial,
-  getAllProjects,
 } from '@/api/publish'
-import type { Material, Project } from '@/api/publish'
+import type { Material } from '@/api/publish'
+
+const route = useRoute()
 
 const loading = ref(false)
 const tableData = ref<Material[]>([])
 const keyword = ref('')
-const filterProjectId = ref<number | ''>('')
-const projectList = ref<Project[]>([])
+
+/** 从路由参数获取当前项目 ID */
+const projectId = computed(() => Number(route.params.id) || 0)
 
 const pagination = reactive({
   page: 1,
@@ -172,12 +151,10 @@ const uploadFormRef = ref<FormInstance>()
 const uploadElRef = ref<UploadInstance>()
 const selectedFile = ref<File | null>(null)
 const uploadForm = reactive({
-  projectId: null as number | null,
   title: '',
 })
 
 const uploadRules: FormRules = {
-  projectId: [{ required: true, message: '请选择项目', trigger: 'change' }],
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
 }
 
@@ -188,23 +165,15 @@ function formatSize(bytes: number | undefined): string {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-async function loadProjects() {
-  try {
-    const res = await getAllProjects()
-    projectList.value = res || []
-  } catch {
-    // ignore
-  }
-}
-
 async function loadData() {
+  if (!projectId.value) return
   loading.value = true
   try {
     const res = await getMaterialList({
       page: pagination.page,
       size: pagination.size,
       type: 'image',
-      projectId: filterProjectId.value || undefined,
+      projectId: projectId.value,
       keyword: keyword.value || undefined,
     })
     tableData.value = res.records || []
@@ -222,7 +191,6 @@ function showUploadDialog() {
 }
 
 function resetUploadForm() {
-  uploadForm.projectId = null
   uploadForm.title = ''
   selectedFile.value = null
   uploadFormRef.value?.clearValidate()
@@ -254,7 +222,7 @@ async function handleUploadSubmit() {
       return
     }
     uploading.value = true
-    await uploadMaterialFile(selectedFile.value, 'image', uploadForm.projectId!, uploadForm.title)
+    await uploadMaterialFile(selectedFile.value, 'image', projectId.value, uploadForm.title)
     ElMessage.success('图片上传成功')
     uploadVisible.value = false
     loadData()
@@ -298,7 +266,6 @@ async function handleDelete(row: Material) {
 }
 
 onMounted(() => {
-  loadProjects()
   loadData()
 })
 </script>

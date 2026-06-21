@@ -160,6 +160,11 @@ export function updateProject(projectId: number, data: UpdateProjectRequest) {
   return request.put(`/publish/projects/${projectId}`, data)
 }
 
+/** 获取单个项目详情 */
+export function getProjectById(projectId: number) {
+  return request.get<Project>(`/publish/projects/${projectId}`)
+}
+
 /** 删除项目（软删除） */
 export function deleteProject(projectId: number) {
   return request.delete(`/publish/projects/${projectId}`)
