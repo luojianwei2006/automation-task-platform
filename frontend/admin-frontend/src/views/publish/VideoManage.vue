@@ -15,7 +15,14 @@
         <el-empty v-if="!loading && tableData.length===0" description="暂无视频素材" />
         <div v-for="item in tableData" :key="item.id" class="video-card">
           <div class="card-preview" @click="showPreview(item)">
-            <el-icon :size="40"><VideoCamera /></el-icon>
+            <video
+              v-if="getFileUrl(item.fileUrl)"
+              :src="getFileUrl(item.fileUrl) + '#t=0.1'"
+              preload="metadata"
+              muted
+              class="preview-video"
+            />
+            <el-icon v-else :size="40"><VideoCamera /></el-icon>
             <div class="play-overlay"><el-icon :size="28"><VideoPlay /></el-icon></div>
           </div>
           <div class="card-info">
@@ -187,7 +194,8 @@ onMounted(()=>{ loadData() })
 .card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px }
 .video-card { border:1px solid #ebeef5; border-radius:8px; overflow:hidden; transition:box-shadow .3s; background:#fff }
 .video-card:hover { box-shadow:0 2px 12px rgba(0,0,0,.1) }
-.card-preview { height:140px; background:#1a1a2e; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; color:#fff }
+.card-preview { height:140px; background:#1a1a2e; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; color:#fff; overflow:hidden }
+.preview-video { width:100%; height:100%; object-fit:cover; position:absolute; inset:0 }
 .play-overlay { position:absolute; inset:0; background:rgba(0,0,0,.3); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity .3s }
 .card-preview:hover .play-overlay { opacity:1 }
 .card-info { padding:12px 16px; display:flex; flex-direction:column; gap:6px }
