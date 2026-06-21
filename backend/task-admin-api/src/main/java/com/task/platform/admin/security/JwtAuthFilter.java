@@ -51,11 +51,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         
         // 放过 OPTIONS 请求（CORS 预检请求）
         if ("OPTIONS".equalsIgnoreCase(method)) {
+            log.info("PUBLISH401 shouldNotFilter: path={}, skip=true (OPTIONS)", path);
             return true;
         }
         
         // 放过公开路径
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        boolean shouldSkip = PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        log.info("PUBLISH401 shouldNotFilter: path={}, skip={}", path, shouldSkip);
+        return shouldSkip;
     }
 
     @Override
@@ -64,6 +67,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         String authHeader = request.getHeader("Authorization");
+
+        // PUBLISH401: 诊断日志 — 记录进入过滤器的请求
+        log.info("PUBLISH401 doFilterInternal: path={}, Authorization={}",
+                request.getServletPath(),
+                authHeader != null ? "present" : "MISSING");
 
         // 无Token，直接放行（公开端点由 shouldNotFilter 控制，这里只处理需要认证的请求）
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
@@ -74,6 +82,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String token = authHeader.substring(7);
 
         try {
+            // PUBLISH401: 打印 JWT secret 前缀用于跨服务对比
+            log.info("PUBLISH401 doFilterInternal: JwtUtil secretPrefix={}", JwtUtil.getSecretPrefix());
+
             // 验证Token有效性（JwtUtil 会抛异常 if 无效）
             Long adminId = JwtUtil.getUserId(token);
             String role = JwtUtil.getRole(token);

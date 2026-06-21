@@ -136,6 +136,14 @@ public class JwtUtil {
     }
 
     /**
+     * 获取密钥前缀（前8位，用于诊断脱敏对比）
+     */
+    public static String getSecretPrefix() {
+        int len = Math.min(8, SECRET.length());
+        return SECRET.substring(0, len);
+    }
+
+    /**
      * 是否可以刷新（Token过期不超过7天）
      */
     public static boolean canRefresh(String token) {

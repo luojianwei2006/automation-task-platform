@@ -21,6 +21,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Spring Security 配置 - 管理后台
@@ -32,6 +33,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  * - /admin/finance/** : ROLE_SUPER_ADMIN + ROLE_FINANCE
  * - /admin/** : 全部已登录管理员
  */
+@Slf4j
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(prePostEnabled = true) // 支持 @PreAuthorize 注解
@@ -112,6 +114,7 @@ public class AdminSecurityConfig {
                 })
             );
 
+        log.info("PUBLISH401 AdminSecurityConfig: SecurityFilterChain loaded — /publish/** permitAll, JwtAuthFilter registered");
         return http.build();
     }
 
