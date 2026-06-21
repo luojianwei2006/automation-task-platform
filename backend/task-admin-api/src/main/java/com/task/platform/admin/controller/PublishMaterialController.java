@@ -14,7 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.file.Paths;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -73,13 +75,18 @@ public class PublishMaterialController {
      * GET /api/publish/materials?projectId=1&type=text&page=1&size=20
      */
     @GetMapping("/materials")
-    public ApiResponse<List<MaterialListVO>> listMaterialsByQuery(
+    public ApiResponse<Map<String, Object>> listMaterialsByQuery(
             @RequestParam Long projectId,
             @RequestParam(required = false) String type) {
 
         List<PublishMaterial> list = publishMaterialService.listByProject(projectId, type);
         List<MaterialListVO> vos = list.stream().map(this::toVO).collect(Collectors.toList());
-        return ApiResponse.success(vos);
+        Map<String, Object> result = new java.util.LinkedHashMap<>();
+        result.put("records", vos);
+        result.put("total", vos.size());
+        result.put("page", 1);
+        result.put("size", vos.size());
+        return ApiResponse.success(result);
     }
 
     /**
