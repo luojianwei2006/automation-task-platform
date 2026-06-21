@@ -1,6 +1,27 @@
 import request from '@/utils/request'
 import axios from 'axios'
 
+// publish 接口走 /api 前缀（Gateway StripPrefix=1 → 8084）
+const publishRequest = axios.create({
+  baseURL: '/api',
+  timeout: 15000,
+  headers: { 'Content-Type': 'application/json' },
+})
+publishRequest.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) config.headers['Authorization'] = `Bearer ${token}`
+  return config
+}, (error) => Promise.reject(error))
+publishRequest.interceptors.response.use(
+  (response) => {
+    const res = response.data
+    if (res.code === 200) return res.data as any
+    if (res.code === 401) { localStorage.removeItem('token'); window.location.href = '/login' }
+    return Promise.reject(new Error(res.msg))
+  },
+  (error) => Promise.reject(error)
+)
+
 // ==================== 素材类型 & 状态映射 ====================
 
 /** 素材类型 */
@@ -142,39 +163,39 @@ export interface UpdatePublishTaskRequest {
 
 /** 获取项目列表 */
 export function getProjectList(params: ProjectListParams = {}) {
-  return request.get<PageResult<Project>>('/publish/projects', { params })
+  return publishRequest.get<PageResult<Project>>('/publish/projects', { params })
 }
 
 /** 获取所有项目（下拉选择用） */
 export function getAllProjects() {
-  return request.get<Project[]>('/publish/projects/all')
+  return publishRequest.get<Project[]>('/publish/projects/all')
 }
 
 /** 创建项目 */
 export function createProject(data: CreateProjectRequest) {
-  return request.post('/publish/projects', data)
+  return publishRequest.post('/publish/projects', data)
 }
 
 /** 更新项目 */
 export function updateProject(projectId: number, data: UpdateProjectRequest) {
-  return request.put(`/publish/projects/${projectId}`, data)
+  return publishRequest.put(`/publish/projects/${projectId}`, data)
 }
 
 /** 获取单个项目详情 */
 export function getProjectById(projectId: number) {
-  return request.get<Project>(`/publish/projects/${projectId}`)
+  return publishRequest.get<Project>(`/publish/projects/${projectId}`)
 }
 
 /** 删除项目（软删除） */
 export function deleteProject(projectId: number) {
-  return request.delete(`/publish/projects/${projectId}`)
+  return publishRequest.delete(`/publish/projects/${projectId}`)
 }
 
 // ==================== 素材管理 API ====================
 
 /** 获取素材列表（按类型） */
 export function getMaterialList(params: MaterialListParams) {
-  return request.get<PageResult<Material>>('/publish/materials', { params })
+  return publishRequest.get<PageResult<Material>>('/publish/materials', { params })
 }
 
 /** 上传素材文件（图片/音乐/视频） */
@@ -224,56 +245,56 @@ export function createTextMaterial(data: {
   title: string
   content: string
 }) {
-  return request.post('/publish/materials/text', data)
+  return publishRequest.post('/publish/materials/text', data)
 }
 
 /** 下载素材文件 */
 export function downloadMaterial(materialId: number) {
-  return request.get(`/publish/materials/${materialId}/download`, {
+  return publishRequest.get(`/publish/materials/${materialId}/download`, {
     responseType: 'blob',
   } as any)
 }
 
 /** 删除素材（软删除，进入回收站） */
 export function deleteMaterial(materialId: number) {
-  return request.delete(`/publish/materials/${materialId}`)
+  return publishRequest.delete(`/publish/materials/${materialId}`)
 }
 
 // ==================== 回收站 API ====================
 
 /** 获取回收站列表 */
 export function getRecycleBin(params: { page?: number; size?: number } = {}) {
-  return request.get<PageResult<RecycleBinItem>>('/publish/recycle-bin', { params })
+  return publishRequest.get<PageResult<RecycleBinItem>>('/publish/recycle-bin', { params })
 }
 
 /** 恢复素材 */
 export function restoreMaterial(materialId: number) {
-  return request.put(`/publish/recycle-bin/${materialId}/restore`)
+  return publishRequest.put(`/publish/recycle-bin/${materialId}/restore`)
 }
 
 /** 彻底删除素材 */
 export function permanentDelete(materialId: number) {
-  return request.delete(`/publish/recycle-bin/${materialId}/permanent`)
+  return publishRequest.delete(`/publish/recycle-bin/${materialId}/permanent`)
 }
 
 // ==================== 视频发布任务 API ====================
 
 /** 获取发布任务列表 */
 export function getPublishTaskList(params: PublishTaskListParams = {}) {
-  return request.get<PageResult<PublishTask>>('/publish/tasks', { params })
+  return publishRequest.get<PageResult<PublishTask>>('/publish/tasks', { params })
 }
 
 /** 创建发布任务 */
 export function createPublishTask(data: CreatePublishTaskRequest) {
-  return request.post('/publish/tasks', data)
+  return publishRequest.post('/publish/tasks', data)
 }
 
 /** 更新发布任务 */
 export function updatePublishTask(taskId: number, data: UpdatePublishTaskRequest) {
-  return request.put(`/publish/tasks/${taskId}`, data)
+  return publishRequest.put(`/publish/tasks/${taskId}`, data)
 }
 
 /** 取消发布任务（仅待领取状态可取消） */
 export function cancelTask(taskId: number) {
-  return request.put(`/publish/tasks/${taskId}/cancel`)
+  return publishRequest.put(`/publish/tasks/${taskId}/cancel`)
 }
