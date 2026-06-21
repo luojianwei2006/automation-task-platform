@@ -1,0 +1,68 @@
+package com.task.platform.admin.controller;
+
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.task.platform.admin.entity.PublishRecycleBin;
+import com.task.platform.admin.service.PublishRecycleBinService;
+import com.task.platform.common.response.ApiResponse;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * 回收站接口（视频发布功能）
+ *
+ * @author TaskPlatform
+ */
+@RestController
+@RequestMapping("/publish/recycle-bin")
+@RequiredArgsConstructor
+public class PublishRecycleBinController {
+
+    private final PublishRecycleBinService publishRecycleBinService;
+
+    /**
+     * 回收站列表
+     * GET /api/publish/recycle-bin?page=1&size=20
+     */
+    @GetMapping
+    public ApiResponse<Map<String, Object>> list(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        IPage<PublishRecycleBin> result = publishRecycleBinService.list(page, size);
+        Map<String, Object> data = new HashMap<>();
+        data.put("total", result.getTotal());
+        data.put("page", page);
+        data.put("size", size);
+        data.put("records", result.getRecords());
+        return ApiResponse.success(data);
+    }
+
+    /**
+     * 从回收站恢复素材
+     * POST /api/publish/recycle-bin/{id}/restore
+     */
+    @PostMapping("/{id}/restore")
+    public ApiResponse<Void> restore(@PathVariable Long id) {
+        boolean ok = publishRecycleBinService.restore(id);
+        if (!ok) {
+            return ApiResponse.error(404, "回收站记录不存在或已恢复");
+        }
+        return ApiResponse.success(null, "素材已恢复");
+    }
+
+    /**
+     * 彻底删除
+     * DELETE /api/publish/recycle-bin/{id}
+     */
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> permanentDelete(@PathVariable Long id) {
+        boolean ok = publishRecycleBinService.permanentDelete(id);
+        if (!ok) {
+            return ApiResponse.error(404, "回收站记录不存在");
+        }
+        return ApiResponse.success(null, "已彻底删除");
+    }
+}
