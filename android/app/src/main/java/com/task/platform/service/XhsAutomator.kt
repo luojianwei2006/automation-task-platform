@@ -185,67 +185,32 @@ class XhsAutomator(
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
             if (cancelled) return
 
-            // Step 6: 评论（先粘贴→截图→再发送）
+            // Step 6: 评论
             if (task.taskType == 2 && commentText != null) {
                 notifyStep("comment", "正在评论: $commentText", 0)
                 randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                if (!pasteCommentText(commentText)) {
-                    notifyStepComplete("comment", "评论", 2, "粘贴失败")
+                if (!performComment(commentText)) {
+                    notifyStepComplete("comment", "评论", 2, "评论失败")
                     return
                 }
-
-                // Step 7: 等一下UI渲染 → 截图
-                randomDelay(500, 800)
-                android.util.Log.d("XhsAutomator", "===== PASTE完成，截图 =====")
-                notifyStep("screenshot", "正在截图...", 0)
-                val localFile = takeScreenshot()
-                if (localFile != null) {
-                    notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
-                    AutomationOverlayService.updateComplete(true)
-                } else {
-                    notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
-                    AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
-                    AutomationOverlayService.updateComplete(false)
-                }
-
-                // Step 8: 关闭截图预览 → 发送评论
-                android.util.Log.d("XhsAutomator", "关闭截图预览...")
-                // XHS 截图后会弹出预览面板，遮住了评论区，需要先关掉
-                val closePreview = retryFindNodeNoAction {
-                    findNodeByText(listOf("关闭屏幕截图")) ?: findNodeByDesc(listOf("关闭屏幕截图"))
-                }
-                if (closePreview != null) {
-                    closePreview.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                    closePreview.recycle()
-                    randomDelay(500, 1000)
-                }
-
-                if (!clickCommentSend()) {
-                    // 键盘/面板可能被截图关闭了，点一下评论区再试
-                    android.util.Log.d("XhsAutomator", "发送失败，尝试重新激活评论区...")
-                    val m = service.resources.displayMetrics
-                    dispatchTap(m.widthPixels * 0.5f, m.heightPixels * 0.95f)
-                    randomDelay(800, 1200)
-                    if (!clickCommentSend()) {
-                        notifyStepComplete("comment", "评论", 2, "发送失败")
-                        return
-                    }
-                }
+                randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
                 notifyStepComplete("comment", "评论", 1, "评论成功")
             }
 
-            // taskType=2 的截图已在发送前完成
-            if (task.taskType != 2) {
-                android.util.Log.d("XhsAutomator", "===== 开始截图 =====")
-                notifyStep("screenshot", "正在截图...", 0)
-                val localFile = takeScreenshot()
-                if (localFile != null) {
-                    notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
-                    AutomationOverlayService.updateComplete(true)
-                }
+            // Step 7: 截图
+            android.util.Log.d("XhsAutomator", "===== 开始截图 =====")
+            notifyStep("screenshot", "正在截图...", 0)
+            val localFile = takeScreenshot()
+            if (localFile != null) {
+                notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
+                AutomationOverlayService.updateComplete(true)
+            } else {
+                notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
+                AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
+                AutomationOverlayService.updateComplete(false)
             }
 
-            // Step 9: 关闭小红书，返回上传截图界面
+            // Step 8: 关闭小红书
             notifyStep("close_app", "正在关闭小红书...", 0)
             closeXhs()
             randomDelay(800, 1200)
