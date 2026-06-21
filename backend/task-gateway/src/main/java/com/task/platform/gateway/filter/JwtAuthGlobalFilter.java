@@ -52,7 +52,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             // 管理后台静态文件
             new WhiteListEntry("/api/uploads", "GET"),
             // 移动端发布任务列表（可公开查看）
-            new WhiteListEntry("/api/mobile/publish/tasks", "GET")
+            new WhiteListEntry("/api/mobile/publish/tasks", "GET"),
+            // 发布管理后台接口（admin-api 已做 permitAll，Gateway 无需重复鉴权）
+            new WhiteListEntry("/api/publish", null)
     );
 
     @Override
