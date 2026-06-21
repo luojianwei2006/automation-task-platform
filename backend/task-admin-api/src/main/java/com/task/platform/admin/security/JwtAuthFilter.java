@@ -39,9 +39,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final List<String> PUBLIC_PATHS = List.of(
             "/admin/auth/login",
             "/admin/auth/captcha",
-            "/uploads/",
-            "/publish/",
-            "/mobile/"
+            "/uploads/"
     );
 
     @Override
