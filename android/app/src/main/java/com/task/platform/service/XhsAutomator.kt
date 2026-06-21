@@ -211,16 +211,13 @@ class XhsAutomator(
                 android.util.Log.d("XhsAutomator", "关闭截图预览...")
                 // XHS 截图后会弹出预览面板，遮住了评论区，需要先关掉
                 val closePreview = retryFindNodeNoAction {
-                    findNodeByText(listOf("关闭屏幕截图", "关闭")) ?: findNodeByDesc(listOf("关闭屏幕截图", "关闭"))
+                    findNodeByText(listOf("关闭屏幕截图")) ?: findNodeByDesc(listOf("关闭屏幕截图"))
                 }
                 if (closePreview != null) {
                     closePreview.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     closePreview.recycle()
                     randomDelay(500, 1000)
                 }
-                // 再次尝试手势点右上角关闭
-                dispatchTap(service.resources.displayMetrics.widthPixels * 0.92f, service.resources.displayMetrics.heightPixels * 0.08f)
-                randomDelay(500, 800)
 
                 if (!clickCommentSend()) {
                     notifyStepComplete("comment", "评论", 2, "发送失败")
