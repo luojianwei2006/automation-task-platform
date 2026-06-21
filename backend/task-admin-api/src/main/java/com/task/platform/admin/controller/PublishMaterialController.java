@@ -129,6 +129,20 @@ public class PublishMaterialController {
         return ApiResponse.success(null, "素材已移入回收站");
     }
 
+    /**
+     * 创建文案素材（JSON body，对齐前端调用）
+     * POST /api/publish/materials/text
+     */
+    @PostMapping("/materials/text")
+    public ApiResponse<PublishMaterial> createTextMaterial(@RequestBody CreateTextReq req) {
+        if (req.getContent() == null || req.getContent().isBlank()) {
+            return ApiResponse.error(400, "文案内容不能为空");
+        }
+        PublishMaterial material = publishMaterialService.upload(
+                req.getProjectId(), null, "text", req.getTitle(), 0, req.getContent());
+        return ApiResponse.success(material, "文案保存成功");
+    }
+
     // ==================== DTO 转换 ====================
 
     private MaterialListVO toVO(PublishMaterial m) {
@@ -145,5 +159,13 @@ public class PublishMaterialController {
         vo.setSortOrder(m.getSortOrder());
         vo.setCreatedAt(m.getCreatedAt());
         return vo;
+    }
+
+    /** 创建文案请求体 */
+    @lombok.Data
+    public static class CreateTextReq {
+        private Long projectId;
+        private String title;
+        private String content;
     }
 }
