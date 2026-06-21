@@ -109,7 +109,8 @@ function handleCommand(command: string) {
   overflow-y: auto;
 }
 /* 统一侧边栏所有一级菜单项的缩进 */
-.el-menu--vertical > .el-menu-item {
+.el-menu--vertical > .el-menu-item,
+.el-menu--vertical > .el-sub-menu > .el-sub-menu__title {
   padding-left: 32px !important;
 }
 .el-sub-menu .el-menu-item {
