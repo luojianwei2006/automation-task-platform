@@ -221,8 +221,15 @@ class XhsAutomator(
                 }
 
                 if (!clickCommentSend()) {
-                    notifyStepComplete("comment", "评论", 2, "发送失败")
-                    return
+                    // 键盘/面板可能被截图关闭了，点一下评论区再试
+                    android.util.Log.d("XhsAutomator", "发送失败，尝试重新激活评论区...")
+                    val m = service.resources.displayMetrics
+                    dispatchTap(m.widthPixels * 0.5f, m.heightPixels * 0.95f)
+                    randomDelay(800, 1200)
+                    if (!clickCommentSend()) {
+                        notifyStepComplete("comment", "评论", 2, "发送失败")
+                        return
+                    }
                 }
                 notifyStepComplete("comment", "评论", 1, "评论成功")
             }
