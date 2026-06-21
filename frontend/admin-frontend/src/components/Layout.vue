@@ -108,9 +108,6 @@ function handleCommand(command: string) {
   background-color: #001529;
   overflow-y: auto;
 }
-/* 侧边栏菜单缩进 */
-:deep(.el-menu-item) { padding-left: 28px !important }
-:deep(.el-sub-menu .el-menu-item) { padding-left: 56px !important }
 .logo {
   height: 60px;
   display: flex;
@@ -140,4 +137,11 @@ function handleCommand(command: string) {
 .el-main {
   background-color: #f5f7fa;
 }
+</style>
+
+<style>
+/* 侧边栏菜单缩进（非scoped，全局覆盖 Element Plus 默认） */
+.el-menu--vertical > .el-menu-item { padding-left: 20px !important }
+.el-menu--vertical .el-sub-menu__title { padding-left: 20px !important }
+.el-menu--vertical .el-sub-menu .el-menu-item { padding-left: 54px !important }
 </style>
