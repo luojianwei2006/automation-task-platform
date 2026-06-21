@@ -20,8 +20,8 @@ public class CreatePublishTaskReq {
     /** 发布文案 */
     private String publishText;
 
-    /** 计划发布时间 */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    /** 过期时间 */
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime scheduledAt;
 
     /** 最大重试次数（默认3） */

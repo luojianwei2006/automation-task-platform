@@ -18,7 +18,7 @@ public class UpdatePublishTaskReq {
     private String publishText;
 
     /** 计划发布时间 */
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime scheduledAt;
 
     /** 最大重试次数 */
