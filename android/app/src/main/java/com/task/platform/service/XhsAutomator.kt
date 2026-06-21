@@ -74,7 +74,7 @@ class XhsAutomator(
         )
 
         // 文本关键词
-        private val SEARCH_ICON_TEXTS = listOf("搜索", "Search", "发现")
+        private val SEARCH_ICON_TEXTS = listOf("搜索", "Search")  // 不要加"发现"——会误匹配底部Tab
         private val SEARCH_ICON_DESCS = listOf("搜索", "search", "Search", "discover")
         private val SEARCH_BUTTON_TEXTS = listOf("搜索", "Search")
         private val LIKE_TEXTS = listOf("赞", "点赞", "Like")
