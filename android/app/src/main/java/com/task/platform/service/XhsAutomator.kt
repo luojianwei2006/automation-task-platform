@@ -1027,6 +1027,12 @@ class XhsAutomator(
                 findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
             }
             if (pasteNode != null) {
+                // 先清空已有内容，防止重复
+                val selArgs = android.os.Bundle().apply {
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, 0)
+                    putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, pasteNode.text?.length ?: 0)
+                }
+                pasteNode.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, selArgs)
                 pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                 randomDelay(100, 200)
                 pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
