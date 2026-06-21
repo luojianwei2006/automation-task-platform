@@ -1034,6 +1034,9 @@ class XhsAutomator(
     }
 
     private fun clickCommentSend(): Boolean {
+        // dump 当前页面看看发送按钮在哪
+        dumpAllNodes("评论面板(发送前)")
+        
         val sendBtn = retryFindNodeNoAction {
             findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布"))
         }
