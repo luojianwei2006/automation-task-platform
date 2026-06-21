@@ -69,43 +69,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/publish/ProjectManage.vue'),
         meta: { title: '项目管理' }
       },
-      // ========== 项目详情 & 素材管理（嵌套路由） ==========
+      // ========== 项目详情（Tab内联素材，无需子路由） ==========
       {
         path: 'publish/projects/:id',
+        name: 'ProjectDetail',
         component: () => import('../views/publish/ProjectDetail.vue'),
-        meta: { title: '项目详情' },
-        children: [
-          {
-            path: '',
-            name: 'ProjectDetail',
-            component: () => import('../views/publish/ProjectDetailOverview.vue'),
-            meta: { title: '项目概览' }
-          },
-          {
-            path: 'text',
-            name: 'ProjectTextManage',
-            component: () => import('../views/publish/TextManage.vue'),
-            meta: { title: '文案管理' }
-          },
-          {
-            path: 'images',
-            name: 'ProjectImageManage',
-            component: () => import('../views/publish/ImageManage.vue'),
-            meta: { title: '图片管理' }
-          },
-          {
-            path: 'music',
-            name: 'ProjectMusicManage',
-            component: () => import('../views/publish/MusicManage.vue'),
-            meta: { title: '背景音乐' }
-          },
-          {
-            path: 'video',
-            name: 'ProjectVideoManage',
-            component: () => import('../views/publish/VideoManage.vue'),
-            meta: { title: '视频素材' }
-          },
-        ]
+        meta: { title: '项目详情' }
       },
       // ========== 回收站（独立菜单） ==========
       {

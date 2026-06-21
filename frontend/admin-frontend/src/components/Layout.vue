@@ -35,19 +35,11 @@
           <el-menu-item index="/merchant/list">商户列表</el-menu-item>
         </el-sub-menu>
 
-        <!-- 项目管理：非项目详情页显示为独立菜单项，项目详情页显示为子菜单 -->
-        <el-menu-item v-if="!isInProject" index="/publish/projects">
+        <!-- 项目管理 -->
+        <el-menu-item index="/publish/projects">
           <el-icon><FolderOpened /></el-icon>
           <template #title>项目管理</template>
         </el-menu-item>
-        <el-sub-menu v-else index="project-detail-group">
-          <template #title><el-icon><FolderOpened /></el-icon>项目管理</template>
-          <el-menu-item :index="`/publish/projects/${projectId}`">项目详情</el-menu-item>
-          <el-menu-item :index="`/publish/projects/${projectId}/text`">文案</el-menu-item>
-          <el-menu-item :index="`/publish/projects/${projectId}/images`">图片</el-menu-item>
-          <el-menu-item :index="`/publish/projects/${projectId}/music`">背景音乐</el-menu-item>
-          <el-menu-item :index="`/publish/projects/${projectId}/video`">视频素材</el-menu-item>
-        </el-sub-menu>
 
         <el-menu-item index="/publish/recycle-bin">
           <el-icon><Delete /></el-icon>
@@ -101,30 +93,11 @@ const router = useRouter()
 const userStore = useUserStore()
 const isCollapse = ref(false)
 
-/** 当前路由路径作为菜单高亮 */
-const activeMenu = computed(() => route.path)
-
-/** 判断是否在项目详情及其子路由中 */
-const isInProject = computed(() => {
-  const projectRouteNames = [
-    'ProjectDetail',
-    'ProjectTextManage',
-    'ProjectImageManage',
-    'ProjectMusicManage',
-    'ProjectVideoManage',
-  ]
-  return projectRouteNames.includes(route.name as string)
-})
-
-/** 当前项目 ID */
-const projectId = computed(() => route.params.id as string)
-
-/** 动态展开的子菜单项 */
-const openedMenus = computed(() => {
-  if (isInProject.value) {
-    return ['project-detail-group']
-  }
-  return []
+/** 当前路由路径作为菜单高亮（项目详情页映射到项目管理） */
+const activeMenu = computed(() => {
+  const path = route.path
+  if (path.startsWith('/publish/projects/')) return '/publish/projects'
+  return path
 })
 
 function handleCommand(command: string) {

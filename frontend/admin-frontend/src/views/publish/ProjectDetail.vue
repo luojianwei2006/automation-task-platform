@@ -10,8 +10,22 @@
         <span class="project-name" v-else>加载中...</span>
       </div>
     </div>
-    <!-- 子路由内容 -->
-    <router-view />
+
+    <!-- 素材 Tab（内联，不切换页面） -->
+    <el-tabs v-model="activeTab" class="material-tabs">
+      <el-tab-pane label="文案" name="text">
+        <TextManage />
+      </el-tab-pane>
+      <el-tab-pane label="图片" name="image">
+        <ImageManage />
+      </el-tab-pane>
+      <el-tab-pane label="背景音乐" name="music">
+        <MusicManage />
+      </el-tab-pane>
+      <el-tab-pane label="视频素材" name="video">
+        <VideoManage />
+      </el-tab-pane>
+    </el-tabs>
   </div>
 </template>
 
@@ -20,9 +34,14 @@ import { ref, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { getProjectById } from '@/api/publish'
 import type { Project } from '@/api/publish'
+import TextManage from './TextManage.vue'
+import ImageManage from './ImageManage.vue'
+import MusicManage from './MusicManage.vue'
+import VideoManage from './VideoManage.vue'
 
 const route = useRoute()
 const project = ref<Project | null>(null)
+const activeTab = ref('text')
 
 async function loadProject() {
   const id = Number(route.params.id)
@@ -66,5 +85,12 @@ watch(() => route.params.id, () => {
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+}
+.material-tabs {
+  background: #fff;
+  padding: 0 20px;
+}
+.material-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
 }
 </style>
