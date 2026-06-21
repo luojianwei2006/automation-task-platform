@@ -44,9 +44,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.task.platform.R
-import com.task.platform.ui.ad.AdHallScreen
 import com.task.platform.ui.earnings.EarningsScreen
 import com.task.platform.ui.profile.ProfileScreen
+import com.task.platform.ui.publish.PublishScreen
 import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.TaskHallScreen
 
@@ -87,12 +87,8 @@ fun MainScreen(navController: NavHostController) {
                         }
                     )
                 }
-                composable(BottomNavItem.Ad.route) {
-                    AdHallScreen(
-                        onTaskClick = { taskId ->
-                            navController.navigate("task_detail/$taskId")
-                        }
-                    )
+                composable(BottomNavItem.Publish.route) {
+                    PublishScreen()
                 }
                 composable(BottomNavItem.Earnings.route) {
                     EarningsScreen(navController = navController)
@@ -267,10 +263,10 @@ sealed class BottomNavItem(
         iconResId = R.drawable.ic_task
     )
 
-    object Ad : BottomNavItem(
-        route = "ad_hall",
-        titleResId = R.string.nav_ad,
-        iconResId = R.drawable.ic_ad
+    object Publish : BottomNavItem(
+        route = "publish_hall",
+        titleResId = R.string.nav_publish,
+        iconResId = R.drawable.ic_publish
     )
 
     object Earnings : BottomNavItem(
@@ -286,6 +282,6 @@ sealed class BottomNavItem(
     )
 
     companion object {
-        val items = listOf(Task, Ad, Earnings, Profile)
+        val items = listOf(Task, Publish, Earnings, Profile)
     }
 }

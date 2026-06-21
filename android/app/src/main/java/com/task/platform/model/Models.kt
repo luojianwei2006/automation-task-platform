@@ -159,3 +159,33 @@ data class AutoTask(
     val userId: Long,
     val commentCategoryIds: String? = null
 )
+
+// ==================== 发布任务模型 ====================
+
+/**
+ * 发布任务DTO
+ */
+data class PublishTaskDTO(
+    val id: Long,
+    val projectId: Long,
+    val projectName: String = "",
+    val platforms: String,
+    val publishText: String? = null,
+    val status: String,
+    val scheduledAt: String? = null,
+    val createdAt: String,
+    /** 素材列表 */
+    val materials: List<PublishMaterialDTO> = emptyList()
+)
+
+/**
+ * 发布素材DTO
+ */
+data class PublishMaterialDTO(
+    val id: Long,
+    val type: String,
+    val title: String? = null,
+    val fileUrl: String? = null,
+    val content: String? = null,
+    val sortOrder: Int = 0
+)

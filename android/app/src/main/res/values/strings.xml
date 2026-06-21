@@ -5,7 +5,7 @@
     
     <!-- 导航栏标题 -->
     <string name="nav_task">任务</string>
-    <string name="nav_ad">广告</string>
+    <string name="nav_publish">发布</string>
     <string name="nav_earnings">收益</string>
     <string name="nav_profile">我的</string>
     
@@ -59,6 +59,25 @@
     <string name="task_submit">提交审核</string>
     <string name="task_remaining_quota">剩余次数：%d</string>
     <string name="task_deadline">截止时间：%s</string>
+    
+    <!-- 发布大厅 -->
+    <string name="publish_hall_title">发布任务</string>
+    <string name="publish_subtitle">领取发布任务，赚取奖励</string>
+    <string name="publish_tab_all">全部任务</string>
+    <string name="publish_tab_my">我的任务</string>
+    <string name="publish_claim">领取</string>
+    <string name="publish_complete">完成</string>
+    <string name="publish_claim_confirm_title">确认领取</string>
+    <string name="publish_claim_confirm_message">确认领取该发布任务？领取后请在规定时间内完成。</string>
+    <string name="publish_detail_title">任务详情</string>
+    <string name="publish_empty">暂无发布任务</string>
+    <string name="publish_empty_hint">请稍后再来查看</string>
+    <string name="publish_status_pending">待领取</string>
+    <string name="publish_status_claimed">已领取</string>
+    <string name="publish_status_completed">已完成</string>
+    <string name="publish_material_text">文案</string>
+    <string name="publish_material_image">图片</string>
+    <string name="publish_material_video">视频</string>
     
     <!-- 收益中心 -->
     <string name="earnings_title">收益中心</string>

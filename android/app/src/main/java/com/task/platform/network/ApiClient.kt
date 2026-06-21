@@ -9,6 +9,7 @@ import com.task.platform.model.EarningsRecord
 import com.task.platform.model.EarningsSummary
 import com.task.platform.model.LoginResponse
 import com.task.platform.model.PageResponse
+import com.task.platform.model.PublishTaskDTO
 import com.task.platform.model.TaskDTO
 import com.task.platform.model.TaskRecordDTO
 import com.task.platform.model.UploadResult
@@ -176,6 +177,24 @@ interface ApiService {
     /** 获取评论词（按分类ID） */
     @GET("api/task/auto/comment-words")
     suspend fun getCommentWords(@Query("categoryIds") categoryIds: String): ApiResponse<List<String>>
+
+    // ==================== 发布任务模块 ====================
+
+    /** 获取发布任务列表 */
+    @GET("api/mobile/publish/tasks")
+    suspend fun getPublishTasks(): ApiResponse<List<PublishTaskDTO>>
+
+    /** 领取发布任务 */
+    @POST("api/mobile/publish/tasks/{id}/claim")
+    suspend fun claimPublishTask(@Path("id") id: Long): ApiResponse<Void>
+
+    /** 获取我的发布任务列表 */
+    @GET("api/mobile/publish/tasks/my")
+    suspend fun getMyPublishTasks(): ApiResponse<List<PublishTaskDTO>>
+
+    /** 完成发布任务 */
+    @POST("api/mobile/publish/tasks/{id}/complete")
+    suspend fun completePublishTask(@Path("id") id: Long): ApiResponse<Void>
 }
 
 /**
