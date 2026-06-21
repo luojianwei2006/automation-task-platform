@@ -107,15 +107,32 @@
             <el-radio value="xiaohongshu">小红书</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="文案内容" prop="content">
+        <el-form-item label="任务内容" prop="content">
           <el-input
             v-model="form.content"
             type="textarea"
             :rows="5"
-            placeholder="请输入发布的文案内容"
+            placeholder="请输入任务内容"
             maxlength="2000"
             show-word-limit
           />
+        </el-form-item>
+        <el-form-item label="任务说明图片">
+          <el-upload
+            ref="imageUploadRef"
+            :auto-upload="false"
+            :limit="6"
+            :on-change="handleImageChange"
+            :on-remove="handleImageRemove"
+            :on-exceed="handleImageExceed"
+            :file-list="imageFiles"
+            accept="image/*"
+            list-type="picture-card"
+            multiple
+          >
+            <el-icon><Plus /></el-icon>
+          </el-upload>
+          <div class="form-tip">可上传多张任务说明图片（选填）</div>
         </el-form-item>
         <el-form-item label="发布时间">
           <el-date-picker
@@ -167,7 +184,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance, FormRules } from 'element-plus'
+import type { FormInstance, FormRules, UploadInstance } from 'element-plus'
 import {
   getPublishTaskList,
   createPublishTask,
@@ -207,8 +224,18 @@ const form = reactive({
 const formRules: FormRules = {
   projectId: [{ required: true, message: '请选择项目', trigger: 'change' }],
   platform: [{ required: true, message: '请选择发布平台', trigger: 'change' }],
-  content: [{ required: true, message: '请输入文案内容', trigger: 'blur' }],
+  content: [{ required: true, message: '请输入任务内容', trigger: 'blur' }],
 }
+
+// 图片上传
+const imageUploadRef = ref<UploadInstance>()
+const imageFiles = ref<any[]>([])
+function handleImageChange(file: any) { imageFiles.value.push(file) }
+function handleImageRemove(file: any) {
+  const idx = imageFiles.value.indexOf(file)
+  if (idx > -1) imageFiles.value.splice(idx, 1)
+}
+function handleImageExceed() { ElMessage.warning('最多上传6张图片') }
 
 // 详情
 const detailVisible = ref(false)
@@ -251,6 +278,8 @@ function resetForm() {
   form.platform = 'douyin'
   form.content = ''
   form.scheduledAt = ''
+  imageFiles.value = []
+  imageUploadRef.value?.clearFiles()
   formRef.value?.clearValidate()
 }
 
