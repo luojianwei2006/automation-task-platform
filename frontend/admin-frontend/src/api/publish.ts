@@ -209,14 +209,12 @@ export function uploadMaterialFile(
   const formData = new FormData()
   formData.append('file', file)
   formData.append('type', type)
-  formData.append('projectId', String(projectId))
   formData.append('title', title)
   if (extra?.paragraphOrder != null) {
-    formData.append('paragraphOrder', String(extra.paragraphOrder))
+    formData.append('sortOrder', String(extra.paragraphOrder))
   }
-  // 直连后端 upload 服务或走 gateway
   const uploadRequest = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || '/api/admin',
+    baseURL: '/api',
     timeout: 120000,
   })
   uploadRequest.interceptors.request.use((config) => {
@@ -234,7 +232,7 @@ export function uploadMaterialFile(
     },
     (error) => Promise.reject(error)
   )
-  return uploadRequest.post('/publish/materials/upload', formData, {
+  return uploadRequest.post(`/publish/projects/${projectId}/materials`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
