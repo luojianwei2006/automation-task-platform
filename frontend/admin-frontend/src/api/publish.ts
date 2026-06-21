@@ -148,8 +148,8 @@ export interface PublishTaskListParams {
 
 export interface CreatePublishTaskRequest {
   projectId: number
-  platform: string
-  content: string
+  platforms: string
+  publishText: string
   scheduledAt?: string | null
 }
 

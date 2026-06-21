@@ -290,8 +290,8 @@ async function handleSubmit() {
     submitting.value = true
     await createPublishTask({
       projectId: form.projectId!,
-      platform: form.platform,
-      content: form.content,
+      platforms: form.platform,
+      publishText: form.content,
       scheduledAt: form.scheduledAt || null,
     })
     ElMessage.success('发布任务已创建')
