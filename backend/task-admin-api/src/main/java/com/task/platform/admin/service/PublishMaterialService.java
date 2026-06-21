@@ -61,12 +61,15 @@ public class PublishMaterialService {
         if ("text".equals(type)) {
             // 文本素材：直接存content，不需要文件
             material.setContent(content);
+            material.setFileUrl(""); // 文本无文件，设空串避免MySQL NOT NULL报错
             material.setFileSize((long) (content != null ? content.getBytes().length : 0));
         } else if (file != null && !file.isEmpty()) {
             // 文件素材：存到 upload-service 路径
             String fileUrl = saveFile(file);
             material.setFileUrl(fileUrl);
             material.setFileSize(file.getSize());
+        } else {
+            material.setFileUrl(""); // 兜底
         }
 
         material.setDeleted(0);
