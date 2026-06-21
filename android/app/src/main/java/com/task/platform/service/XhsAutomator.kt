@@ -999,33 +999,35 @@ class XhsAutomator(
         }
 
         // ── PASTE 一次 ──
-        if (inputBounds != null) {
-            val cx = inputBounds.centerX().toFloat()
-            val cy = inputBounds.centerY().toFloat()
-            try {
-                val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-                randomDelay(200, 400)
+        android.util.Log.d("XhsAutomator", "===== 开始 PASTE =====")
+        val cx = inputBounds.centerX().toFloat()
+        val cy = inputBounds.centerY().toFloat()
+        try {
+            val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
+            randomDelay(200, 400)
 
-                dispatchTap(cx, cy)
-                randomDelay(500, 800)
+            android.util.Log.d("XhsAutomator", "dispatchTap at ($cx, $cy)")
+            dispatchTap(cx, cy)
+            randomDelay(500, 800)
 
-                val pasteNode = retryFindNodeNoAction {
-                    findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
-                }
-                if (pasteNode != null) {
-                    pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
-                    randomDelay(100, 200)
-                    pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
-                    android.util.Log.d("XhsAutomator", "PASTE 完成, text=${pasteNode.text}")
-                    pasteNode.recycle()
-                } else {
-                    android.util.Log.w("XhsAutomator", "找不到输入节点，跳过粘贴")
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("XhsAutomator", "输入异常", e)
+            android.util.Log.d("XhsAutomator", "查找输入节点...")
+            val pasteNode = retryFindNodeNoAction {
+                findEditableNodeAtBottom(bottomThreshold) ?: findEditableNode()
             }
+            if (pasteNode != null) {
+                pasteNode.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
+                randomDelay(100, 200)
+                pasteNode.performAction(AccessibilityNodeInfo.ACTION_PASTE)
+                android.util.Log.d("XhsAutomator", "PASTE 完成, text=${pasteNode.text}")
+                pasteNode.recycle()
+            } else {
+                android.util.Log.w("XhsAutomator", "找不到 paste 节点")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("XhsAutomator", "输入异常", e)
         }
+        android.util.Log.d("XhsAutomator", "===== PASTE 结束 =====")
 
         // ── 输入完成 ──
         return true
