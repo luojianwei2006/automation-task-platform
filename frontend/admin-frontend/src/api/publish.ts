@@ -99,7 +99,7 @@ export interface Material {
   content?: string          // 文案内容
   fileSize?: number          // 文件大小（字节）
   duration?: number          // 时长（秒）
-  paragraphOrder?: number    // 视频段落序号
+  sortOrder?: number         // 段落序号
   fileUrl?: string           // 文件访问URL
   createdAt: string
   updatedAt: string

@@ -19,7 +19,7 @@
 
       <!-- 表格 -->
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
-        <el-table-column prop="paragraphOrder" label="段落序号" width="100" sortable />
+        <el-table-column prop="sortOrder" label="段落序号" width="100" sortable />
         <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
         <el-table-column prop="projectName" label="项目" width="140" show-overflow-tooltip />
         <el-table-column label="时长" width="100">
