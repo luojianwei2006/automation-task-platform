@@ -169,10 +169,17 @@ fun TaskDetailScreen(
 
     // ===== 自动执行确认对话框 =====
     if (showAutoConfirmDialog) {
+        val task = currentTask
+        val platformName = if (task != null) platformText(task.platform) else "抖音"
+        val platformPkg = when (task?.platform) {
+            2 -> "小红书APP"
+            3 -> "微信"
+            else -> "抖音APP"
+        }
         AlertDialog(
             onDismissRequest = { showAutoConfirmDialog = false },
             title = { Text("自动执行任务", fontWeight = FontWeight.Bold) },
-            text = { Text("将自动打开抖音并完成任务，是否继续？\n\n请确保：\n1. 手机已安装抖音APP\n2. 已开启无障碍服务权限") },
+            text = { Text("将自动打开${platformName}并完成任务，是否继续？\n\n请确保：\n1. 手机已安装${platformPkg}\n2. 已开启无障碍服务权限") },
             confirmButton = {
                 Button(
                     onClick = {
