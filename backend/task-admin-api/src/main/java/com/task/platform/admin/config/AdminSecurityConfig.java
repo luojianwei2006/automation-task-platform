@@ -84,12 +84,12 @@ public class AdminSecurityConfig {
                 .requestMatchers("/admin/merchant/**")
                     .hasAnyRole("SUPER_ADMIN", "MERCHANT_ADMIN")
 
-                // 发布管理接口：所有已认证管理员
-                .requestMatchers("/publish/**").authenticated()
+                // 发布管理接口（Gateway 已做 JWT 鉴权，此处放行）
+                .requestMatchers("/publish/**").permitAll()
 
-                // 移动端发布接口
-                .requestMatchers(HttpMethod.GET, "/mobile/publish/tasks").permitAll()
-                .requestMatchers("/mobile/publish/**").authenticated()
+                // 移动端发布接口（Gateway 已做 JWT 鉴权，领取等需认证）
+                .requestMatchers("/mobile/publish/tasks").permitAll()
+                .requestMatchers("/mobile/publish/**").permitAll()
 
                 // 其他接口：所有已认证管理员
                 .anyRequest().authenticated()
