@@ -344,8 +344,8 @@ public class TaskService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "任务已超时，无法提交");
         }
 
-        // 4. 检查提交次数（最多2次）
-        if (record.getSubmitCount() >= 2) {
+        // 4. 检查提交次数（最多15次）
+        if (record.getSubmitCount() >= 15) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "提交次数已达上限");
         }
 
