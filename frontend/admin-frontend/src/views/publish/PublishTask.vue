@@ -51,8 +51,8 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="scheduledAt" label="发布时间" width="180">
-          <template #default="{ row }">{{ row.scheduledAt || '立即' }}</template>
+        <el-table-column prop="scheduledAt" label="过期时间" width="180">
+          <template #default="{ row }">{{ row.scheduledAt || '-' }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="{ row }">{{ row.createdAt || '-' }}</template>
@@ -134,11 +134,11 @@
           </el-upload>
           <div class="form-tip">可上传多张任务说明图片（选填）</div>
         </el-form-item>
-        <el-form-item label="发布时间">
+        <el-form-item label="过期时间">
           <el-date-picker
             v-model="form.scheduledAt"
             type="datetime"
-            placeholder="选择发布时间（留空则立即发布）"
+            placeholder="选择过期时间（留空则不限制）"
             format="YYYY-MM-DD HH:mm:ss"
             value-format="YYYY-MM-DDTHH:mm:ss"
             style="width: 100%"
@@ -165,8 +165,8 @@
             {{ PUBLISH_TASK_STATUS_MAP[currentTask.status]?.text || currentTask.status }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="发布时间" :span="2">
-          {{ currentTask.scheduledAt || '立即' }}
+        <el-descriptions-item label="过期时间" :span="2">
+          {{ currentTask.scheduledAt || '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="创建时间" :span="2">
           {{ currentTask.createdAt || '-' }}
