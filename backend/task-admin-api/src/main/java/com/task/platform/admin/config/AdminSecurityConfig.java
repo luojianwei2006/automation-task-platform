@@ -10,6 +10,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -82,6 +83,13 @@ public class AdminSecurityConfig {
                 // 商户管理接口：超管 + 商户管理员
                 .requestMatchers("/admin/merchant/**")
                     .hasAnyRole("SUPER_ADMIN", "MERCHANT_ADMIN")
+
+                // 发布管理接口：所有已认证管理员
+                .requestMatchers("/publish/**").authenticated()
+
+                // 移动端发布接口
+                .requestMatchers(HttpMethod.GET, "/mobile/publish/tasks").permitAll()
+                .requestMatchers("/mobile/publish/**").authenticated()
 
                 // 其他接口：所有已认证管理员
                 .anyRequest().authenticated()

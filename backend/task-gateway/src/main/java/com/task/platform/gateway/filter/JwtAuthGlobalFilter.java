@@ -50,7 +50,9 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             // 上传文件静态访问（图片等资源加载时浏览器不带 Token）
             new WhiteListEntry("/api/upload/uploads", "GET"),
             // 管理后台静态文件
-            new WhiteListEntry("/api/uploads", "GET")
+            new WhiteListEntry("/api/uploads", "GET"),
+            // 移动端发布任务列表（可公开查看）
+            new WhiteListEntry("/api/mobile/publish/tasks", "GET")
     );
 
     @Override
