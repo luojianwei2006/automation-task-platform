@@ -185,33 +185,48 @@ class XhsAutomator(
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
             if (cancelled) return
 
-            // Step 6: 评论（仅评论类型 taskType=2）
+            // Step 6: 评论（先粘贴→截图→再发送）
             if (task.taskType == 2 && commentText != null) {
                 notifyStep("comment", "正在评论: $commentText", 0)
                 randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
-                if (!performComment(commentText)) {
-                    notifyStepComplete("comment", "评论", 2, "评论失败")
+                if (!pasteCommentText(commentText)) {
+                    notifyStepComplete("comment", "评论", 2, "粘贴失败")
                     return
                 }
-                randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+
+                // Step 7: 立即截图（输入框里有文字，证明已输入）
+                android.util.Log.d("XhsAutomator", "===== 输入完成，立即截图 =====")
+                notifyStep("screenshot", "正在截图...", 0)
+                val localFile = takeScreenshot()
+                if (localFile != null) {
+                    notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
+                    AutomationOverlayService.updateComplete(true)
+                } else {
+                    notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
+                    AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
+                    AutomationOverlayService.updateComplete(false)
+                }
+
+                // Step 8: 发送评论
+                if (!clickCommentSend()) {
+                    notifyStepComplete("comment", "评论", 2, "发送失败")
+                    return
+                }
                 notifyStepComplete("comment", "评论", 1, "评论成功")
             }
 
-            // Step 7: 截图保存
-            android.util.Log.d("XhsAutomator", "===== 开始截图（评论已发送，面板已关闭）=====")
-            android.util.Log.d("XhsAutomator", "===== [v2.0-fix] 2026-06-21 已修复：输入策略重排+去评论按钮误匹配 =====")
-            notifyStep("screenshot", "正在截图...", 0)
-            val localFile = takeScreenshot()
-            if (localFile != null) {
-                notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
-                AutomationOverlayService.updateComplete(true)
-            } else {
-                notifyStepComplete("screenshot", "截图失败", 2, "无法截图")
-                AutomationService.onActionResult?.invoke(false, "✗ 截图失败")
-                AutomationOverlayService.updateComplete(false)
+            // taskType=2 的截图已在发送前完成
+            if (task.taskType != 2) {
+                android.util.Log.d("XhsAutomator", "===== 开始截图 =====")
+                notifyStep("screenshot", "正在截图...", 0)
+                val localFile = takeScreenshot()
+                if (localFile != null) {
+                    notifyStepComplete("screenshot", "截图保存成功", 1, localFile)
+                    AutomationOverlayService.updateComplete(true)
+                }
             }
 
-            // Step 8: 关闭小红书，返回上传截图界面
+            // Step 9: 关闭小红书，返回上传截图界面
             notifyStep("close_app", "正在关闭小红书...", 0)
             closeXhs()
             randomDelay(800, 1200)
@@ -849,9 +864,8 @@ class XhsAutomator(
     /**
      * 执行评论 — 找底部 EditText → 输入文字 → 点发送
      */
-    private fun performComment(commentText: String): Boolean {
-        android.util.Log.d("XhsAutomator", "=== 开始评论: $commentText ===")
-
+    private fun pasteCommentText(commentText: String): Boolean {
+        android.util.Log.d("XhsAutomator", "=== 粘贴评论: $commentText ===")
         val screenW = service.resources.displayMetrics.widthPixels
         val screenH = service.resources.displayMetrics.heightPixels
         val bottomThreshold = (screenH * 0.6).toInt()
@@ -980,40 +994,11 @@ class XhsAutomator(
         }
 
         if (inputBounds == null) {
-            android.util.Log.e("XhsAutomator", "找不到评论输入框（已尝试直接查找、点击底部、点击评论按钮、全树搜索）")
-
-            // 最后兜底：直接用剪贴板粘贴到评论区
-            android.util.Log.d("XhsAutomator", "尝试剪贴板粘贴兜底...")
-            var pasteWorked = false
-            try {
-                val cm = service.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                cm.setPrimaryClip(android.content.ClipData.newPlainText("comment", commentText))
-                randomDelay(300, 500)
-
-                // 再次点击底部评论区域确保焦点
-                dispatchTap(screenW * 0.5f, screenH * 0.95f)
-                randomDelay(800, 1200)
-
-                // 尝试在根窗口执行 paste
-                val root2 = service.rootInActiveWindow
-                if (root2 != null) {
-                    pasteIntoFocused(root2)
-                    root2.recycle()
-                }
-                randomDelay(600, 1000)
-                pasteWorked = true
-                android.util.Log.d("XhsAutomator", "粘贴兜底已执行")
-            } catch (e: Exception) {
-                android.util.Log.w("XhsAutomator", "粘贴兜底异常: ${e.message}")
-            }
-
-            if (!pasteWorked) {
-                return false
-            }
+            android.util.Log.e("XhsAutomator", "找不到评论输入框")
+            return false
         }
 
-        // ── Step 4: 点击获焦 → 输入文字（SET_TEXT优先，避免键盘异步事件导致重复） ──
-        // ── Step 4: 输入文字（仅用剪贴板 PASTE，一次到位）──
+        // ── PASTE 一次 ──
         if (inputBounds != null) {
             val cx = inputBounds.centerX().toFloat()
             val cy = inputBounds.centerY().toFloat()
@@ -1042,7 +1027,11 @@ class XhsAutomator(
             }
         }
 
-        // ── Step 7: 点击发送 → 立即截图 ──
+        // ── 输入完成 ──
+        return true
+    }
+
+    private fun clickCommentSend(): Boolean {
         val sendBtn = retryFindNodeNoAction {
             findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布"))
         }
@@ -1051,11 +1040,16 @@ class XhsAutomator(
             sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
             android.util.Log.d("XhsAutomator", "评论已发送")
             sendBtn.recycle()
-        } else {
-            android.util.Log.e("XhsAutomator", "找不到发送按钮")
-            return false
+            return true
         }
-        return true
+        android.util.Log.e("XhsAutomator", "找不到发送按钮")
+        return false
+    }
+
+    private fun performComment(commentText: String): Boolean {
+        if (!pasteCommentText(commentText)) return false
+        randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+        return clickCommentSend()
     }
 
     /** 搜索 AccessibilityService 的所有窗口（含 Dialog/PopupWindow）中的可编辑节点 */
