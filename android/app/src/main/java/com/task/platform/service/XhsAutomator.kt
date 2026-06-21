@@ -274,29 +274,44 @@ class XhsAutomator(
         // DEBUG: 打印首页节点
         dumpSearchPage()
 
+        // 通用点击：节点可点击就用 ACTION_CLICK，否则手势点坐标
+        fun clickNode(node: AccessibilityNodeInfo) {
+            if (node.isClickable) {
+                node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } else {
+                val r = android.graphics.Rect()
+                node.getBoundsInScreen(r)
+                dispatchTap(r.exactCenterX(), r.exactCenterY())
+            }
+        }
+
         // 策略1：找搜索图标 ViewId
         if (retryFindNode({ findNodeById(SEARCH_ICON_IDS) }) { node ->
             android.util.Log.d("XhsAutomator", "navigateToSearch: ViewId 命中")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            clickNode(node)
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
         }) return true
 
         // 策略2：文本匹配
         if (retryFindNode({ findNodeByText(SEARCH_ICON_TEXTS) }) { node ->
             android.util.Log.d("XhsAutomator", "navigateToSearch: 文本 命中")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            clickNode(node)
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
         }) return true
 
         // 策略3：contentDescription
         if (retryFindNode({ findNodeByDesc(SEARCH_ICON_DESCS) }) { node ->
             android.util.Log.d("XhsAutomator", "navigateToSearch: desc 命中")
-            node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            clickNode(node)
             randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
         }) return true
 
-        android.util.Log.e("XhsAutomator", "navigateToSearch: 所有策略失败")
-        return false
+        // 策略4：手势兜底 —— 小红书搜索在首页右上角
+        android.util.Log.d("XhsAutomator", "navigateToSearch: 所有策略失败，手势兜底点击右上角")
+        val m = service.resources.displayMetrics
+        dispatchTap(m.widthPixels * 0.92f, m.heightPixels * 0.06f)
+        randomDelay(MIN_STEP_DELAY, MAX_STEP_DELAY)
+        return true
     }
 
     private fun performSearch(keyword: String): Boolean {
