@@ -35,20 +35,12 @@
           <el-menu-item index="/merchant/list">商户列表</el-menu-item>
         </el-sub-menu>
 
-        <!-- 项目管理 -->
-        <el-menu-item index="/publish/projects">
-          <el-icon><FolderOpened /></el-icon>
-          <template #title>项目管理</template>
-        </el-menu-item>
-
-        <el-menu-item index="/publish/recycle-bin">
-          <el-icon><Delete /></el-icon>
-          <template #title>回收站</template>
-        </el-menu-item>
-        <el-menu-item index="/publish/tasks">
-          <el-icon><Promotion /></el-icon>
-          <template #title>视频发布任务</template>
-        </el-menu-item>
+        <el-sub-menu index="publish-group">
+          <template #title><el-icon><EditPen /></el-icon>内容发布</template>
+          <el-menu-item index="/publish/projects">项目管理</el-menu-item>
+          <el-menu-item index="/publish/recycle-bin">回收站</el-menu-item>
+          <el-menu-item index="/publish/tasks">视频发布任务</el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
