@@ -194,8 +194,9 @@ class XhsAutomator(
                     return
                 }
 
-                // Step 7: 立即截图（输入框里有文字，证明已输入）
-                android.util.Log.d("XhsAutomator", "===== 输入完成，立即截图 =====")
+                // Step 7: 等一下UI渲染 → 截图
+                randomDelay(500, 800)
+                android.util.Log.d("XhsAutomator", "===== PASTE完成，截图 =====")
                 notifyStep("screenshot", "正在截图...", 0)
                 val localFile = takeScreenshot()
                 if (localFile != null) {
