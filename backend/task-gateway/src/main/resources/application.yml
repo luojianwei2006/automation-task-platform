@@ -60,11 +60,11 @@ spring:
           filters:
             - StripPrefix=1
 
-        # 管理后台 API 路由
+        # 管理后台 API 路由（含发布管理 + 移动端发布）
         - id: task-admin-api
           uri: http://127.0.0.1:8084
           predicates:
-            - Path=/api/admin/**
+            - Path=/api/admin/**,/api/publish/**,/api/mobile/**
           filters:
             - StripPrefix=1
 
