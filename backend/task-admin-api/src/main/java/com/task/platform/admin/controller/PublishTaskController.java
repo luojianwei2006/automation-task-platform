@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class PublishTaskController {
 
     private final PublishTaskService publishTaskService;
+    private final com.task.platform.admin.service.PublishProjectService publishProjectService;
 
     /**
      * 创建发布任务
@@ -142,6 +143,7 @@ public class PublishTaskController {
         vo.setId(task.getId());
         vo.setProjectId(task.getProjectId());
         vo.setPlatforms(task.getPlatforms());
+        vo.setPlatform(task.getPlatforms());
         vo.setPublishText(task.getPublishText());
         vo.setScheduledAt(task.getScheduledAt());
         vo.setStatus(task.getStatus());
@@ -154,6 +156,15 @@ public class PublishTaskController {
         vo.setRemark(task.getRemark());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
+        // 填充项目名
+        if (task.getProjectId() != null) {
+            try {
+                var project = publishProjectService.getById(task.getProjectId());
+                vo.setProjectName(project != null ? project.getName() : "");
+            } catch (Exception e) {
+                vo.setProjectName("");
+            }
+        }
         return vo;
     }
 }

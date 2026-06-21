@@ -13,7 +13,9 @@ public class PublishTaskVO {
 
     private Long id;
     private Long projectId;
+    private String projectName;
     private String platforms;
+    private String platform;
     private String publishText;
     private LocalDateTime scheduledAt;
     private String status;
