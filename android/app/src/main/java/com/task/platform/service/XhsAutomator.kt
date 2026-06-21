@@ -1038,8 +1038,23 @@ class XhsAutomator(
             findNodeById(COMMENT_POST_IDS) ?: findNodeByText(listOf("发送", "Send", "发布"))
         }
         if (sendBtn != null) {
-            android.util.Log.d("XhsAutomator", "点击发送: cls=${sendBtn.className}, text=${sendBtn.text}")
-            sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            android.util.Log.d("XhsAutomator", "点击发送: cls=${sendBtn.className}, text=${sendBtn.text}, clickable=${sendBtn.isClickable}")
+            if (sendBtn.isClickable) {
+                sendBtn.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            } else {
+                // 非可点击节点→找父节点或用手势点坐标
+                var clicked = false
+                var p = sendBtn.parent; var d = 0
+                while (p != null && d < 3) {
+                    if (p.isClickable) { p.performAction(AccessibilityNodeInfo.ACTION_CLICK); p.recycle(); clicked = true; break }
+                    val gp = p.parent; if (p != sendBtn) p.recycle(); p = gp; d++
+                }
+                if (!clicked) {
+                    val r = android.graphics.Rect()
+                    sendBtn.getBoundsInScreen(r)
+                    dispatchTap(r.exactCenterX(), r.exactCenterY())
+                }
+            }
             android.util.Log.d("XhsAutomator", "评论已发送")
             sendBtn.recycle()
             return true
