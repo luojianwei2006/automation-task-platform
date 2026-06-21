@@ -60,6 +60,15 @@ public class PublishProjectController {
     }
 
     /**
+     * 全部项目（下拉选择用，不分页）
+     * GET /api/publish/projects/all
+     */
+    @GetMapping("/all")
+    public ApiResponse<List<PublishProject>> all() {
+        return ApiResponse.success(publishProjectService.listAll());
+    }
+
+    /**
      * 项目详情
      * GET /api/publish/projects/{id}
      */

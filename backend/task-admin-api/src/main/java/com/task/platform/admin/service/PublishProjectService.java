@@ -57,6 +57,14 @@ public class PublishProjectService {
         return publishProjectMapper.selectPage(new Page<>(page, size), wrapper);
     }
 
+    /** 全部正常项目（下拉选择用） */
+    public List<PublishProject> listAll() {
+        LambdaQueryWrapper<PublishProject> wrapper = new LambdaQueryWrapper<PublishProject>()
+                .eq(PublishProject::getStatus, STATUS_NORMAL)
+                .orderByDesc(PublishProject::getCreatedAt);
+        return publishProjectMapper.selectList(wrapper);
+    }
+
     /**
      * 项目详情
      */
