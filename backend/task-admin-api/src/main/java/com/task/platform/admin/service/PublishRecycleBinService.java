@@ -56,16 +56,17 @@ public class PublishRecycleBinService {
             // 解析快照JSON，还原字段（只还原关键字段）
             Map<String, Object> dataMap = objectMapper.readValue(bin.getDataJson(), Map.class);
 
-            // 恢复 t_material 的 deleted 标记
-            PublishMaterial material = publishMaterialMapper.selectById(bin.getOriginalId());
-            if (material != null) {
-                material.setDeleted(0);
-                publishMaterialMapper.updateById(material);
-            }
+            // 恢复 t_material 的 deleted 标记（用 LambdaUpdateWrapper 确保更新生效）
+            com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishMaterial> uw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+            uw.eq(PublishMaterial::getId, bin.getOriginalId()).set(PublishMaterial::getDeleted, 0);
+            publishMaterialMapper.update(null, uw);
 
             // 标记回收站记录已恢复
-            bin.setRestored(1);
-            publishRecycleBinMapper.updateById(bin);
+            com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishRecycleBin> rbw =
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+            rbw.eq(PublishRecycleBin::getId, id).set(PublishRecycleBin::getRestored, 1);
+            publishRecycleBinMapper.update(null, rbw);
 
             log.info("[PublishRecycleBin] 恢复素材: recycleBinId={}, originalId={}", id, bin.getOriginalId());
             return true;
