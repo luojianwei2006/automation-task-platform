@@ -30,6 +30,7 @@ import java.util.stream.Collectors;
 public class PublishMaterialController {
 
     private final PublishMaterialService publishMaterialService;
+    private final com.task.platform.admin.service.PublishProjectService publishProjectService;
 
     /**
      * 上传素材
@@ -66,7 +67,8 @@ public class PublishMaterialController {
             @RequestParam(required = false) String type) {
 
         List<PublishMaterial> list = publishMaterialService.listByProject(projectId, type);
-        List<MaterialListVO> vos = list.stream().map(this::toVO).collect(Collectors.toList());
+        String projectName = getProjectName(projectId);
+        List<MaterialListVO> vos = list.stream().map(m -> toVO(m, projectName)).collect(Collectors.toList());
         return ApiResponse.success(vos);
     }
 
@@ -80,7 +82,8 @@ public class PublishMaterialController {
             @RequestParam(required = false) String type) {
 
         List<PublishMaterial> list = publishMaterialService.listByProject(projectId, type);
-        List<MaterialListVO> vos = list.stream().map(this::toVO).collect(Collectors.toList());
+        String projectName = getProjectName(projectId);
+        List<MaterialListVO> vos = list.stream().map(m -> toVO(m, projectName)).collect(Collectors.toList());
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         result.put("records", vos);
         result.put("total", vos.size());
@@ -150,7 +153,25 @@ public class PublishMaterialController {
         return ApiResponse.success(material, "文案保存成功");
     }
 
+    // ==================== helper ====================
+
+    private String getProjectName(Long projectId) {
+        if (projectId == null) return "";
+        try {
+            var project = publishProjectService.getById(projectId);
+            return project != null ? project.getName() : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     // ==================== DTO 转换 ====================
+
+    private MaterialListVO toVO(PublishMaterial m, String projectName) {
+        MaterialListVO vo = toVO(m);
+        vo.setProjectName(projectName);
+        return vo;
+    }
 
     private MaterialListVO toVO(PublishMaterial m) {
         MaterialListVO vo = new MaterialListVO();
