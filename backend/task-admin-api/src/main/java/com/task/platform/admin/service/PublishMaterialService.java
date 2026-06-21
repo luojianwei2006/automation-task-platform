@@ -35,8 +35,8 @@ public class PublishMaterialService {
     private final PublishRecycleBinMapper publishRecycleBinMapper;
     private final ObjectMapper objectMapper;
 
-    /** 上传根目录 */
-    private static final String UPLOAD_ROOT = System.getProperty("user.dir") + "/uploads/publish/";
+    /** 上传根目录（对齐 StaticResourceConfig 的映射路径） */
+    private static final String UPLOAD_ROOT = "/Users/luojianwei/Documents/Workbuddy/automation_project/uploads/publish/";
 
     /**
      * 上传素材文件
