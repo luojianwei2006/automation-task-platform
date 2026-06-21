@@ -116,11 +116,8 @@ public class PublishMaterialService {
             return false;
         }
 
-        // 1. 硬更新 deleted=1（不用updateById，避免MyBatis-Plus字段策略干扰）
-        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishMaterial> uw =
-            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
-        uw.eq(PublishMaterial::getId, id).set(PublishMaterial::getDeleted, 1);
-        publishMaterialMapper.update(new PublishMaterial(), uw);
+        // 1. 硬更新 deleted=1（直接SQL，绕过MyBatis-Plus包装器）
+        publishMaterialMapper.updateDeleted(id, 1);
 
         // 2. 插入 recycle_bin 快照
         try {
