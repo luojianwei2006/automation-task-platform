@@ -266,13 +266,13 @@ export function getRecycleBin(params: { page?: number; size?: number } = {}) {
 }
 
 /** 恢复素材 */
-export function restoreMaterial(materialId: number) {
-  return publishRequest.put(`/publish/recycle-bin/${materialId}/restore`)
+export function restoreMaterial(id: number) {
+  return publishRequest.post(`/publish/recycle-bin/${id}/restore`)
 }
 
 /** 彻底删除素材 */
-export function permanentDelete(materialId: number) {
-  return publishRequest.delete(`/publish/recycle-bin/${materialId}/permanent`)
+export function permanentDelete(id: number) {
+  return publishRequest.delete(`/publish/recycle-bin/${id}`)
 }
 
 // ==================== 视频发布任务 API ====================

@@ -113,7 +113,7 @@ async function handleRestore(row: RecycleBinItem) {
       '恢复确认',
       { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' }
     )
-    await restoreMaterial(row.materialId)
+    await restoreMaterial(row.id)
     ElMessage.success('素材已恢复')
     loadData()
   } catch (e: any) {
@@ -132,7 +132,7 @@ async function confirmPermDelete() {
   if (!permDeleteTarget.value) return
   permDeleting.value = true
   try {
-    await permanentDelete(permDeleteTarget.value.materialId)
+    await permanentDelete(permDeleteTarget.value.id)
     ElMessage.success('素材已彻底删除')
     permDeleteVisible.value = false
     permDeleteTarget.value = null
