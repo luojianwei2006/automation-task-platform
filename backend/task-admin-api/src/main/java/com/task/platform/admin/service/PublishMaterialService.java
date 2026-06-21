@@ -116,9 +116,11 @@ public class PublishMaterialService {
             return false;
         }
 
-        // 1. 软删除 t_material
-        material.setDeleted(1);
-        publishMaterialMapper.updateById(material);
+        // 1. 硬更新 deleted=1（不用updateById，避免MyBatis-Plus字段策略干扰）
+        com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<PublishMaterial> uw =
+            new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<>();
+        uw.eq(PublishMaterial::getId, id).set(PublishMaterial::getDeleted, 1);
+        publishMaterialMapper.update(null, uw);
 
         // 2. 插入 recycle_bin 快照
         try {
