@@ -62,6 +62,50 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/comment/index.vue'),
         meta: { title: '评论词管理' }
       },
+      // ========== 项目管理 ==========
+      {
+        path: 'publish/projects',
+        name: 'ProjectManage',
+        component: () => import('../views/publish/ProjectManage.vue'),
+        meta: { title: '项目列表' }
+      },
+      {
+        path: 'publish/text',
+        name: 'TextManage',
+        component: () => import('../views/publish/TextManage.vue'),
+        meta: { title: '文案管理' }
+      },
+      {
+        path: 'publish/images',
+        name: 'ImageManage',
+        component: () => import('../views/publish/ImageManage.vue'),
+        meta: { title: '图片管理' }
+      },
+      {
+        path: 'publish/music',
+        name: 'MusicManage',
+        component: () => import('../views/publish/MusicManage.vue'),
+        meta: { title: '背景音乐' }
+      },
+      {
+        path: 'publish/video',
+        name: 'VideoManage',
+        component: () => import('../views/publish/VideoManage.vue'),
+        meta: { title: '视频素材' }
+      },
+      {
+        path: 'publish/recycle',
+        name: 'RecycleBin',
+        component: () => import('../views/publish/RecycleBin.vue'),
+        meta: { title: '回收站' }
+      },
+      // ========== 视频发布任务 ==========
+      {
+        path: 'publish/tasks',
+        name: 'PublishTask',
+        component: () => import('../views/publish/PublishTask.vue'),
+        meta: { title: '视频发布任务' }
+      },
     ]
   },
   // 404

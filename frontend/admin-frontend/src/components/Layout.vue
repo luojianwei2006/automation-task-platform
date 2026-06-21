@@ -33,6 +33,19 @@
           <template #title><el-icon><OfficeBuilding /></el-icon>商户管理</template>
           <el-menu-item index="/merchant/list">商户列表</el-menu-item>
         </el-sub-menu>
+        <el-sub-menu index="publish-group">
+          <template #title><el-icon><FolderOpened /></el-icon>项目管理</template>
+          <el-menu-item index="/publish/projects">项目列表</el-menu-item>
+          <el-menu-item index="/publish/text">文案</el-menu-item>
+          <el-menu-item index="/publish/images">图片</el-menu-item>
+          <el-menu-item index="/publish/music">背景音乐</el-menu-item>
+          <el-menu-item index="/publish/video">视频素材</el-menu-item>
+          <el-menu-item index="/publish/recycle">回收站</el-menu-item>
+        </el-sub-menu>
+        <el-menu-item index="/publish/tasks">
+          <el-icon><Promotion /></el-icon>
+          <template #title>视频发布任务</template>
+        </el-menu-item>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
