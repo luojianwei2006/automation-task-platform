@@ -2,6 +2,9 @@ package com.task.platform.admin.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.task.platform.admin.dto.publish.MaterialListVO;
+import com.task.platform.admin.dto.publish.PublishMaterialPreviewVO;
+import com.task.platform.admin.dto.publish.VideoGroupVO;
 import com.task.platform.admin.entity.PublishMaterial;
 import com.task.platform.admin.entity.PublishRecycleBin;
 import com.task.platform.admin.mapper.PublishMaterialMapper;
@@ -18,8 +21,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 素材服务（视频发布功能）
@@ -34,6 +37,14 @@ public class PublishMaterialService {
     private final PublishMaterialMapper publishMaterialMapper;
     private final PublishRecycleBinMapper publishRecycleBinMapper;
     private final ObjectMapper objectMapper;
+
+    /** 刷新限频缓存：key=userId:projectId，value=上次刷新时间戳(ms) */
+    private final Map<String, Long> lastRefreshMap = new HashMap<>();
+
+    /** 随机素材结果缓存：key=userId:projectId，value=上次选中的结果 */
+    private final Map<String, PublishMaterialPreviewVO> cacheMap = new HashMap<>();
+
+    private final Random random = new Random();
 
     /** 上传根目录（对齐 StaticResourceConfig 的映射路径） */
     private static final String UPLOAD_ROOT = "/Users/luojianwei/Documents/Workbuddy/automation_project/uploads/publish/";
@@ -138,6 +149,88 @@ public class PublishMaterialService {
         }
 
         return true;
+    }
+
+    // ==================== 随机素材预览（移动端） ====================
+
+    /**
+     * 获取项目随机素材供移动端预览。
+     * <p>
+     * 限频规则：同一用户+同一项目 60 秒内返回缓存结果，超出后才重新随机选取。
+     *
+     * @param projectId 项目ID
+     * @param userId    用户ID（用于限频）
+     */
+    public synchronized PublishMaterialPreviewVO getRandomPreview(Long projectId, Long userId) {
+        String key = userId + ":" + projectId;
+        long now = System.currentTimeMillis();
+        Long lastRefresh = lastRefreshMap.get(key);
+
+        // 限频内：返回缓存
+        if (lastRefresh != null && now - lastRefresh < 60_000) {
+            log.debug("[PublishMaterial] 限频命中，返回缓存结果: key={}", key);
+            return cacheMap.get(key);
+        }
+
+        // 重新随机选取
+        PublishMaterialPreviewVO vo = new PublishMaterialPreviewVO();
+
+        // 1. 文案：type=text 随机取 1 条
+        List<PublishMaterial> texts = listByProject(projectId, "text");
+        vo.setTextMaterial(texts.isEmpty() ? null : toListVO(texts.get(random.nextInt(texts.size()))));
+
+        // 2. 图片：type=image 随机取 1 条
+        List<PublishMaterial> images = listByProject(projectId, "image");
+        vo.setImageMaterial(images.isEmpty() ? null : toListVO(images.get(random.nextInt(images.size()))));
+
+        // 3. 音乐：type=music 随机取 1 条
+        List<PublishMaterial> musics = listByProject(projectId, "music");
+        vo.setMusicMaterial(musics.isEmpty() ? null : toListVO(musics.get(random.nextInt(musics.size()))));
+
+        // 4. 视频：按 sortOrder 分组，每组随机取 1 条
+        List<PublishMaterial> videos = listByProject(projectId, "video");
+        Map<Integer, List<PublishMaterial>> videoGroupMap = videos.stream()
+                .collect(Collectors.groupingBy(PublishMaterial::getSortOrder));
+        List<VideoGroupVO> videoGroups = new ArrayList<>();
+        for (Map.Entry<Integer, List<PublishMaterial>> entry : videoGroupMap.entrySet()) {
+            List<PublishMaterial> group = entry.getValue();
+            PublishMaterial randomVideo = group.get(random.nextInt(group.size()));
+            VideoGroupVO vg = new VideoGroupVO();
+            vg.setSortOrder(entry.getKey());
+            vg.setVideo(toListVO(randomVideo));
+            videoGroups.add(vg);
+        }
+        // 按 sortOrder 排序
+        videoGroups.sort((a, b) -> a.getSortOrder() - b.getSortOrder());
+        vo.setVideoGroups(videoGroups);
+
+        // 更新缓存和时间戳
+        lastRefreshMap.put(key, now);
+        cacheMap.put(key, vo);
+
+        log.info("[PublishMaterial] 随机素材预览生成: projectId={}, userId={}, text={}, image={}, music={}, videoGroups={}",
+                projectId, userId,
+                vo.getTextMaterial() != null ? vo.getTextMaterial().getId() : null,
+                vo.getImageMaterial() != null ? vo.getImageMaterial().getId() : null,
+                vo.getMusicMaterial() != null ? vo.getMusicMaterial().getId() : null,
+                videoGroups.size());
+        return vo;
+    }
+
+    private MaterialListVO toListVO(PublishMaterial m) {
+        MaterialListVO v = new MaterialListVO();
+        v.setId(m.getId());
+        v.setProjectId(m.getProjectId());
+        v.setType(m.getType());
+        v.setTitle(m.getTitle());
+        v.setFileUrl(m.getFileUrl());
+        v.setFileSize(m.getFileSize());
+        v.setContent(m.getContent());
+        v.setDuration(m.getDuration());
+        v.setResolution(m.getResolution());
+        v.setSortOrder(m.getSortOrder());
+        v.setCreatedAt(m.getCreatedAt());
+        return v;
     }
 
     // ==================== 私有工具 ====================

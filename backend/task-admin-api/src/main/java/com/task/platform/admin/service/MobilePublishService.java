@@ -3,8 +3,10 @@ package com.task.platform.admin.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.task.platform.admin.entity.PublishMaterial;
 import com.task.platform.admin.entity.PublishTask;
+import com.task.platform.admin.entity.UserPublishRecord;
 import com.task.platform.admin.mapper.PublishMaterialMapper;
 import com.task.platform.admin.mapper.PublishTaskMapper;
+import com.task.platform.admin.mapper.UserPublishRecordMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,23 +27,32 @@ public class MobilePublishService {
 
     private final PublishTaskMapper publishTaskMapper;
     private final PublishMaterialMapper publishMaterialMapper;
+    private final UserPublishRecordMapper userPublishRecordMapper;
 
     /**
-     * 可领取任务列表（pending + 当前用户已claimed）
+     * 可领取任务列表（online + 当前用户已claimed）
      */
     public List<PublishTask> getAvailableTasks(Long userId) {
-        // pending 待领取的任务 + 当前用户已领取(claimed)但尚未完成(cancelled/failed也算)的任务
-        LambdaQueryWrapper<PublishTask> wrapper = new LambdaQueryWrapper<PublishTask>()
-                .and(w -> w.eq(PublishTask::getStatus, PublishTaskService.STATUS_PENDING)
-                        .or(tw -> tw.eq(PublishTask::getStatus, PublishTaskService.STATUS_CLAIMED)
-                                .eq(PublishTask::getClaimedBy, userId)))
-                .orderByDesc(PublishTask::getCreatedAt);
+        // 显示所有任务：online + pending + 当前用户已领取的
+        List<Long> userClaimedIds = userPublishRecordMapper.selectList(
+            new LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+        ).stream().map(UserPublishRecord::getTaskId).collect(java.util.stream.Collectors.toList());
 
+        LambdaQueryWrapper<PublishTask> wrapper = new LambdaQueryWrapper<PublishTask>();
+        // online + pending 状态的任务，以及当前用户已领取的其他状态任务
+        wrapper.and(w -> {
+            w.in(PublishTask::getStatus, "online", "pending");
+            if (!userClaimedIds.isEmpty()) {
+                w.or().in(PublishTask::getId, userClaimedIds);
+            }
+        });
+        wrapper.orderByDesc(PublishTask::getCreatedAt);
         return publishTaskMapper.selectList(wrapper);
     }
 
     /**
-     * 领取任务（检查 status=pending）
+     * 领取任务（检查 status=online）
      */
     @Transactional(rollbackFor = Exception.class)
     public PublishTask claim(Long taskId, Long userId) {
@@ -49,7 +60,7 @@ public class MobilePublishService {
         if (task == null) {
             throw new IllegalArgumentException("任务不存在");
         }
-        if (!PublishTaskService.STATUS_PENDING.equals(task.getStatus())) {
+        if (!PublishTaskService.STATUS_ONLINE.equals(task.getStatus())) {
             throw new IllegalStateException("任务已被领取或不可领取，当前状态: " + task.getStatus());
         }
 
@@ -66,14 +77,20 @@ public class MobilePublishService {
      * 我的任务（当前用户已领取或正在执行的任务）
      */
     public List<PublishTask> getMyTasks(Long userId) {
-        LambdaQueryWrapper<PublishTask> wrapper = new LambdaQueryWrapper<PublishTask>()
-                .eq(PublishTask::getClaimedBy, userId)
-                .in(PublishTask::getStatus,
-                        PublishTaskService.STATUS_CLAIMED,
-                        PublishTaskService.STATUS_RUNNING)
-                .orderByDesc(PublishTask::getClaimedAt);
-
-        return publishTaskMapper.selectList(wrapper);
+        // 从 t_user_publish_record 查询用户领取的任务ID
+        List<UserPublishRecord> records = userPublishRecordMapper.selectList(
+            new LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+        );
+        if (records.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        List<Long> taskIds = records.stream().map(UserPublishRecord::getTaskId).collect(java.util.stream.Collectors.toList());
+        return publishTaskMapper.selectList(
+            new LambdaQueryWrapper<PublishTask>()
+                .in(PublishTask::getId, taskIds)
+                .orderByDesc(PublishTask::getId)
+        );
     }
 
     /**
@@ -125,5 +142,9 @@ public class MobilePublishService {
                         .eq(PublishMaterial::getDeleted, 0)
                         .orderByAsc(PublishMaterial::getSortOrder)
         );
+    }
+
+    public void updateTask(PublishTask task) {
+        publishTaskMapper.updateById(task);
     }
 }

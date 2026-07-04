@@ -34,8 +34,12 @@ public class PublishTask {
     @TableField("scheduled_at")
     private LocalDateTime scheduledAt;
 
-    /** 任务状态：pending/claimed/running/completed/failed/cancelled */
+    /** 任务状态：pending/online/rejected/offline/claimed/running/completed/failed/cancelled */
     private String status = "pending";
+
+    /** 奖励金额 */
+    @TableField("reward_amount")
+    private java.math.BigDecimal rewardAmount;
 
     /** 领取人ID */
     @TableField("claimed_by")
@@ -49,7 +53,11 @@ public class PublishTask {
     @TableField("completed_at")
     private LocalDateTime completedAt;
 
-    /** 失败原因 */
+    /** 上架时间（审核通过时设置） */
+    @TableField("published_at")
+    private LocalDateTime publishedAt;
+
+    /** 失败原因 / 拒绝原因 */
     @TableField("error_message")
     private String errorMessage;
 
@@ -63,6 +71,9 @@ public class PublishTask {
 
     /** 内部备注 */
     private String remark;
+
+    /** 任务图片URL列表（JSON数组） */
+    private String images;
 
     /** 创建时间 */
     @TableField("created_at")

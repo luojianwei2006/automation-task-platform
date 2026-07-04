@@ -189,3 +189,64 @@ data class PublishMaterialDTO(
     val content: String? = null,
     val sortOrder: Int = 0
 )
+
+// ==================== 素材预览模型（移动端随机预览接口） ====================
+
+/**
+ * 素材列表项 VO（对应后端 MaterialListVO）
+ */
+data class MaterialListVO(
+    val id: Long = 0,
+    val projectId: Long = 0,
+    val projectName: String? = null,
+    val type: String = "",
+    val title: String? = null,
+    val fileUrl: String? = null,
+    val fileSize: Long? = null,
+    val content: String? = null,
+    val duration: Int? = null,
+    val resolution: String? = null,
+    val sortOrder: Int = 0,
+    val createdAt: String? = null,
+)
+
+/**
+ * 视频分组 VO（按 sortOrder 分组，每组一个视频）
+ */
+data class VideoGroupVO(
+    val sortOrder: Int = 0,
+    val video: MaterialListVO? = null,
+)
+
+/**
+ * 发布素材随机预览响应 VO
+ * GET /api/mobile/publish/materials
+ */
+data class PublishMaterialPreviewVO(
+    val textMaterial: MaterialListVO? = null,
+    val imageMaterial: MaterialListVO? = null,
+    val musicMaterial: MaterialListVO? = null,
+    val videoGroups: List<VideoGroupVO> = emptyList(),
+)
+
+/**
+ * 合并预览结果
+ */
+data class MergeResultVO(
+    val url: String = "",
+    val durationSeconds: Int? = null,
+    val fileSize: Long? = null,
+    val historyId: Long? = null
+)
+
+/** 合并历史记录 */
+data class MergeHistoryVO(
+    val id: Long = 0,
+    val projectId: Long = 0,
+    val videoIds: String? = null,
+    val musicId: Long? = null,
+    val outputUrl: String = "",
+    val durationSeconds: Int? = null,
+    val fileSize: Long? = null,
+    val createdAt: String? = null
+)

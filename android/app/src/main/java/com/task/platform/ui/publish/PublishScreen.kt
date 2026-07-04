@@ -1,33 +1,78 @@
 package com.task.platform.ui.publish
 
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
+import android.content.Intent
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.Bitmap
+import android.media.MediaMetadataRetriever
+import android.media.MediaPlayer
+import android.net.Uri
+import android.content.Context
+import android.content.ContentValues
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
+import android.widget.VideoView
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.task.platform.model.MergeHistoryVO
 import com.task.platform.model.PublishMaterialDTO
 import com.task.platform.model.PublishTaskDTO
 import com.task.platform.viewmodel.PublishViewModel
+import com.task.platform.viewmodel.PublishViewModel.MergeState
+import java.io.IOException
 
 // ─── 配色体系 ───────────────────────────────────────
 private val Orange = Color(0xFFFF8C00)
@@ -36,6 +81,7 @@ private val OrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
+private val Gray400 = Color(0xFFBDBDBD)
 private val Gray500 = Color(0xFF9E9E9E)
 private val Gray700 = Color(0xFF616161)
 private val Gray900 = Color(0xFF212121)
@@ -75,6 +121,18 @@ fun PublishScreen() {
     // 错误弹窗
     LaunchedEffect(actionError) {
         actionError ?: return@LaunchedEffect
+    }
+
+    // ===== 页面切换：详情页 =====
+    if (showDetailDialog && detailTask != null) {
+        PublishDetailScreen(
+            task = detailTask!!,
+            onBack = {
+                showDetailDialog = false
+                detailTask = null
+            }
+        )
+        return
     }
 
     Column(
@@ -119,6 +177,8 @@ fun PublishScreen() {
                         .padding(horizontal = 12.dp, vertical = 14.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
+                    val pendingCount = taskList.count { it.status == "pending" }
+                    val myTaskCount = taskList.count { it.status == "claimed" || it.status == "submitted" || it.status == "rejected" || it.status == "completed" }
                     HallStatItem("全部任务", "${taskList.size}", Icons.Default.Assignment)
                     Box(
                         modifier = Modifier
@@ -128,7 +188,7 @@ fun PublishScreen() {
                     )
                     HallStatItem(
                         "待领取",
-                        "${taskList.count { it.status == "pending" }}",
+                        "$pendingCount",
                         Icons.Default.Pending
                     )
                     Box(
@@ -139,7 +199,7 @@ fun PublishScreen() {
                     )
                     HallStatItem(
                         "我的任务",
-                        "${myTaskList.size}",
+                        "$myTaskCount",
                         Icons.Default.CheckCircle
                     )
                 }
@@ -307,17 +367,6 @@ fun PublishScreen() {
         )
     }
 
-    // ===== 任务详情弹窗（我的任务） =====
-    if (showDetailDialog && detailTask != null) {
-        PublishDetailDialog(
-            task = detailTask!!,
-            onDismiss = {
-                showDetailDialog = false
-                detailTask = null
-            }
-        )
-    }
-
     // 操作错误 Snackbar
     if (actionError != null) {
         LaunchedEffect(actionError) {
@@ -371,9 +420,7 @@ private fun PublishTaskCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                if (isMyTask) onDetail()
-            },
+            .clickable { onDetail() },
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
@@ -571,85 +618,925 @@ private fun PublishEmptyView() {
 
 // ==================== 详情弹窗（我的任务） ====================
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PublishDetailDialog(
+private fun PublishDetailScreen(
     task: PublishTaskDTO,
-    onDismiss: () -> Unit
+    onBack: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "任务详情",
-                fontWeight = FontWeight.Bold,
-                color = Gray900,
-                fontSize = 18.sp
-            )
-        },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // 项目名
-                DetailSection("项目名称", task.projectName.ifBlank { "未命名项目" })
+    // 图片预览 Dialog 状态
+    var showImagePreview by remember { mutableStateOf(false) }
+    var imagePreviewUrl by remember { mutableStateOf("") }
 
-                // 平台标签
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "发布平台",
-                    fontSize = 13.sp,
-                    color = Gray500
+    // 音乐播放器状态
+    var currentPlayingUrl by remember { mutableStateOf<String?>(null) }
+
+    // 视频预览状态
+    var showVideoPreview by remember { mutableStateOf(false) }
+    var videoPreviewUrl by remember { mutableStateOf("") }
+    var showHistoryGrid by remember { mutableStateOf(false) }
+    var showPublishDialog by remember { mutableStateOf(false) }
+    var showSubmitDialog by remember { mutableStateOf(false) }
+    var isPublished by remember { mutableStateOf(false) }
+    var submittedScreenshots by remember { mutableStateOf<List<String>>(emptyList()) }
+    var submissionStatus by remember { mutableStateOf("") }
+    var submissionReward by remember { mutableStateOf<Double?>(null) }
+    // 剪辑选项
+    var transitionType by remember { mutableStateOf("none") }
+    var fadeInOut by remember { mutableStateOf(false) }
+    var subtitleText by remember { mutableStateOf("") }
+    var isClaimed by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    var selectedMergeUrl by remember { mutableStateOf("") }
+
+    // 进入页面时检查是否已有领取/提交记录（不自动领取）
+    LaunchedEffect(task.id) {
+        try {
+            val statusResp = com.task.platform.network.ApiClient.apiService.getSubmissionStatus(task.id)
+            android.util.Log.d("PublishDetail", "submission status: code=${statusResp.code}, data=${statusResp.data}")
+            if (statusResp.code == 200 && statusResp.data != null) {
+                // 有记录 → 已领取
+                isClaimed = true
+                val screenshots = statusResp.data["screenshots"] as? String
+                submissionStatus = (statusResp.data["status"] as? String) ?: ""
+                val rewardObj = statusResp.data["rewardAmount"]
+                submissionReward = when (rewardObj) {
+                    is Double -> rewardObj
+                    is Number -> rewardObj.toDouble()
+                    else -> null
+                }
+                android.util.Log.d("PublishDetail", "submission status=${submissionStatus}, screenshots=$screenshots")
+                if (!screenshots.isNullOrBlank()) {
+                    submittedScreenshots = screenshots.split(",")
+                    selectedMergeUrl = (statusResp.data["mergedVideoUrl"] as? String) ?: ""
+                }
+            } else {
+                // 无记录 → 未领取，isClaimed 保持 false
+                android.util.Log.d("PublishDetail", "no record found, task not claimed yet")
+            }
+        } catch (e: Exception) {
+            // 接口不存在或报错 → 未领取
+            isClaimed = false
+            android.util.Log.d("PublishDetail", "submission check failed, treat as unclaimed: ${e.message}")
+        }
+    }
+
+    val context = LocalContext.current
+    val pmViewModel: PublishViewModel = hiltViewModel()
+    val taskVideoList = remember(task.id) {
+        mutableStateListOf<VideoSortItem>().also { list ->
+            val videos = (task.materials ?: emptyList())
+                .filter { it.type == "video" }
+                .sortedBy { it.sortOrder }
+            list.addAll(videos.map { VideoSortItem(it.id, it.title ?: "第${it.sortOrder + 1}段", it.fileUrl ?: "") })
+        }
+    }
+    // 当 task.materials 为空时，从随机预览的 videoGroups 中补充视频列表
+    val materialsPreview by pmViewModel.materialsPreview.collectAsState()
+    LaunchedEffect(materialsPreview) {
+        if (taskVideoList.isEmpty() && materialsPreview?.videoGroups != null) {
+            taskVideoList.clear()
+            materialsPreview!!.videoGroups.forEachIndexed { idx, vg ->
+                val video = vg.video
+                if (video != null) {
+                    taskVideoList.add(VideoSortItem(video.id, "第${vg.sortOrder + 1}段", video.fileUrl ?: ""))
+                }
+            }
+        }
+    }
+    val mediaPlayer = remember { MediaPlayer() }
+
+    // 释放 MediaPlayer 资源
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                if (mediaPlayer.isPlaying) {
+                    mediaPlayer.stop()
+                }
+                mediaPlayer.release()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    // 图片预览 Dialog
+    if (showImagePreview && imagePreviewUrl.isNotBlank()) {
+        Dialog(onDismissRequest = { showImagePreview = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.9f))
+                    .clickable { showImagePreview = false },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = mapImageUrl(imagePreviewUrl),
+                    contentDescription = "图片预览",
+                    modifier = Modifier.fillMaxWidth(),
+                    contentScale = ContentScale.Fit
                 )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val platforms = parsePlatforms(task.platforms)
-                    platforms.forEach { platform ->
-                        PlatformTag(platform = platform)
+            }
+        }
+    }
+
+    // 视频预览 Dialog
+    if (showVideoPreview && videoPreviewUrl.isNotBlank()) {
+        VideoPreviewDialog(
+            url = mapImageUrl(videoPreviewUrl),
+            onDismiss = { showVideoPreview = false }
+        )
+    }
+
+    // 合并历史网格
+    if (showHistoryGrid) {
+        HistoryGridDialog(
+            historyList = pmViewModel.mergeHistory.collectAsState().value,
+            onSelect = {
+                selectedMergeUrl = it.outputUrl
+                showHistoryGrid = false
+            },
+            onPlay = {
+                videoPreviewUrl = it.outputUrl
+                showVideoPreview = true
+            },
+            onDismiss = { showHistoryGrid = false }
+        )
+    }
+
+    val mergeState by pmViewModel.mergeState.collectAsState()
+
+    // 发布确认弹窗
+    if (showPublishDialog) {
+        val mergedUrl = when (val s = mergeState) {
+            is MergeState.Success -> s.url
+            else -> selectedMergeUrl
+        }
+        AlertDialog(
+            onDismissRequest = { showPublishDialog = false },
+            title = { Text("确认发布", fontWeight = FontWeight.Bold) },
+            text = { Text("确认后标记为已发布，并打开分享平台。发布后请在对应平台截图，然后提交审核。") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPublishDialog = false
+                        isPublished = true
+                        coroutineScope.launch {
+                            try {
+                                com.task.platform.network.ApiClient.apiService.publishPublishTask(task.id)
+                                // 保存合并URL用于后续提交
+                                selectedMergeUrl = mergedUrl ?: selectedMergeUrl
+                                openSharePlatform(context, task.platforms)
+                            } catch (_: Exception) {}
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                ) { Text("确认发布", color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPublishDialog = false }) { Text("取消") }
+            }
+        )
+    }
+
+    // 提交审核弹窗
+    if (showSubmitDialog) {
+        SubmitReviewDialog(
+            taskId = task.id,
+            mergedVideoUrl = selectedMergeUrl,
+            context = context,
+            onDismiss = { showSubmitDialog = false },
+            onSubmitted = { screenshots ->
+                submittedScreenshots = screenshots
+                submissionStatus = "SUBMITTED"
+                showSubmitDialog = false
+            }
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Gray50)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // ===== 顶部栏（仿 TaskDetailScreen） =====
+            Surface(color = Color.White, shadowElevation = 1.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Gray900)
+                    }
+                    Text(
+                        "发布任务详情",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Gray900,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // ===== 可滚动内容 =====
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(16.dp)
+            ) {
+                // 项目名
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("项目名称", fontSize = 13.sp, color = Gray500)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            (task.projectName ?: "").ifBlank { "未命名项目" },
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Gray900
+                        )
                     }
                 }
 
-                // 文案内容
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 发布平台
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("发布平台", fontSize = 13.sp, color = Gray500)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val platforms = parsePlatforms(task.platforms)
+                            platforms.forEach { platform ->
+                                PlatformTag(platform = platform)
+                            }
+                        }
+                    }
+                }
+
+                // 发布文案
                 if (!task.publishText.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    DetailSection("发布文案", task.publishText)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("发布文案", fontSize = 13.sp, color = Gray500)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(task.publishText, fontSize = 14.sp, color = Gray900, lineHeight = 20.sp)
+                        }
+                    }
                 }
 
                 // 素材列表
-                if (task.materials.isNotEmpty()) {
+                if (!task.materials.isNullOrEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "素材列表",
-                        fontSize = 13.sp,
-                        color = Gray500
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    task.materials.forEach { material ->
-                        MaterialItem(material = material)
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("素材列表", fontSize = 13.sp, color = Gray500)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            task.materials.forEach { material ->
+                                MaterialItem(material = material)
+                            }
+                        }
                     }
                 }
 
-                // 发布时间
+                // 随机素材预览（不套 Card，保持独立区块）
                 Spacer(modifier = Modifier.height(12.dp))
-                DetailSection(
-                    "发布时间",
-                    formatTime(task.scheduledAt ?: task.createdAt)
-                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        val materialsPreview by pmViewModel.materialsPreview.collectAsState()
+                        val refreshCooldown by pmViewModel.refreshCooldownSeconds.collectAsState()
+                        val materialsError by pmViewModel.materialsError.collectAsState()
 
-                // 状态
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "状态：", fontSize = 13.sp, color = Gray500)
-                    PublishStatusTag(status = task.status)
+                        LaunchedEffect(task.projectId) {
+                            pmViewModel.loadMaterials(task.projectId)
+                            pmViewModel.loadMergeHistory(task.projectId)
+                        }
+
+                        Text("随机素材预览", fontSize = 13.sp, color = Gray500)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (materialsError != null) {
+                            Text(
+                                text = materialsError ?: "加载失败",
+                                fontSize = 12.sp,
+                                color = Color.Red
+                            )
+                        } else if (materialsPreview == null) {
+                            Text(
+                                text = "加载中...",
+                                fontSize = 12.sp,
+                                color = Gray500
+                            )
+                        } else {
+                            val preview = materialsPreview!!
+
+                            // 随机文案
+                            preview.textMaterial?.let { tm ->
+                                Text("随机文案", fontSize = 12.sp, color = Gray700)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(tm.content ?: "", fontSize = 14.sp, color = Gray900)
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
+                            // 随机图片
+                            preview.imageMaterial?.let { im ->
+                                Text("随机图片", fontSize = 12.sp, color = Gray700)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                if (!im.fileUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = mapImageUrl(im.fileUrl),
+                                        contentDescription = "图片预览",
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(180.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                imagePreviewUrl = im.fileUrl
+                                                showImagePreview = true
+                                            },
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Text("-", fontSize = 12.sp, color = Gray500)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+
+                            // 随机音乐
+                            preview.musicMaterial?.let { mm ->
+                                Text("随机音乐", fontSize = 12.sp, color = Gray700)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                if (!mm.fileUrl.isNullOrBlank()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(
+                                            onClick = {
+                                                if (currentPlayingUrl == mm.fileUrl && mediaPlayer.isPlaying) {
+                                                    mediaPlayer.pause()
+                                                    currentPlayingUrl = null
+                                                } else {
+                                                    try {
+                                                        mediaPlayer.reset()
+                                                        mediaPlayer.setDataSource(context, Uri.parse(mapImageUrl(mm.fileUrl)))
+                                                        mediaPlayer.prepare()
+                                                        mediaPlayer.start()
+                                                        currentPlayingUrl = mm.fileUrl
+                                                    } catch (e: IOException) {
+                                                        e.printStackTrace()
+                                                    }
+                                                }
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                if (currentPlayingUrl == mm.fileUrl && mediaPlayer.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                                contentDescription = "播放/暂停"
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = mm.title ?: "背景音乐",
+                                            fontSize = 14.sp,
+                                            color = Gray700,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                } else {
+                                    Text("-", fontSize = 12.sp, color = Gray500)
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            }
+                            // 可拖拽排序的视频网格（3列）
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("视频素材排序（长按拖动）", fontSize = 13.sp, color = Gray500)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            var gridDraggedIndex by remember { mutableIntStateOf(-1) }
+                            var gridDragOffsetX by remember { mutableFloatStateOf(0f) }
+                            var gridDragOffsetY by remember { mutableFloatStateOf(0f) }
+                            val gridRowHeightPx = with(LocalDensity.current) { 120.dp.toPx() }
+                            val gridColWidthPx = with(LocalDensity.current) { 108.dp.toPx() }
+                            val gridScrollConnection = remember {
+                                object : NestedScrollConnection {
+                                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                                        return if (gridDraggedIndex >= 0) available else Offset.Zero
+                                    }
+                                }
+                            }
+                            Card(
+                                shape = RoundedCornerShape(8.dp),
+                                colors = CardDefaults.cardColors(containerColor = Gray50),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .nestedScroll(gridScrollConnection)
+                            ) {
+                                Column(modifier = Modifier.padding(8.dp)) {
+                                    if (taskVideoList.isEmpty()) {
+                                        Text("暂无视频素材", fontSize = 12.sp, color = Gray500)
+                                    } else {
+                                        taskVideoList.chunked(3).forEachIndexed { rowIdx, row ->
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                            ) {
+                                                row.forEachIndexed { colIdx, item ->
+                                                    val globalIdx = rowIdx * 3 + colIdx
+                                                    val isDragging = gridDraggedIndex == globalIdx
+                                                    Box(modifier = Modifier.weight(1f)) {
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .then(
+                                                                    if (isDragging) Modifier.graphicsLayer {
+                                                                        translationX = gridDragOffsetX
+                                                                        translationY = gridDragOffsetY
+                                                                        scaleX = 1.08f
+                                                                        scaleY = 1.08f
+                                                                        shadowElevation = 10f
+                                                                    } else Modifier
+                                                                )
+                                                                .pointerInput(globalIdx) {
+                                                                    detectDragGesturesAfterLongPress(
+                                                                        onDragStart = {
+                                                                            gridDraggedIndex = globalIdx
+                                                                            gridDragOffsetX = 0f
+                                                                            gridDragOffsetY = 0f
+                                                                        },
+                                                                        onDrag = { change, dragAmount ->
+                                                                            change.consume()
+                                                                            gridDragOffsetX += dragAmount.x
+                                                                            gridDragOffsetY += dragAmount.y
+                                                                            val col = globalIdx % 3
+                                                                            val row = globalIdx / 3
+                                                                            // 向右超过阈值 → 与右侧相邻交换
+                                                                            if (gridDragOffsetX > gridColWidthPx && col < 2 && globalIdx + 1 < taskVideoList.size) {
+                                                                                val targetIdx = globalIdx + 1
+                                                                                val temp = taskVideoList[globalIdx]
+                                                                                taskVideoList[globalIdx] = taskVideoList[targetIdx]
+                                                                                taskVideoList[targetIdx] = temp
+                                                                                gridDraggedIndex = targetIdx
+                                                                                gridDragOffsetX -= gridColWidthPx
+                                                                            }
+                                                                            // 向左超过阈值 → 与左侧相邻交换
+                                                                            if (gridDragOffsetX < -gridColWidthPx && col > 0) {
+                                                                                val targetIdx = globalIdx - 1
+                                                                                val temp = taskVideoList[globalIdx]
+                                                                                taskVideoList[globalIdx] = taskVideoList[targetIdx]
+                                                                                taskVideoList[targetIdx] = temp
+                                                                                gridDraggedIndex = targetIdx
+                                                                                gridDragOffsetX += gridColWidthPx
+                                                                            }
+                                                                            // 向下超过阈值 → 与下一行同列交换
+                                                                            if (gridDragOffsetY > gridRowHeightPx && globalIdx + 3 < taskVideoList.size) {
+                                                                                val targetIdx = globalIdx + 3
+                                                                                val temp = taskVideoList[globalIdx]
+                                                                                taskVideoList[globalIdx] = taskVideoList[targetIdx]
+                                                                                taskVideoList[targetIdx] = temp
+                                                                                gridDraggedIndex = targetIdx
+                                                                                gridDragOffsetY -= gridRowHeightPx
+                                                                            }
+                                                                            // 向上超过阈值 → 与上一行同列交换
+                                                                            if (gridDragOffsetY < -gridRowHeightPx && globalIdx >= 3) {
+                                                                                val targetIdx = globalIdx - 3
+                                                                                val temp = taskVideoList[globalIdx]
+                                                                                taskVideoList[globalIdx] = taskVideoList[targetIdx]
+                                                                                taskVideoList[targetIdx] = temp
+                                                                                gridDraggedIndex = targetIdx
+                                                                                gridDragOffsetY += gridRowHeightPx
+                                                                            }
+                                                                        },
+                                                                        onDragEnd = { gridDraggedIndex = -1; gridDragOffsetX = 0f; gridDragOffsetY = 0f },
+                                                                        onDragCancel = { gridDraggedIndex = -1; gridDragOffsetX = 0f; gridDragOffsetY = 0f }
+                                                                    )
+                                                                }
+                                                        ) {
+                                                            VideoThumbnailCard(
+                                                                videoUrl = item.fileUrl,
+                                                                label = item.label,
+                                                                onClick = {
+                                                                    videoPreviewUrl = item.fileUrl
+                                                                    showVideoPreview = true
+                                                                }
+                                                            )
+                                                        }
+                                                        // 序号标记
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .align(Alignment.TopStart)
+                                                                .padding(4.dp)
+                                                                .size(20.dp)
+                                                                .clip(RoundedCornerShape(10.dp))
+                                                                .background(Color.Black.copy(alpha = 0.4f)),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            Text(
+                                                                "${globalIdx + 1}",
+                                                                fontSize = 10.sp,
+                                                                color = Color.White,
+                                                                fontWeight = FontWeight.Bold
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                                repeat(3 - row.size) {
+                                                    Spacer(modifier = Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // 刷新按钮
+                            Button(
+                                onClick = { pmViewModel.refreshMaterials(task.projectId) },
+                                enabled = refreshCooldown == 0,
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                            ) {
+                                Text(
+                                    if (refreshCooldown > 0) "刷新(${refreshCooldown}s)" else "换一批",
+                                    color = Color.White
+                                )
+                            }
+
+                        }
+                    }
                 }
+                // 合并预览
+                val mergeState by pmViewModel.mergeState.collectAsState()
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("合并预览", fontSize = 13.sp, color = Gray500)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (!isClaimed) {
+                            // 未领取 → 显示领取按钮 + 示例预览
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        try {
+                                            com.task.platform.network.ApiClient.apiService.claimPublishTask(task.id)
+                                            isClaimed = true
+                                            Toast.makeText(context, "领取成功", Toast.LENGTH_SHORT).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "领取失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = StatusCompleted)
+                            ) {
+                                Text("领取任务后开始合并", color = Color.White)
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 随机展示3个已有合并效果
+                            val historyPreview by pmViewModel.mergeHistory.collectAsState()
+                            val samples = historyPreview.take(3)
+                            if (samples.isNotEmpty()) {
+                                Text("效果预览（已完成的合并）", fontSize = 11.sp, color = Gray500)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    samples.forEach { h ->
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            VideoThumbnailCard(
+                                                videoUrl = h.outputUrl,
+                                                label = h.createdAt?.let { formatTime(it) } ?: "",
+                                                onClick = {
+                                                    videoPreviewUrl = h.outputUrl
+                                                    showVideoPreview = true
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    }
+                                    repeat(3 - samples.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                }
+                            }
+                        } else {
+                            // 已领取 → 显示合并流程
+
+                            // 已提交审核 → 根据状态显示（仅 SUBMITTED/PASSED/REJECTED）
+                            if (submissionStatus in listOf("SUBMITTED", "PASSED", "REJECTED")) {
+                                val stateText = when (submissionStatus) {
+                                    "PASSED" -> "审核通过"
+                                    "REJECTED" -> "审核拒绝"
+                                    else -> "审核中"
+                                }
+                                val stateColor = when (submissionStatus) {
+                                    "PASSED" -> StatusCompleted
+                                    "REJECTED" -> Color.Red
+                                    else -> Orange
+                                }
+                                val stateHint = when (submissionStatus) {
+                                    "PASSED" -> if (submissionReward != null) "已发放奖励 ¥${submissionReward}" else "你的发布已审核通过"
+                                    "REJECTED" -> "审核未通过，可重新提交"
+                                    else -> "你的发布内容已提交，等待管理员审核"
+                                }
+                                Text(stateText, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = stateColor)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(stateHint, fontSize = 12.sp, color = Gray500)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                if (selectedMergeUrl.isNotBlank()) {
+                                    Text("发布的视频", fontSize = 11.sp, color = Gray500)
+                                    VideoThumbnailCard(
+                                        videoUrl = selectedMergeUrl,
+                                        label = "已选视频",
+                                        onClick = {
+                                            videoPreviewUrl = selectedMergeUrl
+                                            showVideoPreview = true
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                // 显示上传的截图
+                                Text("上传的截图", fontSize = 11.sp, color = Gray500)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                submittedScreenshots.chunked(3).forEach { row ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        row.forEach { url ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .weight(1f)
+                                                    .aspectRatio(1f)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(Gray100),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                val imgUrl = mapImageUrl(url)
+                                                AsyncImage(
+                                                    model = imgUrl,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize(),
+                                                    contentScale = ContentScale.Crop
+                                                )
+                                            }
+                                        }
+                                        repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                            } else {
+                                // 正常合并流程
+                            val currentUrl = when (val s = mergeState) {
+                                is MergeState.Success -> s.url
+                                else -> if (selectedMergeUrl.isNotBlank()) selectedMergeUrl else null
+                            }
+                            if (currentUrl != null) {
+                                Button(
+                                    onClick = {
+                                        videoPreviewUrl = currentUrl
+                                        showVideoPreview = true
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                ) {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("预览", color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Button(
+                                    onClick = { saveVideoToGallery(context, currentUrl) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = StatusCompleted)
+                                ) {
+                                    Icon(Icons.Default.Download, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("保存到相册", color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+
+                            // 剪辑选项
+                            Text("剪辑选项", fontSize = 12.sp, color = Gray500)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            // 转场
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("转场:", fontSize = 12.sp, color = Gray700, modifier = Modifier.width(48.dp))
+                                Box(modifier = Modifier.weight(1f)) {
+                                    var expanded by remember { mutableStateOf(false) }
+                                    val options = listOf(
+                                        "none" to "无",
+                                        "fade" to "淡入淡出",
+                                        "fadeblack" to "黑场过渡",
+                                        "fadewhite" to "白场过渡",
+                                        "wipeleft" to "左擦",
+                                        "wiperight" to "右擦",
+                                        "wipeup" to "上擦",
+                                        "wipedown" to "下擦",
+                                        "slideleft" to "左滑",
+                                        "slideright" to "右滑",
+                                        "slideup" to "上滑",
+                                        "slidedown" to "下滑",
+                                        "circlecrop" to "圆形裁剪",
+                                        "circleopen" to "圆形展开",
+                                        "circleclose" to "圆形收缩",
+                                        "dissolve" to "溶解",
+                                        "pixelize" to "像素化",
+                                        "horzopen" to "水平展开",
+                                        "vertopen" to "垂直展开"
+                                    )
+                                    val selectedLabel = options.find { it.first == transitionType }?.second ?: "无"
+                                    OutlinedButton(
+                                        onClick = { expanded = true },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text(selectedLabel, fontSize = 12.sp) }
+                                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                                        options.forEach { (k, v) ->
+                                            DropdownMenuItem(onClick = { transitionType = k; expanded = false }, text = { Text(v) })
+                                        }
+                                    }
+                                }
+                            }
+                            // 渐入渐出
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                                Text("渐入渐出:", fontSize = 12.sp, color = Gray700, modifier = Modifier.width(70.dp))
+                                Switch(checked = fadeInOut, onCheckedChange = { fadeInOut = it })
+                            }
+                            // 字幕
+                            OutlinedTextField(
+                                value = subtitleText,
+                                onValueChange = { subtitleText = it },
+                                label = { Text("字幕（可选）", fontSize = 12.sp) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            when (val state = mergeState) {
+                                is MergeState.Idle -> {
+                                    Button(
+                                        onClick = { pmViewModel.mergeVideos(task.projectId, taskVideoList.map { it.id },
+                                            transition = transitionType, fadeInOut = fadeInOut, subtitle = subtitleText) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(8.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                    ) {
+                                        Text("开始合并", color = Color.White)
+                                    }
+                                }
+                                is MergeState.Merging -> {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Orange
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("正在合并...", fontSize = 14.sp, color = Gray700)
+                                    }
+                                }
+                                is MergeState.Success -> {
+                                    Text("合并完成", fontSize = 14.sp, color = StatusCompleted)
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    TextButton(
+                                        onClick = { pmViewModel.resetMergeState() },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text("重新合并", fontSize = 12.sp)
+                                    }
+                                }
+                            is MergeState.Error -> {
+                                Text("合并失败: ${state.message}", fontSize = 12.sp, color = Color.Red)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { pmViewModel.mergeVideos(task.projectId, taskVideoList.map { it.id }) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                ) {
+                                    Text("重试", color = Color.White)
+                                }
+                            }
+                        }
+                            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+                            // 发布按钮（未发布时显示）
+                            if (!isPublished && (mergeState is MergeState.Success || selectedMergeUrl.isNotBlank())) {
+                                Button(
+                                    onClick = { showPublishDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))
+                                ) {
+                                    Text("发布到平台", color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+
+                            // 提交审核（发布后显示）
+                            if (isPublished && selectedMergeUrl.isNotBlank()) {
+                                Button(
+                                    onClick = { showSubmitDialog = true },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
+                                ) {
+                                    Text("提交审核", color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+
+                            } // end submitted check
+
+                        } // end else (isClaimed)
+
+                        TextButton(
+                            onClick = {
+                                pmViewModel.loadMergeHistory(task.projectId)
+                                showHistoryGrid = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.History, null, tint = Orange, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("查看合并历史", fontSize = 13.sp, color = Orange)
+                        }
+                    }
+                }
+
+                // 发布时间 & 状态
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("发布时间", fontSize = 13.sp, color = Gray500)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    formatTime(task.scheduledAt ?: task.createdAt),
+                                    fontSize = 14.sp,
+                                    color = Gray900
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("状态", fontSize = 13.sp, color = Gray500)
+                                Spacer(modifier = Modifier.height(4.dp))
+                                PublishStatusTag(status = task.status)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(32.dp))
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("关闭", color = Orange, fontWeight = FontWeight.Bold)
-            }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(16.dp)
-    )
+        }
+    }
 }
+
 
 // ==================== 详情区块 ====================
 
@@ -749,6 +1636,15 @@ private fun MaterialItem(material: PublishMaterialDTO) {
 // ==================== 工具函数 ====================
 
 /**
+ * 可排序的视频条目
+ */
+private data class VideoSortItem(
+    val id: Long,
+    val label: String,
+    val fileUrl: String
+)
+
+/**
  * 解析平台字符串（逗号分隔）为平台名称列表
  */
 private fun parsePlatforms(platforms: String): List<String> {
@@ -778,5 +1674,607 @@ private fun formatTime(isoTime: String): String {
         }
     } catch (_: Exception) {
         isoTime
+    }
+}
+
+// ==================== 视频封面加载 ====================
+
+/**
+ * 使用 MediaMetadataRetriever 异步加载视频第一帧作为封面
+ */
+@Composable
+private fun rememberVideoFrameBitmap(videoUrl: String): Bitmap? {
+    var bitmap by remember(videoUrl) { mutableStateOf<Bitmap?>(null) }
+    LaunchedEffect(videoUrl) {
+        if (videoUrl.isBlank()) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            try {
+                val fullUrl = mapImageUrl(videoUrl)
+                val retriever = MediaMetadataRetriever()
+                retriever.setDataSource(fullUrl, HashMap())
+                bitmap = retriever.frameAtTime
+                retriever.release()
+            } catch (_: Exception) { }
+        }
+    }
+    return bitmap
+}
+
+/**
+ * 视频封面卡片（封面图 + 播放按钮叠加）
+ */
+@Composable
+private fun VideoThumbnailCard(
+    videoUrl: String?,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    val bitmap = if (!videoUrl.isNullOrBlank()) {
+        rememberVideoFrameBitmap(videoUrl)
+    } else {
+        null
+    }
+
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = Gray50,
+        modifier = modifier.clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            if (bitmap != null) {
+                // 有封面图 → 显示封面
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = label,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(4f / 3f),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                // 无封面 → 显示默认占位
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(vertical = 16.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Videocam,
+                        contentDescription = "视频",
+                        tint = Orange,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(label, fontSize = 12.sp, color = Gray700)
+                }
+            }
+            // 播放按钮覆盖层
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "播放",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 将相对路径图片 URL 转为可通过 Gateway 访问的完整 URL
+ * - 已是 http/https 的完整 URL → 替换 localhost/127.0.0.1 为 10.0.2.2（模拟器）
+ * - /upload/ 路径 → 拼接 BASE_URL + /api/upload/...（走网关路由到 upload-service）
+ * - /uploads/ 路径 → 拼接 BASE_URL + /api/uploads/...（走网关路由到 admin-api）
+ * - 其他相对路径 → 直接拼接 BASE_URL
+ */
+private fun mapImageUrl(url: String): String {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        return url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+    }
+    val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
+    return if (url.startsWith("/upload/")) {
+        "$base/api$url"
+    } else if (url.startsWith("/uploads/")) {
+        "$base/api$url"
+    } else {
+        base + (if (url.startsWith("/")) url else "/$url")
+    }
+}
+
+// ==================== 视频预览弹窗 ====================
+
+@Composable
+private fun VideoPreviewDialog(
+    url: String,
+    onDismiss: () -> Unit
+) {
+    var isPlaying by remember { mutableStateOf(true) }
+    var currentPosition by remember { mutableIntStateOf(0) }
+    var totalDuration by remember { mutableIntStateOf(0) }
+    val videoViewRef = remember { mutableStateOf<VideoView?>(null) }
+
+    // 定期刷新进度
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            videoViewRef.value?.let { vv ->
+                if (vv.isPlaying) {
+                    currentPosition = vv.currentPosition
+                    if (totalDuration == 0) {
+                        totalDuration = vv.duration
+                    }
+                }
+            }
+            kotlinx.coroutines.delay(500)
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            // 视频画面
+            AndroidView(
+                factory = { ctx ->
+                    VideoView(ctx).apply {
+                        setVideoPath(url)
+                        setOnPreparedListener { mp ->
+                            mp.isLooping = true
+                            totalDuration = mp.duration
+                            mp.start()
+                            isPlaying = true
+                        }
+                        setOnCompletionListener {
+                            isPlaying = false
+                        }
+                        videoViewRef.value = this
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // 顶部关闭按钮
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "关闭", tint = Color.White)
+                }
+            }
+
+            // 中央播放/暂停按钮（暂停时显示）
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!isPlaying) {
+                    IconButton(
+                        onClick = {
+                            videoViewRef.value?.let { vv ->
+                                vv.start()
+                                isPlaying = true
+                            }
+                        },
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(RoundedCornerShape(36.dp))
+                            .background(Color.Black.copy(alpha = 0.5f))
+                    ) {
+                        Icon(
+                            Icons.Default.PlayArrow,
+                            contentDescription = "播放",
+                            tint = Color.White,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
+                }
+            }
+
+            // 底部控制栏（进度条 + 时间）
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(Color.Black.copy(alpha = 0.6f))
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .navigationBarsPadding()
+            ) {
+                Slider(
+                    value = if (totalDuration > 0) currentPosition.toFloat() / totalDuration else 0f,
+                    onValueChange = { fraction ->
+                        val targetMs = (fraction * totalDuration).toInt()
+                        videoViewRef.value?.let { vv ->
+                            vv.seekTo(targetMs)
+                            currentPosition = targetMs
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = SliderDefaults.colors(
+                        thumbColor = Orange,
+                        activeTrackColor = Orange,
+                        inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+                    )
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(formatDuration(currentPosition), fontSize = 12.sp, color = Color.White)
+                    IconButton(
+                        onClick = {
+                            videoViewRef.value?.let { vv ->
+                                if (vv.isPlaying) {
+                                    vv.pause()
+                                    isPlaying = false
+                                } else {
+                                    vv.start()
+                                    isPlaying = true
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            null,
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Text(formatDuration(totalDuration), fontSize = 12.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+private fun formatDuration(ms: Int): String {
+    if (ms <= 0) return "00:00"
+    val totalSec = ms / 1000
+    val min = totalSec / 60
+    val sec = totalSec % 60
+    return "%02d:%02d".format(min, sec)
+}
+/**
+ * 保存视频到相册
+ */
+private fun saveVideoToGallery(context: Context, url: String) {
+    val fullUrl = mapImageUrl(url)
+    try {
+        // 下载视频到缓存
+        val fileName = "merge_" + System.currentTimeMillis() + ".mp4"
+        val cacheFile = java.io.File(context.cacheDir, fileName)
+        
+        val thread = Thread {
+            try {
+                val connection = java.net.URL(fullUrl).openConnection()
+                connection.connect()
+                val inputStream = connection.getInputStream()
+                val outputStream = java.io.FileOutputStream(cacheFile)
+                inputStream.copyTo(outputStream)
+                outputStream.close()
+                inputStream.close()
+
+                // 保存到相册
+                val values = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, fileName)
+                    put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                    put(android.provider.MediaStore.Video.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_MOVIES + "/TaskPlatform")
+                }
+                val uri = context.contentResolver.insert(
+                    android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values
+                )
+                uri?.let {
+                    context.contentResolver.openOutputStream(it)?.use { os ->
+                        cacheFile.inputStream().copyTo(os)
+                    }
+                }
+                cacheFile.delete()
+
+                android.os.Handler(context.mainLooper).post {
+                    android.widget.Toast.makeText(context, "已保存到相册", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                android.os.Handler(context.mainLooper).post {
+                    android.widget.Toast.makeText(context, "保存失败: " + e.message, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        thread.start()
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "保存失败: " + e.message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+// ==================== 合并历史网格选择弹窗 ====================
+
+@Composable
+private fun HistoryGridDialog(
+    historyList: List<MergeHistoryVO>,
+    onSelect: (MergeHistoryVO) -> Unit,
+    onPlay: (MergeHistoryVO) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.White)
+                .systemBarsPadding()
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                // 顶部栏
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, "关闭", tint = Gray900)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("合并历史", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900)
+                }
+                Divider()
+
+                if (historyList.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("暂无合并历史", fontSize = 14.sp, color = Gray500)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(vertical = 8.dp)
+                    ) {
+                        val chunked = historyList.chunked(3)
+                        items(chunked.size) { rowIdx ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                chunked[rowIdx].forEach { h ->
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        Column {
+                                            // 预览封面
+                                            VideoThumbnailCard(
+                                                videoUrl = h.outputUrl,
+                                                label = h.createdAt?.let { formatTime(it) } ?: "未知",
+                                                onClick = { onPlay(h) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            // 时间 + 选择按钮
+                                            Text(
+                                                h.createdAt?.let { formatTime(it) } ?: "未知",
+                                                fontSize = 9.sp,
+                                                color = Gray500,
+                                                maxLines = 1,
+                                                modifier = Modifier.padding(horizontal = 2.dp)
+                                            )
+                                            Button(
+                                                onClick = { onSelect(h) },
+                                                modifier = Modifier.fillMaxWidth().height(24.dp),
+                                                shape = RoundedCornerShape(4.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("选择", fontSize = 10.sp, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                                repeat(3 - chunked[rowIdx].size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * 打开发布分享平台（抖音/小红书/微信）
+ */
+private fun openSharePlatform(context: Context, platforms: String) {
+    try {
+        val packageName = when {
+            platforms.contains("抖音", ignoreCase = true) || platforms.contains("douyin", ignoreCase = true) -> "com.ss.android.ugc.aweme"
+            platforms.contains("小红书", ignoreCase = true) || platforms.contains("xhs", ignoreCase = true) || platforms.contains("redbook", ignoreCase = true) -> "com.xingin.xhs"
+            platforms.contains("微信", ignoreCase = true) || platforms.contains("wechat", ignoreCase = true) -> "com.tencent.mm"
+            else -> null
+        }
+        if (packageName != null) {
+            val intent = context.packageManager.getLaunchIntentForPackage(packageName)
+            if (intent != null) {
+                context.startActivity(intent)
+                return
+            }
+        }
+        // 默认打开分享面板
+        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, "已完成视频发布任务")
+        }
+        context.startActivity(android.content.Intent.createChooser(shareIntent, "分享到"))
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "打开失败: " + e.message, android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+
+@Composable
+private fun SubmitReviewDialog(
+    taskId: Long,
+    mergedVideoUrl: String,
+    context: Context,
+    onDismiss: () -> Unit,
+    onSubmitted: (List<String>) -> Unit
+) {
+    var selectedUris by remember { mutableStateOf<List<android.net.Uri>>(emptyList()) }
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadedUrls by remember { mutableStateOf<List<String>>(emptyList()) }
+
+    val imagePicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        selectedUris = selectedUris + uris
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.White)) {
+            Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
+                // 顶部栏
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, "关闭", tint = Gray900)
+                    }
+                    Text("提交审核", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900, modifier = Modifier.weight(1f))
+                }
+                Divider()
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    Text("上传截图（1-9张）", fontSize = 14.sp, color = Gray700)
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 截图网格（3列，已上传可删除，末尾有添加格子）
+                    val cells: List<android.net.Uri?> = selectedUris + if (selectedUris.size < 9) listOf(null) else emptyList()
+                    cells.chunked(3).forEach { row ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            row.forEach { uri ->
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .aspectRatio(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                ) {
+                                    if (uri == null) {
+                                        // 添加按钮
+                                        OutlinedButton(
+                                            onClick = { imagePicker.launch("image/*") },
+                                            modifier = Modifier.fillMaxSize(),
+                                            shape = RoundedCornerShape(8.dp),
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, Orange.copy(alpha = 0.3f))
+                                        ) {
+                                            Icon(Icons.Default.Add, null, tint = Orange, modifier = Modifier.size(24.dp))
+                                        }
+                                    } else {
+                                        // 已上传的截图
+                                        Box(modifier = Modifier.fillMaxSize()) {
+                                            AsyncImage(
+                                                model = uri,
+                                                contentDescription = null,
+                                                modifier = Modifier.fillMaxSize(),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                            // 删除按钮
+                                            IconButton(
+                                                onClick = { selectedUris = selectedUris.filter { it != uri } },
+                                                modifier = Modifier
+                                                    .align(Alignment.TopEnd)
+                                                    .size(22.dp)
+                                                    .clip(RoundedCornerShape(11.dp))
+                                                    .background(Color.Black.copy(alpha = 0.5f))
+                                            ) {
+                                                Icon(Icons.Default.Close, "删除", tint = Color.White, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            repeat(3 - row.size) { Spacer(modifier = Modifier.weight(1f)) }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // 提交按钮
+                    Button(
+                        onClick = {
+                            if (selectedUris.isEmpty()) {
+                                Toast.makeText(context, "请至少上传1张截图", Toast.LENGTH_SHORT).show()
+                                return@Button
+                            }
+                            isUploading = true
+                            kotlinx.coroutines.GlobalScope.launch {
+                                try {
+                                    val urls = selectedUris.map { uri ->
+                                        val inputStream = context.contentResolver.openInputStream(uri)
+                                        val bytes = inputStream?.readBytes() ?: throw Exception("读取失败")
+                                        inputStream!!.close()
+                                        val requestBody = bytes.toRequestBody("image/*".toMediaType())
+                                        val part = okhttp3.MultipartBody.Part.createFormData("file", "screenshot.jpg", requestBody)
+                                        val typeBody = "screenshot".toRequestBody("text/plain".toMediaType())
+                                        val response = com.task.platform.network.ApiClient.apiService.uploadImage(part, typeBody)
+                                        response.data?.relativePath ?: throw Exception("上传失败")
+                                    }
+                                    uploadedUrls = urls
+                                    // 提交审核
+                                    val req = mapOf<String, Any>(
+                                        "screenshots" to urls,
+                                        "mergedVideoUrl" to mergedVideoUrl
+                                    )
+                                    com.task.platform.network.ApiClient.apiService.submitReview(taskId, req)
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        Toast.makeText(context, "提交成功，等待审核", Toast.LENGTH_SHORT).show()
+                                        onSubmitted(urls)
+                                    }
+                                } catch (e: Exception) {
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        Toast.makeText(context, "提交失败: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                } finally {
+                                    isUploading = false
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0)),
+                        enabled = !isUploading
+                    ) {
+                        if (isUploading) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(if (isUploading) "上传中..." else "提交审核", color = Color.White)
+                    }
+                }
+            }
+        }
     }
 }

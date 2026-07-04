@@ -46,3 +46,6 @@ frontend/.env.local
 # Temp
 *.tmp
 *.bak
+
+# Uploads (runtime files)
+uploads/

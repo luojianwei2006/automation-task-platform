@@ -1,14 +1,16 @@
 package com.task.platform.admin.controller;
 
-import com.task.platform.admin.dto.publish.ClaimReq;
-import com.task.platform.admin.dto.publish.CompleteReq;
-import com.task.platform.admin.dto.publish.MaterialListVO;
-import com.task.platform.admin.dto.publish.PublishTaskVO;
+import com.task.platform.admin.dto.publish.*;
 import com.task.platform.admin.entity.PublishMaterial;
 import com.task.platform.admin.entity.PublishTask;
+import com.task.platform.admin.entity.UserPublishRecord;
+import com.task.platform.admin.mapper.UserPublishRecordMapper;
 import com.task.platform.admin.service.MobilePublishService;
+import com.task.platform.admin.service.PublishMaterialService;
+import com.task.platform.admin.service.PublishProjectService;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -23,45 +25,33 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/mobile/publish/tasks")
+@Slf4j
 @RequiredArgsConstructor
 public class MobilePublishController {
 
     private final MobilePublishService mobilePublishService;
+    private final PublishProjectService publishProjectService;
+    private final PublishMaterialService publishMaterialService;
+    private final UserPublishRecordMapper userPublishRecordMapper;
 
     /**
      * 可领取任务列表（pending + 当前用户已claimed）
      * GET /api/mobile/publish/tasks?userId=
      */
     @GetMapping
-    public ApiResponse<List<PublishTaskVO>> getAvailableTasks(@RequestParam Long userId) {
+    public ApiResponse<List<PublishTaskVO>> getAvailableTasks(@RequestHeader("X-User-Id") Long userId) {
         List<PublishTask> tasks = mobilePublishService.getAvailableTasks(userId);
         List<PublishTaskVO> vos = tasks.stream().map(this::toVO).collect(Collectors.toList());
         return ApiResponse.success(vos);
     }
 
     /**
-     * 领取任务
-     * POST /api/mobile/publish/tasks/{id}/claim
+     * 更新发布任务状态（废弃，改用 /{id}/claim）
      */
-    @PostMapping("/{id}/claim")
-    public ApiResponse<Map<String, Object>> claim(@PathVariable Long id,
-                                                   @RequestBody ClaimReq req) {
-        if (req.getUserId() == null) {
-            return ApiResponse.error(400, "userId 不能为空");
-        }
-
-        try {
-            PublishTask task = mobilePublishService.claim(id, req.getUserId());
-            Map<String, Object> data = new HashMap<>();
-            data.put("taskId", task.getId());
-            data.put("status", task.getStatus());
-            data.put("claimedAt", task.getClaimedAt());
-            return ApiResponse.success(data, "任务领取成功");
-        } catch (IllegalArgumentException e) {
-            return ApiResponse.error(404, e.getMessage());
-        } catch (IllegalStateException e) {
-            return ApiResponse.error(400, e.getMessage());
-        }
+    @Deprecated
+    @PostMapping("/{id}/status")
+    public ApiResponse<Void> updateTaskStatus(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        return ApiResponse.error(400, "此接口已废弃，请使用 /claim + /publish + /submit");
     }
 
     /**
@@ -69,7 +59,7 @@ public class MobilePublishController {
      * GET /api/mobile/publish/tasks/my?userId=
      */
     @GetMapping("/my")
-    public ApiResponse<List<PublishTaskVO>> getMyTasks(@RequestParam Long userId) {
+    public ApiResponse<List<PublishTaskVO>> getMyTasks(@RequestHeader("X-User-Id") Long userId) {
         List<PublishTask> tasks = mobilePublishService.getMyTasks(userId);
         List<PublishTaskVO> vos = tasks.stream().map(this::toVO).collect(Collectors.toList());
         return ApiResponse.success(vos);
@@ -144,12 +134,119 @@ public class MobilePublishController {
         vo.setClaimedBy(task.getClaimedBy());
         vo.setClaimedAt(task.getClaimedAt());
         vo.setCompletedAt(task.getCompletedAt());
+        vo.setPublishedAt(task.getPublishedAt());
+        // 填充项目名
+        if (task.getProjectId() != null) {
+            try {
+                var project = publishProjectService.getById(task.getProjectId());
+                vo.setProjectName(project != null ? project.getName() : "");
+            } catch (Exception e) {
+                vo.setProjectName("");
+            }
+        }
         vo.setErrorMessage(task.getErrorMessage());
         vo.setRetryCount(task.getRetryCount());
         vo.setMaxRetry(task.getMaxRetry());
         vo.setRemark(task.getRemark());
+        vo.setRewardAmount(task.getRewardAmount());
+        vo.setImages(task.getImages());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
         return vo;
+    }
+
+    // =================== 任务领取与发布 ===================
+
+    /**
+     * 领取任务
+     */
+    @PostMapping("/{id}/claim")
+    public ApiResponse<Void> claim(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
+        PublishTask task = mobilePublishService.getTaskById(id);
+        if (task == null) {
+            return ApiResponse.error(404, "任务不存在");
+        }
+        Long existCount = userPublishRecordMapper.selectCount(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+                .eq(UserPublishRecord::getTaskId, id)
+        );
+        if (existCount > 0) {
+            return ApiResponse.error(400, "你已经领取过该任务");
+        }
+        UserPublishRecord record = new UserPublishRecord();
+        record.setUserId(userId);
+        log.info("[DEBUG] claim: userId={}, taskId={}", userId, id);
+        record.setTaskId(id);
+        record.setStatus("CLAIMED");
+        userPublishRecordMapper.insert(record);
+        return ApiResponse.success(null, "领取成功");
+    }
+
+    /**
+     * 发布任务（完成后拉起分享）
+     */
+    @PostMapping("/{id}/publish")
+    public ApiResponse<Void> publish(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
+        PublishTask task = mobilePublishService.getTaskById(id);
+        if (task == null) {
+            return ApiResponse.error(404, "任务不存在");
+        }
+        UserPublishRecord record = userPublishRecordMapper.selectOne(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+                .eq(UserPublishRecord::getTaskId, id)
+        );
+        if (record == null) {
+            return ApiResponse.error(400, "请先领取任务");
+        }
+        task.setStatus("COMPLETED");
+        mobilePublishService.updateTask(task);
+        log.info("[DEBUG] publish: userId={}, taskId={}", userId, id);
+        record.setStatus("MERGED");
+        userPublishRecordMapper.updateById(record);
+        return ApiResponse.success(null, "发布成功");
+    }
+
+    /**
+     * 提交审核（上传截图后）
+     */
+    @PostMapping("/{id}/submit")
+    public ApiResponse<Void> submitReview(@PathVariable Long id,
+                                          @RequestHeader("X-User-Id") Long userId,
+                                          @RequestBody SubmitReviewReq req) {
+        UserPublishRecord record = userPublishRecordMapper.selectOne(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+                .eq(UserPublishRecord::getTaskId, id)
+        );
+        if (record == null) {
+            return ApiResponse.error(400, "请先领取任务");
+        }
+        if (req.getScreenshots() == null || req.getScreenshots().isEmpty()) {
+            return ApiResponse.error(400, "请至少上传1张截图");
+        }
+        record.setScreenshots(String.join(",", req.getScreenshots()));
+        record.setMergedVideoUrl(req.getMergedVideoUrl());
+        log.info("[DEBUG] submit: userId={}, taskId={}, screenshots={}", userId, id, req.getScreenshots());
+        record.setStatus("SUBMITTED");
+        record.setSubmittedAt(java.time.LocalDateTime.now());
+        userPublishRecordMapper.updateById(record);
+        return ApiResponse.success(null, "提交成功，等待审核");
+    }
+
+    /** 查询提交状态 */
+    @GetMapping("/{id}/submission-status")
+    public ApiResponse<UserPublishRecord> getSubmissionStatus(@PathVariable Long id, @RequestHeader("X-User-Id") Long userId) {
+        log.info("[DEBUG] submission-status: userId={}, taskId={}", userId, id);
+        UserPublishRecord record = userPublishRecordMapper.selectOne(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPublishRecord>()
+                .eq(UserPublishRecord::getUserId, userId)
+                .eq(UserPublishRecord::getTaskId, id)
+        );
+        if (record == null) {
+            return ApiResponse.error(404, "未领取");
+        }
+        return ApiResponse.success(record);
     }
 }

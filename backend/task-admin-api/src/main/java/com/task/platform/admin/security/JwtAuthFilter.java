@@ -39,7 +39,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private static final List<String> PUBLIC_PATHS = List.of(
             "/admin/auth/login",
             "/admin/auth/captcha",
-            "/uploads/"
+            "/uploads/",
+            "/mobile/publish/",       // 移动端发布接口，由 Gateway JWT 统一鉴权
+            "/publish/"               // 通用发布接口，由 Gateway JWT 统一鉴权
     );
 
     @Override

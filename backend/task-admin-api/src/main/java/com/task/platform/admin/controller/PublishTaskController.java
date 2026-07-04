@@ -9,6 +9,7 @@ import com.task.platform.admin.entity.PublishMaterial;
 import com.task.platform.admin.entity.PublishTask;
 import com.task.platform.admin.service.PublishTaskService;
 import com.task.platform.common.response.ApiResponse;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -136,6 +137,43 @@ public class PublishTaskController {
         }
     }
 
+    /**
+     * 取消任务（前端兼容）
+     * PUT /api/publish/tasks/{id}/cancel
+     */
+    @PutMapping("/{id}/cancel")
+    public ApiResponse<Void> cancelTask(@PathVariable Long id) {
+        return cancel(id);
+    }
+
+    /**
+     * 审核任务
+     * PUT /api/publish/tasks/{id}/review
+     */
+    @PutMapping("/{id}/review")
+    public ApiResponse<Void> review(@PathVariable Long id, @RequestBody ReviewRequest req) {
+        try {
+            publishTaskService.review(id, req.isPass(), req.getReason());
+            return ApiResponse.success(null, req.isPass() ? "审核通过，任务已上架" : "审核已拒绝");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(400, e.getMessage());
+        }
+    }
+
+    /**
+     * 下架任务
+     * PUT /api/publish/tasks/{id}/offline
+     */
+    @PutMapping("/{id}/offline")
+    public ApiResponse<Void> offline(@PathVariable Long id) {
+        try {
+            publishTaskService.offline(id);
+            return ApiResponse.success(null, "任务已下架");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ApiResponse.error(400, e.getMessage());
+        }
+    }
+
     // ==================== DTO 转换 ====================
 
     private PublishTaskVO toVO(PublishTask task) {
@@ -150,10 +188,13 @@ public class PublishTaskController {
         vo.setClaimedBy(task.getClaimedBy());
         vo.setClaimedAt(task.getClaimedAt());
         vo.setCompletedAt(task.getCompletedAt());
+        vo.setPublishedAt(task.getPublishedAt());
         vo.setErrorMessage(task.getErrorMessage());
         vo.setRetryCount(task.getRetryCount());
         vo.setMaxRetry(task.getMaxRetry());
         vo.setRemark(task.getRemark());
+        vo.setRewardAmount(task.getRewardAmount());
+        vo.setImages(task.getImages());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
         // 填充项目名
@@ -166,5 +207,16 @@ public class PublishTaskController {
             }
         }
         return vo;
+    }
+
+    // ==================== 内部 DTO ====================
+
+    /**
+     * 审核请求 DTO
+     */
+    @Data
+    public static class ReviewRequest {
+        private boolean pass;
+        private String reason;
     }
 }

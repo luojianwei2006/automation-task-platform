@@ -26,4 +26,10 @@ public class UpdatePublishTaskReq {
 
     /** 内部备注 */
     private String remark;
+
+    /** 奖励金额 */
+    private java.math.BigDecimal rewardAmount;
+
+    /** 图片URL列表（JSON数组字符串） */
+    private String images;
 }

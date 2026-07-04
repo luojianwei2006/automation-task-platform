@@ -90,6 +90,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/publish/PublishTask.vue'),
         meta: { title: '视频发布任务' }
       },
+      {
+        path: 'publish/records',
+        name: 'PublishRecord',
+        component: () => import('../views/publish/PublishRecord.vue'),
+        meta: { title: '发布记录审核' }
+      },
     ]
   },
   // 404

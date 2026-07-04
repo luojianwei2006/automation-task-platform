@@ -40,6 +40,7 @@
           <el-menu-item index="/publish/projects">项目管理</el-menu-item>
           <el-menu-item index="/publish/recycle-bin">回收站</el-menu-item>
           <el-menu-item index="/publish/tasks">视频发布任务</el-menu-item>
+          <el-menu-item index="/publish/records">发布记录审核</el-menu-item>
         </el-sub-menu>
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>

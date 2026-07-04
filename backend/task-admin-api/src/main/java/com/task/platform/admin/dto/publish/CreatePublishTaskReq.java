@@ -29,4 +29,10 @@ public class CreatePublishTaskReq {
 
     /** 内部备注 */
     private String remark;
+
+    /** 图片URL列表（JSON数组字符串），前端上传后传入 */
+    private String images;
+
+    /** 奖励金额 */
+    private java.math.BigDecimal rewardAmount;
 }

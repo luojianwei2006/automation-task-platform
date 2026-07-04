@@ -4,6 +4,9 @@ import android.content.Context
 import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
 import com.task.platform.model.AutoRecord
+import com.task.platform.model.MergeHistoryVO
+import com.task.platform.model.MergeResultVO
+import com.task.platform.model.PublishMaterialPreviewVO
 import com.task.platform.model.WithdrawRecord
 import com.task.platform.model.EarningsRecord
 import com.task.platform.model.EarningsSummary
@@ -195,6 +198,30 @@ interface ApiService {
     /** 完成发布任务 */
     @POST("api/mobile/publish/tasks/{id}/complete")
     suspend fun completePublishTask(@Path("id") id: Long): ApiResponse<Void>
+
+    /** 获取项目素材随机预览（移动端） */
+    @GET("api/mobile/publish/materials")
+    suspend fun getPublishMaterials(@Query("projectId") projectId: Long): ApiResponse<PublishMaterialPreviewVO>
+
+    /** 合并预览视频素材 */
+    @POST("api/mobile/publish/merge-preview")
+    suspend fun mergePublishVideos(@Body req: Map<String, @JvmSuppressWildcards Any>): ApiResponse<MergeResultVO>
+
+    /** 查询合并历史 */
+    @GET("api/mobile/publish/merge-preview/history")
+    suspend fun getMergeHistory(@Query("projectId") projectId: Long): ApiResponse<List<MergeHistoryVO>>
+
+    /** 发布任务（合并完成） */
+    @POST("api/mobile/publish/tasks/{id}/publish")
+    suspend fun publishPublishTask(@Path("id") id: Long): ApiResponse<Void>
+
+    /** 提交审核 */
+    @POST("api/mobile/publish/tasks/{id}/submit")
+    suspend fun submitReview(@Path("id") id: Long, @Body req: Map<String, @JvmSuppressWildcards Any>): ApiResponse<Void>
+
+    /** 查询提交状态 */
+    @GET("api/mobile/publish/tasks/{id}/submission-status")
+    suspend fun getSubmissionStatus(@Path("id") id: Long): ApiResponse<Map<String, Any>>
 }
 
 /**

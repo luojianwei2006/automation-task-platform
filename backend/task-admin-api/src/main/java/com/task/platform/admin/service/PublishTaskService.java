@@ -16,6 +16,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -34,6 +35,9 @@ public class PublishTaskService {
 
     // 状态常量
     public static final String STATUS_PENDING   = "pending";
+    public static final String STATUS_ONLINE    = "online";
+    public static final String STATUS_REJECTED  = "rejected";
+    public static final String STATUS_OFFLINE   = "offline";
     public static final String STATUS_CLAIMED   = "claimed";
     public static final String STATUS_RUNNING   = "running";
     public static final String STATUS_COMPLETED = "completed";
@@ -58,6 +62,8 @@ public class PublishTaskService {
         task.setScheduledAt(req.getScheduledAt());
         task.setMaxRetry(req.getMaxRetry() != null ? req.getMaxRetry() : 3);
         task.setRemark(req.getRemark());
+        task.setImages(req.getImages());
+        task.setRewardAmount(req.getRewardAmount());
         task.setStatus(STATUS_PENDING);
 
         publishTaskMapper.insert(task);
@@ -131,9 +137,65 @@ public class PublishTaskService {
         if (req.getRemark() != null) {
             task.setRemark(req.getRemark());
         }
+        if (req.getRewardAmount() != null) {
+            task.setRewardAmount(req.getRewardAmount());
+        }
+        if (req.getImages() != null) {
+            task.setImages(req.getImages());
+        }
 
         publishTaskMapper.updateById(task);
-        log.info("[PublishTask] 更新任务: id={}", id);
+        log.info("[PublishTask] 更新任务: id={}, rewardAmount={}", id, task.getRewardAmount());
+        return task;
+    }
+
+    /**
+     * 审核任务（仅pending状态）
+     * 通过 → status=online, publishedAt=now
+     * 拒绝 → status=rejected, errorMessage=reason
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public PublishTask review(Long taskId, boolean pass, String reason) {
+        PublishTask task = publishTaskMapper.selectById(taskId);
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在");
+        }
+        if (!STATUS_PENDING.equals(task.getStatus())) {
+            throw new IllegalStateException("仅pending状态的任务可以审核，当前状态: " + task.getStatus());
+        }
+
+        if (pass) {
+            task.setStatus(STATUS_ONLINE);
+            task.setPublishedAt(LocalDateTime.now());
+        } else {
+            if (reason == null || reason.isBlank()) {
+                throw new IllegalArgumentException("拒绝时必须填写拒绝原因");
+            }
+            task.setStatus(STATUS_REJECTED);
+            task.setErrorMessage(reason);
+        }
+
+        publishTaskMapper.updateById(task);
+        log.info("[PublishTask] 审核任务: id={}, pass={}", taskId, pass);
+        return task;
+    }
+
+    /**
+     * 下架任务（仅online状态）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public PublishTask offline(Long taskId) {
+        PublishTask task = publishTaskMapper.selectById(taskId);
+        if (task == null) {
+            throw new IllegalArgumentException("任务不存在");
+        }
+        if (!STATUS_ONLINE.equals(task.getStatus())) {
+            throw new IllegalStateException("仅online状态的任务可以下架，当前状态: " + task.getStatus());
+        }
+
+        task.setStatus(STATUS_OFFLINE);
+        publishTaskMapper.updateById(task);
+        log.info("[PublishTask] 下架任务: id={}", taskId);
         return task;
     }
 

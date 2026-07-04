@@ -27,7 +27,32 @@ automation_project/
 | 前端 | Vue 3、TypeScript、Element Plus 2.x、Pinia |
 | 数据库 | MySQL 8.0 |
 
-## 支持平台
+## 功能模块
+
+### 视频发布任务（短视频代发）
+
+完整流程：管理后台创建任务 → Android 端领取 → 视频合并剪辑 → 发布到平台 → 截图提交审核 → 审核通过发放奖励
+
+- **管理后台**：创建/编辑发布任务、设置奖励金额、管理素材（视频/音乐/截图）、发布记录审核
+- **视频合并**：后端 FFmpeg 异步合并，支持转场效果（19种）、渐入渐出（2秒）、字幕叠加
+- **Android 端**：领取任务、合并历史、剪辑选项（转场/渐入渐出/字幕）、预览/保存/发布/提交审核
+- **状态机**：CLAIMED → MERGED → SUBMITTED → PASSED/REJECTED
+
+### 转场效果（19种）
+
+| 无 | 淡入淡出 | 黑场过渡 | 白场过渡 |
+| 左擦/右擦/上擦/下擦 | 左滑/右滑/上滑/下滑 |
+| 圆形裁剪 | 圆形展开 | 圆形收缩 |
+| 溶解 | 像素化 | 水平展开 | 垂直展开 |
+
+### 自动化点赞/评论
+
+| taskType | 操作 |
+|----------|------|
+| 1 | 点赞 |
+| 2 | 点赞 + 评论 |
+
+### 支持平台
 
 | platform | 名称 | 自动化引擎 |
 |----------|------|------------|
@@ -35,18 +60,21 @@ automation_project/
 | 2 | 小红书 | `XhsAutomator` |
 | 3 | 微信视频号 | `WechatVideoAutomator`（打开微信并截图） |
 
-## 任务类型
-
-| taskType | 操作 |
-|----------|------|
-| 1 | 点赞 |
-| 2 | 点赞 + 评论 |
-
 ## 自动化截图策略（多级降级）
 
 ```
 API 34 takeScreenshot() → screencap 写文件 → GLOBAL_ACTION + MediaStore → SurfaceControl 反射
 ```
+
+## 环境变量
+
+| 变量 | 说明 |
+|------|------|
+| `MYSQL_HOST` | MySQL 主机 |
+| `MYSQL_PORT` | MySQL 端口 |
+| `REDIS_HOST` | Redis 主机 |
+| `jwt.secret` | JWT 签名密钥 |
+| `upload.root` | 上传文件根目录 |
 
 ## 快速启动
 
@@ -69,24 +97,11 @@ npm install && npm run dev
 ## 数据库
 
 ```bash
+# 初始化
 mysql -u root -p < sql/init_database.sql
-```
 
-## Git 历史
-
-```
-main: 2288db3  refactor: 视频号简化为打开微信+截图+关闭
-      e40f469  fix: 搜索图标多候选位点击
-      e0db19a  feat: 微信无障碍树不可用时全流程坐标降级
-      0a5e682  fix: enterVideoChannel dump诊断 + 坐标兜底 + 滑动查找
-      87a4619  feat: 自动发现微信包名 + 显示应用名称
-      9d27aff  fix: 改用 queryIntentActivities 搜索微信
-      b9c3cf8  debug: 微信未安装时 dump 所有已装应用包名
-      056ce7a  debug: 点搜索前dump视频号页面控件
-      7399bcb  fix: 无障碍服务配置增强 + 微信全窗口搜索
-      2db4488  feat: 新增微信视频号自动化（platform=3）
-      9d1492d  feat: 前后端添加微信视频号平台选项
-      6a3e46b  fix: Android 强制竖屏
-      2f57c2d  fix: 三重策略启动微信
-      68f9552  feat: 小红书评论自动化 + 截图流程完善 + 稳定性修复
+# 发布任务相关表
+mysql -u root -p < sql/publish_merge_history.sql
+mysql -u root -p < sql/user_publish_record.sql
+mysql -u root -p < sql/publish_task_add_reward.sql
 ```

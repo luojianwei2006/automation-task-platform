@@ -43,7 +43,10 @@ export const PUBLISH_PLATFORM_MAP: Record<string, string> = {
 
 /** 发布任务状态映射 */
 export const PUBLISH_TASK_STATUS_MAP: Record<string, { text: string; type: string }> = {
-  pending: { text: '待领取', type: 'info' },
+  pending: { text: '待审核', type: 'warning' },
+  online: { text: '已上架', type: 'success' },
+  rejected: { text: '已拒绝', type: 'danger' },
+  offline: { text: '已下架', type: 'info' },
   claimed: { text: '已领取', type: 'warning' },
   running: { text: '执行中', type: 'primary' },
   completed: { text: '已完成', type: 'success' },
@@ -126,6 +129,20 @@ export interface RecycleBinItem {
 
 // --- 发布任务 ---
 
+export interface MaterialItem {
+  id: number
+  projectId: number
+  type: string          // text/image/music/video
+  title: string
+  fileUrl?: string
+  fileSize?: number
+  content?: string
+  duration?: number
+  resolution?: string
+  sortOrder?: number
+  createdAt: string
+}
+
 export interface PublishTask {
   id: number
   projectId: number
@@ -136,6 +153,8 @@ export interface PublishTask {
   scheduledAt: string | null
   createdAt: string
   updatedAt: string
+  materials?: MaterialItem[]  // 任务关联素材，仅详情接口返回
+  images?: string             // 任务图片URL列表（JSON数组），如 ["url1","url2"]
 }
 
 export interface PublishTaskListParams {
@@ -150,12 +169,14 @@ export interface CreatePublishTaskRequest {
   platforms: string
   publishText: string
   scheduledAt?: string | null
+  images?: string           // 图片URL列表（JSON数组字符串）
 }
 
 export interface UpdatePublishTaskRequest {
-  platform?: string
-  content?: string
+  platforms?: string
+  publishText?: string
   scheduledAt?: string | null
+  rewardAmount?: number
 }
 
 // ==================== 项目管理 API ====================
@@ -281,6 +302,11 @@ export function getPublishTaskList(params: PublishTaskListParams = {}) {
   return publishRequest.get<PageResult<PublishTask>>('/publish/tasks', { params })
 }
 
+/** 获取任务详情（含素材） */
+export function getPublishTaskDetail(taskId: number) {
+  return publishRequest.get<PublishTask>(`/publish/tasks/${taskId}`)
+}
+
 /** 创建发布任务 */
 export function createPublishTask(data: CreatePublishTaskRequest) {
   return publishRequest.post('/publish/tasks', data)
@@ -291,7 +317,76 @@ export function updatePublishTask(taskId: number, data: UpdatePublishTaskRequest
   return publishRequest.put(`/publish/tasks/${taskId}`, data)
 }
 
-/** 取消发布任务（仅待领取状态可取消） */
+/** 取消发布任务（仅待审核状态可取消） */
 export function cancelTask(taskId: number) {
   return publishRequest.put(`/publish/tasks/${taskId}/cancel`)
+}
+
+/** 审核发布任务 */
+export function reviewPublishTask(taskId: number, data: { pass: boolean; reason?: string }) {
+  return publishRequest.put(`/publish/tasks/${taskId}/review`, data)
+}
+
+/** 下架发布任务 */
+export function offlinePublishTask(taskId: number) {
+  return publishRequest.put(`/publish/tasks/${taskId}/offline`)
+}
+
+/** 上传单张图片（到统一上传服务），返回 accessUrl */
+export function uploadImage(file: File): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const uploadRequest = axios.create({
+    baseURL: '/api',
+    timeout: 60000,
+  })
+  uploadRequest.interceptors.request.use((config) => {
+    const token = localStorage.getItem('token')
+    if (token) config.headers['Authorization'] = `Bearer ${token}`
+    return config
+  })
+  return uploadRequest.post('/upload/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }).then(res => {
+    if (res.data.code === 200) return res.data.data.accessUrl as string
+    return Promise.reject(new Error(res.data.msg || '上传失败'))
+  })
+}
+
+// ==================== 发布记录审核 ====================
+
+export interface PublishRecordVO {
+  id: number
+  userId: number
+  userPhone: string
+  taskId: number
+  taskName: string
+  status: string
+  screenshots: string | null
+  mergedVideoUrl: string | null
+  rewardAmount: number | null
+  claimedAt: string
+  submittedAt: string | null
+  reviewedAt: string | null
+  reviewResult: string | null
+}
+
+/** 获取发布记录列表 */
+export function getPublishRecords(params: { page: number; size: number; status?: string }) {
+  return publishRequest.get('/publish/records', { params }) as Promise<{ records: PublishRecordVO[]; total: number }>
+}
+
+/** 获取待审核列表 */
+export function getPendingReviews(params: { page: number; size: number }) {
+  return publishRequest.get('/publish/records/pending-review', { params }) as Promise<{ records: PublishRecordVO[]; total: number }>
+}
+
+/** 审核通过 */
+export function approveRecord(id: number) {
+  return publishRequest.post(`/publish/records/${id}/approve`)
+}
+
+/** 审核拒绝 */
+export function rejectRecord(id: number, reason: string) {
+  return publishRequest.post(`/publish/records/${id}/reject`, { reason })
 }
