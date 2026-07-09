@@ -1,5 +1,6 @@
 package com.task.platform.ui.task
 
+import com.task.platform.rewriteLocalImageUrl
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -629,7 +630,7 @@ private fun parseImages(json: String?): List<String> {
 private fun mapImageUrl(url: String): String {
     // 已是完整 URL
     if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+        return rewriteLocalImageUrl(url)
     }
     // 相对路径，拼接 base URL（去掉尾部 /）
     val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')

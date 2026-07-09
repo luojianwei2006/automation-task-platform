@@ -1,5 +1,6 @@
 package com.task.platform.ui.publish
 
+import com.task.platform.rewriteLocalImageUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import android.content.Intent
@@ -1803,14 +1804,14 @@ private fun VideoThumbnailCard(
 
 /**
  * 将相对路径图片 URL 转为可通过 Gateway 访问的完整 URL
- * - 已是 http/https 的完整 URL → 替换 localhost/127.0.0.1 为 10.0.2.2（模拟器）
+ * - 已是 http/https 的完整 URL → 交给 rewriteLocalImageUrl 重写 localhost/127.0.0.1 为上传服务 host
  * - /upload/ 路径 → 拼接 BASE_URL + /api/upload/...（走网关路由到 upload-service）
  * - /uploads/ 路径 → 拼接 BASE_URL + /api/uploads/...（走网关路由到 admin-api）
  * - 其他相对路径 → 直接拼接 BASE_URL
  */
 private fun mapImageUrl(url: String): String {
     if (url.startsWith("http://") || url.startsWith("https://")) {
-        return url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+        return rewriteLocalImageUrl(url)
     }
     val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
     return if (url.startsWith("/upload/")) {

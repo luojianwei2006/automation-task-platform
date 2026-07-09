@@ -11,6 +11,7 @@ import com.task.platform.ui.main.MainScreen
 import com.task.platform.ui.profile.RealAuthScreen
 import com.task.platform.ui.profile.WalletBindingScreen
 import com.task.platform.ui.profile.SettingsScreen
+import com.task.platform.ui.profile.AboutScreen
 import com.task.platform.ui.profile.EditProfileScreen
 import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.ScreenshotUploadScreen
@@ -35,6 +36,7 @@ object TaskRoutes {
     const val WALLET_BINDING = "wallet_binding"
     const val SETTINGS = "settings"
     const val EDIT_PROFILE = "edit_profile"
+    const val ABOUT = "about"
 }
 
 /**
@@ -136,6 +138,11 @@ fun TaskNavGraph(
         // ===== 设置页 =====
         composable(TaskRoutes.SETTINGS) {
             SettingsScreen(navController = navController)
+        }
+
+        // ===== 关于页 =====
+        composable(TaskRoutes.ABOUT) {
+            AboutScreen(navController = navController)
         }
 
         // ===== 编辑资料页 =====

@@ -107,7 +107,7 @@ fun SettingsScreen(
         // 关于我们
         SettingsCard(title = "关于") {
             Button(
-                onClick = { /* TODO: 关于页面 */ },
+                onClick = { navController.navigate("about") },
                 colors = ButtonDefaults.outlinedButtonColors()
             ) {
                 Text("关于我们")

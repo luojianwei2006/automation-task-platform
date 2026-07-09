@@ -1012,7 +1012,7 @@ class DouyinAutomator(
 
             val response = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
                 okhttp3.OkHttpClient().newCall(okhttp3.Request.Builder()
-                    .url("http://10.0.2.2:8086/upload/image")
+                    .url(com.task.platform.ApiConstants.UPLOAD_BASE_URL + "/upload/image")
                     .post(body)
                     .header("Authorization", "Bearer $token")
                     .build()).execute()
