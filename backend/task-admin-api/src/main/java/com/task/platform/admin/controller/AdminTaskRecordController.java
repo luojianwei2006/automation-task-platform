@@ -2,8 +2,11 @@ package com.task.platform.admin.controller;
 
 import com.task.platform.admin.mapper.UserEarningsMapper;
 import com.task.platform.admin.mapper.UserTaskRecordMapper;
+import com.task.platform.admin.security.AdminUserDetails;
+import com.task.platform.admin.service.MerchantService;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,6 +25,38 @@ public class AdminTaskRecordController {
 
     private final UserTaskRecordMapper userTaskRecordMapper;
     private final UserEarningsMapper userEarningsMapper;
+    private final MerchantService merchantService;
+
+    /**
+     * 领取记录列表（跨任务，按状态过滤）
+     * GET /api/admin/task-records?status=1&page=1&size=20
+     *
+     * <p>超管看全部商户；商户管理员只看自己商户的记录。
+     */
+    @GetMapping
+    public ApiResponse<Map<String, Object>> listRecords(
+            @AuthenticationPrincipal AdminUserDetails currentUser,
+            @RequestParam(required = false) Integer status,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+
+        // 商户管理员只能看自己商户；超管看全部
+        Long merchantId = currentUser.isSuperAdmin() ? null : currentUser.getMerchantId();
+
+        List<Map<String, Object>> all = userTaskRecordMapper.selectByStatusWithUserAndTask(status, merchantId);
+
+        long total = all.size();
+        int fromIndex = Math.max(0, Math.min((page - 1) * size, all.size()));
+        int toIndex   = Math.min(page * size, all.size());
+        List<Map<String, Object>> records = all.subList(fromIndex, toIndex);
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("total", total);
+        data.put("page", page);
+        data.put("size", size);
+        data.put("records", records);
+        return ApiResponse.success(data);
+    }
 
     /**
      * 根据任务ID查询所有领取记录（含用户信息）
@@ -84,6 +119,15 @@ public class AdminTaskRecordController {
             return ApiResponse.error(404, "记录不存在");
         }
         Long userId = ((Number) detail.get("userId")).longValue();
+
+        // === 商户扣费：用户提交审核通过 → 扣 奖励+服务费，写 TYPE_TASK_COST 流水 ===
+        // 失败（余额不足/异常）抛异常 → 整体 @Transactional 回滚 → 记录保持待审核(1)，不发放用户奖励
+        Long taskId = detail.get("taskId") != null ? ((Number) detail.get("taskId")).longValue() : null;
+        Long merchantId = detail.get("merchantId") != null ? ((Number) detail.get("merchantId")).longValue() : null;
+        String taskTitle = (String) detail.get("taskTitle");
+        if (merchantId != null && rewardAmount != null && rewardAmount.compareTo(BigDecimal.ZERO) > 0) {
+            merchantService.deductTaskCost(merchantId, rewardAmount, taskId, taskTitle);
+        }
 
         // 3. 获取用户最新余额
         BigDecimal currentBalance = userEarningsMapper.selectLatestBalance(userId);

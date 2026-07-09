@@ -39,6 +39,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '任务管理' }
       },
       {
+        path: 'task/review',
+        name: 'TaskReview',
+        component: () => import('../views/task-review/index.vue'),
+        meta: { title: '任务审核' }
+      },
+      {
         path: 'withdraw/list',
         name: 'WithdrawList',
         component: () => import('../views/withdraw/index.vue'),
@@ -95,6 +101,18 @@ const routes: RouteRecordRaw[] = [
         name: 'PublishRecord',
         component: () => import('../views/publish/PublishRecord.vue'),
         meta: { title: '发布记录审核' }
+      },
+      {
+        path: 'change-password',
+        name: 'ChangePassword',
+        component: () => import('../views/ChangePassword.vue'),
+        meta: { title: '修改密码' }
+      },
+      {
+        path: 'merchant/transactions',
+        name: 'MerchantTransactions',
+        component: () => import('../views/MerchantTransactions.vue'),
+        meta: { title: '商户流水' }
       },
     ]
   },

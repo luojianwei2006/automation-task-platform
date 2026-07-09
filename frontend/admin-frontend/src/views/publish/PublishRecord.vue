@@ -11,10 +11,10 @@
       <div class="toolbar" v-if="activeTab === 'all'">
         <el-select v-model="filter.status" placeholder="全部状态" clearable style="width: 140px" @change="loadData">
           <el-option label="已领取" value="CLAIMED" />
-          <el-option label="已合并" value="MERGED" />
-          <el-option label="已提交" value="SUBMITTED" />
-          <el-option label="已通过" value="PASSED" />
-          <el-option label="已拒绝" value="REJECTED" />
+          <el-option label="已领取" value="MERGED" />
+          <el-option label="审核中" value="SUBMITTED" />
+          <el-option label="已奖励" value="PASSED" />
+          <el-option label="已拒绝（需要重新提交审核）" value="REJECTED" />
         </el-select>
         <el-button type="primary" @click="loadData">查询</el-button>
       </div>
@@ -66,8 +66,8 @@
               <el-button type="success" size="small" @click="approve(row.id)">通过</el-button>
               <el-button type="danger" size="small" @click="showReject(row.id)">拒绝</el-button>
             </template>
-            <el-tag v-else-if="row.status === 'PASSED'" type="success">已通过</el-tag>
-            <el-tag v-else-if="row.status === 'REJECTED'" type="danger">已拒绝</el-tag>
+            <el-tag v-else-if="row.status === 'PASSED'" type="success">已奖励</el-tag>
+            <el-tag v-else-if="row.status === 'REJECTED'" type="danger">已拒绝（需要重新提交审核）</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -137,6 +137,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getPublishRecords, getPendingReviews, approveRecord, rejectRecord, type PublishRecordVO } from '@/api/publish'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
 
 const activeTab = ref('pending')
 const loading = ref(false)
@@ -157,10 +160,14 @@ const detailVisible = ref(false)
 const detailRow = ref<PublishRecordVO | null>(null)
 
 const statusMap: Record<string, string> = {
-  CLAIMED: '已领取', MERGED: '已合并', SUBMITTED: '已提交', PASSED: '已通过', REJECTED: '已拒绝'
+  CLAIMED: '已领取',
+  MERGED: '已领取',
+  SUBMITTED: '审核中',
+  PASSED: '已奖励',
+  REJECTED: '已拒绝（需要重新提交审核）',
 }
 const statusType = (s: string) => s === 'PASSED' ? 'success' : s === 'REJECTED' ? 'danger' : s === 'SUBMITTED' ? 'warning' : 'info'
-const statusText = (s: string) => statusMap[s] || s
+const statusText = (s: string) => statusMap[s] || '待领取'
 
 const base = import.meta.env.VITE_API_BASE || ''
 const mapUrl = (url: string) => {
@@ -172,7 +179,7 @@ const mapUrl = (url: string) => {
 async function loadData() {
   loading.value = true
   try {
-    const params = { page: page.value, size: size.value, status: filter.status }
+    const params = { page: page.value, size: size.value, status: filter.status, merchantId: userStore.userInfo.merchantId || undefined }
     const res = activeTab.value === 'pending'
       ? await getPendingReviews(params)
       : await getPublishRecords(params)

@@ -2,7 +2,9 @@ package com.task.platform.admin.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.task.platform.admin.entity.AdminUser;
 import com.task.platform.admin.entity.Merchant;
+import com.task.platform.admin.mapper.AdminUserMapper;
 import com.task.platform.admin.mapper.MerchantMapper;
 import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ErrorCode;
@@ -13,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,6 +31,8 @@ public class MerchantService {
 
     private final MerchantMapper merchantMapper;
     private final PasswordEncoder passwordEncoder;
+    private final AdminUserMapper adminUserMapper;
+    private final MerchantTransactionService merchantTransactionService;
 
     // ==================== 查询 ====================
 
@@ -55,6 +60,9 @@ public class MerchantService {
         }
         
         wrapper.orderByDesc(Merchant::getCreatedAt);
+        
+        // 排除已删除（status=0）的商户，软删除不应在列表显示
+        wrapper.ne(Merchant::getStatus, 0);
         
         return merchantMapper.selectPage(new Page<>(page, size), wrapper);
     }
@@ -93,10 +101,13 @@ public class MerchantService {
      */
     @Transactional(rollbackFor = Exception.class)
     public Long createMerchant(CreateMerchantRequest req) {
-        // 检查手机号是否已存在
+        // 检查手机号是否已被正常商户使用
         if (merchantMapper.selectByPhone(req.getPhone()) != null) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "手机号已注册");
         }
+
+        // 如果存在已删除的商户记录（status=0），物理删除以释放 UK 约束
+        merchantMapper.deleteByPhone(req.getPhone());
 
         Merchant merchant = new Merchant();
         merchant.setName(req.getName());
@@ -108,13 +119,30 @@ public class MerchantService {
         merchant.setLegalPerson(req.getLegalPerson());
         merchant.setLegalIdCard(req.getLegalIdCard());
         merchant.setAuthStatus(req.getAuthStatus() != null ? req.getAuthStatus() : 0);
-        merchant.setPointBalance(req.getPointBalance() != null ? req.getPointBalance() : java.math.BigDecimal.ZERO);
+        merchant.setPointBalance(java.math.BigDecimal.ZERO);
+        merchant.setServiceFeeRate(req.getServiceFeeRate() != null ? req.getServiceFeeRate() : new java.math.BigDecimal("0.15"));
         merchant.setStatus(req.getStatus() != null ? req.getStatus() : 1);
         merchant.setCreatedAt(LocalDateTime.now());
         merchant.setUpdatedAt(LocalDateTime.now());
 
         merchantMapper.insert(merchant);
         log.info("[Merchant] 创建商户成功: {}, ID: {}", merchant.getName(), merchant.getId());
+
+        // 自动创建商户管理员账号（登录用）
+        AdminUser adminUser = new AdminUser();
+        adminUser.setUsername(req.getPhone());
+        adminUser.setPassword(passwordEncoder.encode(req.getPassword()));
+        adminUser.setDisplayName(req.getName());
+        adminUser.setRoleType(AdminAuthService.ROLE_MERCHANT_ADMIN);
+        adminUser.setMerchantId(merchant.getId());
+        adminUser.setStatus(1);
+        adminUser.setCreatedBy(0L);
+        adminUser.setCreatedAt(LocalDateTime.now());
+        adminUser.setUpdatedAt(LocalDateTime.now());
+        adminUserMapper.insert(adminUser);
+        log.info("[Merchant] 自动创建管理账号: username={}, adminId={}, merchantId={}",
+            adminUser.getUsername(), adminUser.getId(), merchant.getId());
+
         return merchant.getId();
     }
 
@@ -166,6 +194,9 @@ public class MerchantService {
         if (req.getPointBalance() != null) {
             merchant.setPointBalance(req.getPointBalance());
         }
+        if (req.getServiceFeeRate() != null) {
+            merchant.setServiceFeeRate(req.getServiceFeeRate());
+        }
         merchant.setUpdatedAt(LocalDateTime.now());
 
         merchantMapper.updateById(merchant);
@@ -203,6 +234,81 @@ public class MerchantService {
         log.info("[Merchant] 删除商户（禁用）: ID={}", merchantId);
     }
 
+    // ==================== 余额调整 ====================
+
+    /**
+     * 调整商户余额（充值/扣费），自动写入流水
+     *
+     * @param merchantId 商户ID
+     * @param amount     变动金额（正=充值，负=扣费）
+     * @param remark     备注
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void adjustBalance(Long merchantId, java.math.BigDecimal amount, String remark) {
+        Merchant merchant = getMerchantDetail(merchantId);
+        java.math.BigDecimal before = merchant.getPointBalance();
+        java.math.BigDecimal after = before.add(amount);
+        if (after.compareTo(java.math.BigDecimal.ZERO) < 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "余额不足，扣费后余额为负数");
+        }
+        merchant.setPointBalance(after);
+        merchant.setTotalConsume(merchant.getTotalConsume() != null
+            ? merchant.getTotalConsume().add(amount.compareTo(java.math.BigDecimal.ZERO) < 0 ? amount.negate() : java.math.BigDecimal.ZERO)
+            : (amount.compareTo(java.math.BigDecimal.ZERO) < 0 ? amount.negate() : java.math.BigDecimal.ZERO));
+        merchant.setTotalRecharge(merchant.getTotalRecharge() != null
+            ? merchant.getTotalRecharge().add(amount.compareTo(java.math.BigDecimal.ZERO) > 0 ? amount : java.math.BigDecimal.ZERO)
+            : (amount.compareTo(java.math.BigDecimal.ZERO) > 0 ? amount : java.math.BigDecimal.ZERO));
+        merchant.setUpdatedAt(LocalDateTime.now());
+        merchantMapper.updateById(merchant);
+
+        int type = amount.compareTo(java.math.BigDecimal.ZERO) > 0
+            ? MerchantTransactionService.TYPE_RECHARGE
+            : MerchantTransactionService.TYPE_MANUAL_DEDUCT;
+        merchantTransactionService.addTransaction(
+            merchantId, type, amount, before, after,
+            null, remark != null ? remark : (type == MerchantTransactionService.TYPE_RECHARGE ? "手动充值" : "手动扣费")
+        );
+        log.info("[Merchant] 余额调整: id={}, 变动={}, 余额: {}→{}", merchantId, amount, before, after);
+    }
+
+    /**
+     * 任务扣费（用户提交审核通过时由内部接口调用）：扣除商户余额 = 奖励 + 服务费。
+     * 写入 TYPE_TASK_COST 流水。平台任务(merchantId=null)或奖励<=0 时直接返回。
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void deductTaskCost(Long merchantId, java.math.BigDecimal rewardAmount,
+                               Long taskId, String taskTitle) {
+        if (merchantId == null || rewardAmount == null
+                || rewardAmount.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        Merchant merchant = getMerchantDetail(merchantId);
+        java.math.BigDecimal feeRate = merchant.getServiceFeeRate() != null
+                ? merchant.getServiceFeeRate() : new java.math.BigDecimal("0.15");
+        java.math.BigDecimal fee = rewardAmount.multiply(feeRate)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        java.math.BigDecimal cost = rewardAmount.add(fee)
+                .setScale(2, java.math.RoundingMode.HALF_UP);
+        java.math.BigDecimal before = merchant.getPointBalance();
+        if (before.compareTo(cost) < 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR,
+                "商户余额不足（余额:" + before + "，需扣除:" + cost + "），请先充值");
+        }
+        java.math.BigDecimal after = before.subtract(cost);
+        merchant.setPointBalance(after);
+        merchant.setTotalConsume(merchant.getTotalConsume() != null
+                ? merchant.getTotalConsume().add(cost) : cost);
+        merchant.setUpdatedAt(java.time.LocalDateTime.now());
+        merchantMapper.updateById(merchant);
+
+        merchantTransactionService.addTransaction(
+            merchantId,
+            MerchantTransactionService.TYPE_TASK_COST,
+            cost.negate(), before, after,
+            taskId, "任务审核通过(用户提交)：" + (taskTitle != null ? taskTitle : "")
+        );
+    }
+
     // ==================== DTO ====================
 
     @Data
@@ -236,7 +342,10 @@ public class MerchantService {
         
         /** 点数余额 */
         private java.math.BigDecimal pointBalance;
-        
+
+        /** 服务费率（如 0.15 表示 15%） */
+        private java.math.BigDecimal serviceFeeRate;
+
         /** 状态：0封禁 1正常 */
         private Integer status;
     }
@@ -275,5 +384,8 @@ public class MerchantService {
         
         /** 点数余额 */
         private java.math.BigDecimal pointBalance;
+
+        /** 服务费率（如 0.15 表示 15%） */
+        private java.math.BigDecimal serviceFeeRate;
     }
 }

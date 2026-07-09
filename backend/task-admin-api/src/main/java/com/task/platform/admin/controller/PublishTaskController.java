@@ -30,6 +30,7 @@ public class PublishTaskController {
 
     private final PublishTaskService publishTaskService;
     private final com.task.platform.admin.service.PublishProjectService publishProjectService;
+    private final com.task.platform.admin.mapper.MerchantMapper merchantMapper;
 
     /**
      * 创建发布任务
@@ -63,9 +64,10 @@ public class PublishTaskController {
     public ApiResponse<Map<String, Object>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long merchantId) {
 
-        IPage<PublishTask> result = publishTaskService.list(page, size, status);
+        IPage<PublishTask> result = publishTaskService.list(page, size, status, merchantId);
         Map<String, Object> data = new HashMap<>();
         data.put("total", result.getTotal());
         data.put("page", page);
@@ -197,11 +199,31 @@ public class PublishTaskController {
         vo.setImages(task.getImages());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
-        // 填充项目名
+
+        // 预算 / 服务费展示字段（预算由后端权威重算落库，前端仅参考）
+        vo.setTotalQuota(task.getTotalQuota());
+        vo.setUsedQuota(task.getUsedQuota());
+        vo.setBudgetPoints(task.getBudgetPoints());
+        vo.setUsedPoints(task.getUsedPoints());
+
+        // 填充项目名 / 商户名 / 服务费率 / 单笔费用
         if (task.getProjectId() != null) {
             try {
                 var project = publishProjectService.getById(task.getProjectId());
-                vo.setProjectName(project != null ? project.getName() : "");
+                if (project != null) {
+                    vo.setProjectName(project.getName());
+                    vo.setMerchantId(project.getMerchantId());
+                    // 查询商户名称与服务费率
+                    java.math.BigDecimal feeRate = null;
+                    if (project.getMerchantId() != null) {
+                        var merchant = merchantMapper.selectById(project.getMerchantId());
+                        vo.setMerchantName(merchant != null ? merchant.getName() : "");
+                        feeRate = merchant != null ? merchant.getServiceFeeRate() : null;
+                    }
+                    vo.setServiceFeeRate(feeRate);
+                } else {
+                    vo.setProjectName("");
+                }
             } catch (Exception e) {
                 vo.setProjectName("");
             }

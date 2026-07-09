@@ -29,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import android.util.Log
+import android.widget.Toast
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.task.platform.model.TaskDTO
@@ -64,6 +65,7 @@ fun TaskDetailScreen(
     val currentTask by viewModel.currentTask.collectAsState()
     val currentRecord by viewModel.currentRecord.collectAsState()
     val actionError by viewModel.actionError.collectAsState()
+    val isAccepting by viewModel.isAccepting.collectAsState()
     val autoUiState by autoVM.autoUiState.collectAsState()
     val autoSteps by autoVM.steps.collectAsState()
     val userInfo by autoVM.userInfo.collectAsState()
@@ -84,8 +86,12 @@ fun TaskDetailScreen(
         viewModel.loadTaskRecord(taskId)
     }
 
+    // 接取/放弃等操作的错误事件：弹出 toast 提示，绝不静默吞掉
     LaunchedEffect(actionError) {
-        actionError?.let { viewModel.clearActionError() }
+        actionError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearActionError()
+        }
     }
 
     // 监听自动化状态，控制进度面板
@@ -147,6 +153,16 @@ fun TaskDetailScreen(
                 )
             }
         }
+        // 接取任务中的全局加载遮罩（不覆盖任务详情内容）
+        if (isAccepting) {
+            Box(
+                modifier = Modifier.fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.35f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = Orange)
+            }
+        }
     }
 
     // ===== 接受确认对话框 =====
@@ -157,7 +173,13 @@ fun TaskDetailScreen(
             text = { Text("接受任务后请在有效时间内完成并提交截图，超时未提交将视为放弃。") },
             confirmButton = {
                 Button(
-                    onClick = { showAcceptDialog = false; viewModel.acceptTask(taskId) { viewModel.loadTaskRecord(taskId) } },
+                    onClick = {
+                        showAcceptDialog = false
+                        viewModel.acceptTask(taskId) {
+                            Toast.makeText(context, "任务已接取，请尽快完成并提交", Toast.LENGTH_SHORT).show()
+                            viewModel.loadTaskRecord(taskId)
+                        }
+                    },
                     colors = ButtonDefaults.buttonColors(containerColor = Orange)
                 ) { Text("确认接受") }
             },

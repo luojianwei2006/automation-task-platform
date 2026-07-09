@@ -227,19 +227,34 @@ class TaskViewModel @Inject constructor(
 
     // =================== 接受任务 ===================
 
+    // 接取任务中的加载状态（独立于 uiState，避免覆盖任务详情页内容）
+    private val _isAccepting = MutableStateFlow(false)
+    val isAccepting: StateFlow<Boolean> = _isAccepting.asStateFlow()
+
     /**
      * 接受任务
+     * @param taskId 任务ID
+     * @param onSuccess 接取成功后的回调（由调用方决定后续行为，如刷新详情/记录、提示用户）
+     *
+     * 注意：无论成功或失败都会结束 isAccepting 状态；失败信息通过 actionError 暴露给 UI 弹 toast，
+     * 绝不静默吞掉异常。
      */
     fun acceptTask(taskId: Long, onSuccess: () -> Unit) {
         viewModelScope.launch {
-            taskRepository.acceptTask(taskId)
-                .onSuccess {
-                    // 接取成功后回调由调用方决定后续行为（重新加载详情+记录）
-                    onSuccess()
-                }
-                .onFailure {
-                    _actionError.value = it.message ?: "接受任务失败"
-                }
+            _isAccepting.value = true
+            try {
+                taskRepository.acceptTask(taskId)
+                    .onSuccess {
+                        // 接取成功后回调由调用方决定后续行为（重新加载详情+记录）
+                        onSuccess()
+                    }
+                    .onFailure {
+                        // 失败信息通过 actionError 暴露给 UI 弹 toast，绝不静默
+                        _actionError.value = it.message ?: "接受任务失败"
+                    }
+            } finally {
+                _isAccepting.value = false
+            }
         }
     }
 

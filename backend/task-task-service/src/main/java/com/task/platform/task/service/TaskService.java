@@ -14,9 +14,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.task.platform.common.response.ApiResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 任务服务
@@ -29,6 +40,15 @@ public class TaskService {
 
     private final TaskMapper taskMapper;
     private final UserTaskRecordMapper userTaskRecordMapper;
+
+    @Value("${admin.api.base-url:http://localhost:8084}")
+    private String adminApiBaseUrl;
+
+    @Value("${internal.api-token:}")
+    private String internalApiToken;
+
+    private static final RestTemplate REST_TEMPLATE = new RestTemplate();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // 状态常量
     public static final int STATUS_PENDING = 0;   // 待审核
@@ -184,6 +204,10 @@ public class TaskService {
             wrapper.eq(Task::getTaskType, taskType);
         }
 
+        // 只展示可领取的任务：无截止时间，或剩余时间 > 30 分钟
+        LocalDateTime claimableDeadline = LocalDateTime.now().plusMinutes(30);
+        wrapper.and(w -> w.isNull(Task::getDeadline).or().gt(Task::getDeadline, claimableDeadline));
+
         Page<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);
         
         // 调试日志
@@ -261,11 +285,11 @@ public class TaskService {
             return existingRecord;
         }
 
-        // 4. 检查任务截止时间（截止前1小时不能接取）
+        // 4. 检查任务截止时间（剩余时间不足30分钟不能接取）
         if (task.getDeadline() != null) {
-            LocalDateTime oneHourBeforeDeadline = task.getDeadline().minusHours(1);
-            if (LocalDateTime.now().isAfter(oneHourBeforeDeadline)) {
-                throw new BusinessException(ErrorCode.PARAM_ERROR, "任务即将截止，无法接取");
+            LocalDateTime claimableBefore = task.getDeadline().minusMinutes(30);
+            if (LocalDateTime.now().isAfter(claimableBefore)) {
+                throw new BusinessException(ErrorCode.PARAM_ERROR, "任务剩余时间不足30分钟，无法接取");
             }
         }
 
@@ -419,8 +443,24 @@ public class TaskService {
             record.setManualCheckedAt(LocalDateTime.now());
             record.setCheckedAt(LocalDateTime.now());
 
-            // TODO: 调用支付服务发放奖励
-            // payService.grantReward(record.getUserId(), record.getTaskId(), record.getRewardAmount());
+            // === 用户提交审核通过 → 扣除商户余额（奖励 + 服务费），写入 TYPE_TASK_COST 流水 ===
+            Task task = taskMapper.selectById(record.getTaskId());
+            if (task != null && task.getMerchantId() != null
+                    && task.getRewardAmount() != null
+                    && task.getRewardAmount().compareTo(BigDecimal.ZERO) > 0) {
+                // 先扣商户余额；扣款失败抛异常，本方法 @Transactional 回滚，记录保持待审核
+                deductMerchantBalance(task.getMerchantId(), task.getRewardAmount(),
+                        task.getId(), task.getTitle());
+                // 任务维度统计：已用配额 +1，已用点数累加（奖励额）
+                task.setUsedQuota((task.getUsedQuota() == null ? 0 : task.getUsedQuota()) + 1);
+                task.setUsedPoints((task.getUsedPoints() == null ? BigDecimal.ZERO : task.getUsedPoints())
+                        .add(task.getRewardAmount()));
+                taskMapper.updateById(task);
+                // 记录本笔奖励金额，供后续发放用户奖励使用
+                record.setRewardAmount(task.getRewardAmount());
+            }
+
+            // TODO: 调用支付服务发放奖励（payService.grantReward）
             // record.setRewardGrantedAt(LocalDateTime.now());
         } else {
             record.setStatus(3); // 拒绝
@@ -431,6 +471,41 @@ public class TaskService {
 
         userTaskRecordMapper.updateById(record);
         return record;
+    }
+
+    /**
+     * 调用管理后台内部接口，扣除商户任务费用（奖励 + 服务费）。
+     * 扣款失败（余额不足/接口异常）时抛 BusinessException，由调用方事务回滚，确保"不扣款不通过"。
+     */
+    private void deductMerchantBalance(Long merchantId, BigDecimal rewardAmount,
+                                       Long taskId, String taskTitle) {
+        try {
+            String url = adminApiBaseUrl + "/admin/merchants/" + merchantId + "/task-cost";
+            Map<String, Object> body = new HashMap<>();
+            body.put("rewardAmount", rewardAmount);
+            body.put("taskId", taskId);
+            body.put("taskTitle", taskTitle);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-Internal-Token", internalApiToken);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> resp = REST_TEMPLATE.postForEntity(url, entity, String.class);
+            if (!resp.getStatusCode().is2xxSuccessful()) {
+                String msg = "扣除商户余额失败";
+                try {
+                    if (resp.getBody() != null) {
+                        ApiResponse<?> ar = OBJECT_MAPPER.readValue(resp.getBody(), ApiResponse.class);
+                        if (ar.getCode() != 200) msg = ar.getMsg();
+                    }
+                } catch (Exception ignore) { /* 用默认提示 */ }
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, msg);
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[TaskService] 调用管理后台扣费接口失败 merchantId={}, taskId={}", merchantId, taskId, e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除商户余额失败，请稍后重试");
+        }
     }
 
     /**

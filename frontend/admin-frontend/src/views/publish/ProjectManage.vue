@@ -23,6 +23,12 @@
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="name" label="项目名称" min-width="160" show-overflow-tooltip />
+        <el-table-column label="所属范围" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.merchantId && merchantMap[row.merchantId]" size="small" type="warning">{{ merchantMap[row.merchantId] }}</el-tag>
+            <el-tag v-else size="small" type="info">平台</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">{{ row.description || '-' }}</template>
         </el-table-column>
@@ -64,6 +70,13 @@
         <el-form-item label="项目名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入项目名称" maxlength="50" show-word-limit />
         </el-form-item>
+        <el-form-item label="所属商户">
+          <el-select v-if="isSuperAdmin" v-model="form.merchantId" placeholder="请选择所属商户" style="width:100%" clearable>
+            <el-option label="平台（公共）" :value="0" />
+            <el-option v-for="m in merchantList" :key="m.id" :label="m.name" :value="m.id" />
+          </el-select>
+          <el-input v-else :model-value="userStore.userInfo.displayName || '自身商户'" disabled />
+        </el-form-item>
         <el-form-item label="项目描述">
           <el-input
             v-model="form.description"
@@ -84,10 +97,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useUserStore } from '@/store/user'
 import {
   getProjectList,
   createProject,
@@ -95,10 +109,15 @@ import {
   deleteProject,
 } from '@/api/publish'
 import type { Project } from '@/api/publish'
+import { getAllMerchants } from '@/api/merchant'
 
 const router = useRouter()
+const userStore = useUserStore()
 
 const loading = ref(false)
+const merchantList = ref<{ id: number; name: string }[]>([])
+const merchantMap = ref<Record<number, string>>({})
+const merchantLoading = ref(false)
 const submitting = ref(false)
 const tableData = ref<Project[]>([])
 const keyword = ref('')
@@ -117,7 +136,10 @@ const formRef = ref<FormInstance>()
 const form = reactive({
   name: '',
   description: '',
+  merchantId: 0,
 })
+
+const isSuperAdmin = computed(() => (userStore.userInfo.roleType || 1) === 1)
 
 const formRules: FormRules = {
   name: [{ required: true, message: '请输入项目名称', trigger: 'blur' }],
@@ -130,6 +152,7 @@ async function loadProjects() {
       page: pagination.page,
       size: pagination.size,
       keyword: keyword.value || undefined,
+      merchantId: userStore.userInfo.merchantId || undefined,
     })
     tableData.value = res.records || []
     pagination.total = res.total || 0
@@ -152,6 +175,7 @@ function showEditDialog(row: Project) {
   editingId.value = row.id
   form.name = row.name
   form.description = row.description || ''
+  form.merchantId = row.merchantId || 0
   formVisible.value = true
 }
 
@@ -162,6 +186,7 @@ function handleEnter(row: Project) {
 function resetForm() {
   form.name = ''
   form.description = ''
+  form.merchantId = userStore.userInfo.merchantId || 0
   formRef.value?.clearValidate()
 }
 
@@ -174,12 +199,14 @@ async function handleSubmit() {
       await updateProject(editingId.value, {
         name: form.name,
         description: form.description || undefined,
+        merchantId: form.merchantId || null,
       })
       ElMessage.success('项目已更新')
     } else {
       await createProject({
         name: form.name,
         description: form.description || undefined,
+        merchantId: form.merchantId || undefined,
       })
       ElMessage.success('项目已创建')
     }
@@ -213,6 +240,21 @@ async function handleDelete(row: Project) {
 
 onMounted(() => {
   loadProjects()
+  // 超管加载商户列表用于显示名称和下拉选择
+  if (isSuperAdmin.value) {
+    getAllMerchants().then(res => {
+      const list = res || []
+      merchantList.value = list
+      const map: Record<number, string> = {}
+      list.forEach((m: { id: number; name: string }) => { map[m.id] = m.name })
+      merchantMap.value = map
+    }).catch(() => {})
+  } else {
+    // 商户只需显示自身
+    const mid = userStore.userInfo.merchantId
+    const name = userStore.userInfo.displayName || '自身商户'
+    if (mid) merchantMap.value = { [mid]: name }
+  }
 })
 </script>
 

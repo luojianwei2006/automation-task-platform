@@ -32,6 +32,13 @@ public class PublishProject {
     /** 状态：1=正常 0=已删除 */
     private Integer status = 1;
 
+    /** 所属商户ID（商户后台数据隔离） */
+    private Long merchantId;
+
+    /** 所属商户服务费率（展示用，经 merchant 解析，非表字段） */
+    @TableField(exist = false)
+    private java.math.BigDecimal serviceFeeRate;
+
     /** 创建时间 */
     @TableField("created_at")
     private LocalDateTime createdAt;

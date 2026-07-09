@@ -30,6 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -98,6 +100,7 @@ private val StatusCompleted = Color(0xFF4CAF50) // 绿色
 /**
  * 发布任务大厅 — 类似于 TaskHallScreen 的设计风格
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PublishScreen() {
     val viewModel: PublishViewModel = hiltViewModel()
@@ -116,6 +119,15 @@ fun PublishScreen() {
 
     LaunchedEffect(Unit) {
         viewModel.loadTasks()
+    }
+
+    // ── 下拉刷新 ──
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) {
+            if (selectedTab == 0) viewModel.loadTasks() else viewModel.loadMyTasks()
+            pullRefreshState.endRefresh()
+        }
     }
 
     // 错误弹窗
@@ -287,35 +299,45 @@ fun PublishScreen() {
             }
             else -> {
                 val currentList = if (selectedTab == 0) taskList else myTaskList
-                if (currentList.isEmpty()) {
-                    PublishEmptyView()
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(currentList, key = { it.id }) { task ->
-                            PublishTaskCard(
-                                task = task,
-                                isMyTask = selectedTab == 1,
-                                onClaim = {
-                                    claimTargetId = task.id
-                                    showClaimDialog = true
-                                },
-                                onComplete = {
-                                    viewModel.completeTask(task.id) {
-                                        viewModel.loadMyTasks()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                ) {
+                    if (currentList.isEmpty()) {
+                        PublishEmptyView()
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(currentList, key = { it.id }) { task ->
+                                PublishTaskCard(
+                                    task = task,
+                                    isMyTask = selectedTab == 1,
+                                    onClaim = {
+                                        claimTargetId = task.id
+                                        showClaimDialog = true
+                                    },
+                                    onComplete = {
+                                        viewModel.completeTask(task.id) {
+                                            viewModel.loadMyTasks()
+                                        }
+                                    },
+                                    onDetail = {
+                                        detailTask = task
+                                        showDetailDialog = true
                                     }
-                                },
-                                onDetail = {
-                                    detailTask = task
-                                    showDetailDialog = true
-                                }
-                            )
+                                )
+                            }
+                            item { Spacer(modifier = Modifier.height(16.dp)) }
                         }
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
                 }
             }
         }
@@ -469,7 +491,7 @@ private fun PublishTaskCard(
                 }
 
                 // 右侧：状态标签
-                PublishStatusTag(status = task.status)
+                PublishStatusTag(status = task.submissionStatus?.takeIf { it.isNotBlank() } ?: task.status)
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -539,11 +561,17 @@ private fun PublishTaskCard(
 
 @Composable
 private fun PublishStatusTag(status: String) {
-    val (label, color) = when (status) {
-        "pending" -> "待领取" to StatusPending
-        "claimed" -> "已领取" to StatusClaimed
-        "completed" -> "已完成" to StatusCompleted
-        else -> status to Gray500
+    val s = status.lowercase()
+    val (label, color) = when (s) {
+        "pending", "online" -> "待领取" to StatusPending
+        "claimed", "merged" -> "已领取" to StatusClaimed
+        "submitted" -> "审核中" to Orange
+        "passed" -> "已奖励" to StatusCompleted
+        "rejected" -> "已拒绝（需要重新提交审核）" to Color.Red
+        "completed", "running" -> "审核中" to Orange
+        "expired", "timeout" -> "已超时" to Gray500
+        "cancelled", "offline", "failed" -> "待领取" to Gray500
+        else -> "待领取" to Gray500
     }
 
     Surface(
@@ -780,14 +808,18 @@ private fun PublishDetailScreen(
                 Button(
                     onClick = {
                         showPublishDialog = false
-                        isPublished = true
                         coroutineScope.launch {
                             try {
                                 com.task.platform.network.ApiClient.apiService.publishPublishTask(task.id)
+                                // 标记已发布：本地状态 + 服务端记录状态(MERGED)
+                                isPublished = true
+                                submissionStatus = "MERGED"
                                 // 保存合并URL用于后续提交
                                 selectedMergeUrl = mergedUrl ?: selectedMergeUrl
                                 openSharePlatform(context, task.platforms)
-                            } catch (_: Exception) {}
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "发布失败：${e.message}", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Orange)
@@ -1257,8 +1289,8 @@ private fun PublishDetailScreen(
                             // 已提交审核 → 根据状态显示（仅 SUBMITTED/PASSED/REJECTED）
                             if (submissionStatus in listOf("SUBMITTED", "PASSED", "REJECTED")) {
                                 val stateText = when (submissionStatus) {
-                                    "PASSED" -> "审核通过"
-                                    "REJECTED" -> "审核拒绝"
+                                    "PASSED" -> "已奖励"
+                                    "REJECTED" -> "已拒绝（需要重新提交审核）"
                                     else -> "审核中"
                                 }
                                 val stateColor = when (submissionStatus) {
@@ -1456,8 +1488,8 @@ private fun PublishDetailScreen(
                         }
                             Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                            // 发布按钮（未发布时显示）
-                            if (!isPublished && (mergeState is MergeState.Success || selectedMergeUrl.isNotBlank())) {
+                            // 发布按钮（已领取且尚未发布时显示；不依赖合并URL，支持外部平台发布）
+                            if (isClaimed && submissionStatus == "") {
                                 Button(
                                     onClick = { showPublishDialog = true },
                                     modifier = Modifier.fillMaxWidth(),
@@ -1469,8 +1501,8 @@ private fun PublishDetailScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
 
-                            // 提交审核（发布后显示）
-                            if (isPublished && selectedMergeUrl.isNotBlank()) {
+                            // 提交审核（已发布/记录状态为 MERGED 但尚未提交时显示；不依赖合并URL）
+                            if (isClaimed && submissionStatus == "MERGED") {
                                 Button(
                                     onClick = { showSubmitDialog = true },
                                     modifier = Modifier.fillMaxWidth(),
@@ -1486,16 +1518,18 @@ private fun PublishDetailScreen(
 
                         } // end else (isClaimed)
 
-                        TextButton(
-                            onClick = {
-                                pmViewModel.loadMergeHistory(task.projectId)
-                                showHistoryGrid = true
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Default.History, null, tint = Orange, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("查看合并历史", fontSize = 13.sp, color = Orange)
+                        if (isClaimed && (submissionStatus == "" || submissionStatus == "MERGED")) {
+                            TextButton(
+                                onClick = {
+                                    pmViewModel.loadMergeHistory(task.projectId)
+                                    showHistoryGrid = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.History, null, tint = Orange, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("查看合并历史", fontSize = 13.sp, color = Orange)
+                            }
                         }
                     }
                 }
@@ -1525,7 +1559,7 @@ private fun PublishDetailScreen(
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("状态", fontSize = 13.sp, color = Gray500)
                                 Spacer(modifier = Modifier.height(4.dp))
-                                PublishStatusTag(status = task.status)
+                                PublishStatusTag(status = task.submissionStatus?.takeIf { it.isNotBlank() } ?: task.status)
                             }
                         }
                     }

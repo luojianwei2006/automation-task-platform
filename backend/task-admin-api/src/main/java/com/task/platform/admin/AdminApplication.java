@@ -3,6 +3,7 @@ package com.task.platform.admin;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 管理后台API启动类
@@ -13,6 +14,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
     "com.task.platform.common"
 })
 @MapperScan("com.task.platform.admin.mapper")
+@EnableScheduling
 public class AdminApplication {
 
     public static void main(String[] args) {

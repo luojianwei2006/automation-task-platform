@@ -16,4 +16,7 @@ public class UpdateProjectReq {
 
     /** 封面图URL */
     private String coverUrl;
+
+    /** 所属商户ID（null=平台项目，有值=商户项目） */
+    private Long merchantId;
 }

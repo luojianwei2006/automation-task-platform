@@ -175,7 +175,9 @@ data class PublishTaskDTO(
     val scheduledAt: String? = null,
     val createdAt: String,
     /** 素材列表 */
-    val materials: List<PublishMaterialDTO> = emptyList()
+    val materials: List<PublishMaterialDTO> = emptyList(),
+    /** 提交记录状态：CLAIMED/MERGED/SUBMITTED/PASSED/REJECTED（列表精确态用） */
+    val submissionStatus: String? = null
 )
 
 /**

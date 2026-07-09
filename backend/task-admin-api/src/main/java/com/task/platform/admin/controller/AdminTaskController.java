@@ -4,8 +4,11 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.admin.entity.Task;
+import com.task.platform.admin.mapper.MerchantMapper;
 import com.task.platform.admin.mapper.TaskMapper;
 import com.task.platform.admin.security.AdminUserDetails;
+import com.task.platform.admin.service.MerchantTransactionService;
+import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ApiResponse;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
@@ -31,6 +34,8 @@ import java.util.Map;
 public class AdminTaskController {
 
     private final TaskMapper taskMapper;
+    private final MerchantMapper merchantMapper;
+    private final MerchantTransactionService merchantTransactionService;
 
     // 状态常量
     private static final int STATUS_PENDING  = 0;
@@ -50,6 +55,7 @@ public class AdminTaskController {
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'MERCHANT_ADMIN')")
     public ApiResponse<Map<String, Object>> listTasks(
+            @AuthenticationPrincipal AdminUserDetails currentUser,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Integer status,
@@ -57,10 +63,11 @@ public class AdminTaskController {
             @RequestParam(required = false) Integer taskType,
             @RequestParam(required = false) Long merchantId) {
 
-        // TODO: 从 JWT 获取当前用户角色和 merchantId
-        //  商户管理员强制只能看自己的任务（merchantId = 自己的 merchantId）
-        //  超管可以传 merchantId 参数筛选
-        //  暂时不实现权限过滤，后续补充
+        // 商户管理员强制只能看自己的任务，超管可传 merchantId 筛选
+        Long effectiveMerchantId = merchantId;
+        if (!currentUser.isSuperAdmin()) {
+            effectiveMerchantId = currentUser.getMerchantId();
+        }
 
         LambdaQueryWrapper<Task> wrapper = new LambdaQueryWrapper<Task>()
                 .orderByDesc(Task::getCreatedAt);
@@ -74,8 +81,8 @@ public class AdminTaskController {
         if (taskType != null) {
             wrapper.eq(Task::getTaskType, taskType);
         }
-        if (merchantId != null) {
-            wrapper.eq(Task::getMerchantId, merchantId);
+        if (effectiveMerchantId != null) {
+            wrapper.eq(Task::getMerchantId, effectiveMerchantId);
         }
 
         IPage<Task> result = taskMapper.selectPage(new Page<>(page, size), wrapper);

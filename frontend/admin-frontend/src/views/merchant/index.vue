@@ -46,7 +46,7 @@
         <el-table-column label="创建时间" width="160">
           <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="showEditDialog(row)">编辑</el-button>
             <el-button
@@ -56,6 +56,9 @@
             >
               {{ row.status === 1 ? '禁用' : '启用' }}
             </el-button>
+            <el-button type="success" link @click="showBalanceDialog(row, 'recharge')">充值</el-button>
+            <el-button type="warning" link @click="showBalanceDialog(row, 'deduct')">扣费</el-button>
+            <el-button type="info" link @click="viewTransactions(row)">流水</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -120,7 +123,7 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item v-if="form.authStatus === 2" label="拒绝原因" prop="rejectReason">
+        <el-form-item label="拒绝原因" prop="rejectReason" v-if="form.authStatus === 2">
           <el-input
             v-model="form.rejectReason"
             type="textarea"
@@ -129,14 +132,16 @@
           />
         </el-form-item>
 
-        <el-form-item label="点数余额" prop="pointBalance">
+        <el-form-item label="服务费率" prop="serviceFeeRate">
           <el-input-number
-            v-model="form.pointBalance"
+            v-model="form.serviceFeeRate"
             :min="0"
+            :max="1"
             :precision="2"
-            :step="100"
+            :step="0.05"
             style="width: 100%"
           />
+          <div style="color:#999;font-size:12px">设置 0.15 表示 15%</div>
         </el-form-item>
 
         <el-form-item label="状态" prop="status">
@@ -152,12 +157,38 @@
         <el-button type="primary" :loading="submitLoading" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- 余额调整对话框 -->
+    <el-dialog v-model="balanceVisible" :title="balanceTitle" width="400px">
+      <el-form label-width="100px">
+        <el-form-item label="当前余额">
+          <el-tag type="info">¥{{ balanceCurrent.toFixed(2) }}</el-tag>
+        </el-form-item>
+        <el-form-item :label="balanceAction === 'recharge' ? '充值金额' : '扣费金额'" prop="amount">
+          <el-input-number
+            v-model="balanceAmount"
+            :min="0.01"
+            :precision="2"
+            :step="100"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="balanceRemark" placeholder="选填" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="balanceVisible = false">取消</el-button>
+        <el-button type="primary" :loading="balanceLoading" @click="handleBalanceSubmit">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useRouter } from 'vue-router'
 import type { FormInstance, FormRules } from 'element-plus'
 import {
   getMerchantList,
@@ -165,10 +196,13 @@ import {
   updateMerchant,
   toggleMerchantStatus,
   deleteMerchant,
+  adjustMerchantBalance,
   type MerchantVO,
   type CreateMerchantRequest,
   type UpdateMerchantRequest,
 } from '@/api/merchant'
+
+const router = useRouter()
 
 // 认证状态映射
 const AUTH_STATUS_MAP: Record<number, { text: string; type: string }> = {
@@ -208,8 +242,22 @@ const form = reactive({
   legalPerson: '',
   authStatus: 0,
   rejectReason: '',
-  pointBalance: 0,
+  serviceFeeRate: 0.15,
   status: 1,
+})
+
+// 余额调整
+const balanceVisible = ref(false)
+const balanceLoading = ref(false)
+const balanceAction = ref<'recharge' | 'deduct'>('recharge')
+const balanceTarget = ref<MerchantVO | null>(null)
+const balanceAmount = ref(100)
+const balanceRemark = ref('')
+const balanceCurrent = ref(0)
+
+const balanceTitle = computed(() => {
+  const name = balanceTarget.value?.name || ''
+  return balanceAction.value === 'recharge' ? `充值 - ${name}` : `扣费 - ${name}`
 })
 
 // 表单校验规则
@@ -274,7 +322,7 @@ function showEditDialog(row: MerchantVO) {
   form.legalPerson = row.legalPerson || ''
   form.authStatus = row.authStatus
   form.rejectReason = row.rejectReason || ''
-  form.pointBalance = row.pointBalance || 0
+  form.serviceFeeRate = row.serviceFeeRate ?? 0.15
   form.status = row.status
 
   formVisible.value = true
@@ -298,7 +346,7 @@ async function handleSubmit() {
         legalPerson: form.legalPerson || undefined,
         authStatus: form.authStatus,
         rejectReason: form.authStatus === 2 ? form.rejectReason : undefined,
-        pointBalance: form.pointBalance,
+        serviceFeeRate: form.serviceFeeRate,
       }
       await updateMerchant(editingId.value, data)
       ElMessage.success('更新成功')
@@ -312,7 +360,7 @@ async function handleSubmit() {
         licenseNo: form.licenseNo || undefined,
         legalPerson: form.legalPerson || undefined,
         authStatus: form.authStatus,
-        pointBalance: form.pointBalance,
+        serviceFeeRate: form.serviceFeeRate,
         status: form.status,
       }
       await createMerchant(data)
@@ -364,6 +412,38 @@ async function handleDelete(row: MerchantVO) {
   }
 }
 
+// 显示余额调整对话框
+function showBalanceDialog(row: MerchantVO, action: 'recharge' | 'deduct') {
+  balanceAction.value = action
+  balanceTarget.value = row
+  balanceCurrent.value = row.pointBalance || 0
+  balanceAmount.value = 100
+  balanceRemark.value = ''
+  balanceVisible.value = true
+}
+
+// 确认余额调整
+async function handleBalanceSubmit() {
+  if (!balanceTarget.value || balanceAmount.value <= 0) return
+  balanceLoading.value = true
+  try {
+    const amount = balanceAction.value === 'recharge' ? balanceAmount.value : -balanceAmount.value
+    await adjustMerchantBalance(balanceTarget.value.id, amount, balanceRemark.value || undefined)
+    ElMessage.success(`${balanceAction.value === 'recharge' ? '充值' : '扣费'}成功`)
+    balanceVisible.value = false
+    loadMerchants()
+  } catch (e: any) {
+    ElMessage.error(e.message || '操作失败')
+  } finally {
+    balanceLoading.value = false
+  }
+}
+
+// 查看流水
+function viewTransactions(row: MerchantVO) {
+  router.push(`/merchant/transactions?merchantId=${row.id}`)
+}
+
 // 重置表单
 function resetForm() {
   form.name = ''
@@ -374,7 +454,7 @@ function resetForm() {
   form.legalPerson = ''
   form.authStatus = 0
   form.rejectReason = ''
-  form.pointBalance = 0
+  form.serviceFeeRate = 0.15
   form.status = 1
   formRef.value?.resetFields()
 }

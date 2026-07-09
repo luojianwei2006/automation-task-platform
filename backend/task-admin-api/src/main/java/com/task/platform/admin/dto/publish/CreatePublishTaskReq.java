@@ -33,6 +33,9 @@ public class CreatePublishTaskReq {
     /** 图片URL列表（JSON数组字符串），前端上传后传入 */
     private String images;
 
-    /** 奖励金额 */
+    /** 奖励金额（单次奖励） */
     private java.math.BigDecimal rewardAmount;
+
+    /** 总配额（可领取/完成的总次数，≥1，默认1） */
+    private Integer totalQuota;
 }

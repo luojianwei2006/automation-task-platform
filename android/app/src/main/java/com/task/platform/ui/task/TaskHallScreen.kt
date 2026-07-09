@@ -1,5 +1,6 @@
 package com.task.platform.ui.task
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -9,6 +10,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -19,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +45,7 @@ private val Gray900 = Color(0xFF212121)
 /**
  * 任务大厅 — 高端橙色渐变设计
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TaskHallScreen(
     onTaskClick: (Long) -> Unit
@@ -52,6 +57,18 @@ fun TaskHallScreen(
     var selectedType by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) { viewModel.loadTasks() }
+
+    // ── 下拉刷新 ──
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) {
+            viewModel.loadTasks(
+                platform = if (selectedPlatform > 0) selectedPlatform else null,
+                type = if (selectedType > 0) selectedType else null
+            )
+            pullRefreshState.endRefresh()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -125,17 +142,29 @@ fun TaskHallScreen(
                 label = "平台",
                 options = listOf("全部" to 0, "抖音" to 1, "小红书" to 2),
                 selected = selectedPlatform,
-                onSelect = { selectedPlatform = it }
+                onSelect = {
+                    selectedPlatform = it
+                    viewModel.loadTasks(
+                        platform = if (it > 0) it else null,
+                        type = if (selectedType > 0) selectedType else null
+                    )
+                }
             )
             FilterChipGroup(
                 label = "类型",
                 options = listOf("全部" to 0, "点赞" to 1, "评论" to 2),
                 selected = selectedType,
-                onSelect = { selectedType = it }
+                onSelect = {
+                    selectedType = it
+                    viewModel.loadTasks(
+                        platform = if (selectedPlatform > 0) selectedPlatform else null,
+                        type = if (it > 0) it else null
+                    )
+                }
             )
         }
 
-        // ===== 任务列表 =====
+        // ===== 任务列表 + 下拉刷新 =====
         when (uiState) {
             is TaskViewModel.UiState.Loading -> {
                 Box(
@@ -146,19 +175,30 @@ fun TaskHallScreen(
                 }
             }
             else -> {
-                if (taskList.isEmpty()) {
-                    HallEmptyView()
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(taskList, key = { it.id }) { task ->
-                            TaskCard(task = task, onClick = { onTaskClick(task.id) })
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                ) {
+                    if (taskList.isEmpty()) {
+                        HallEmptyView()
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(taskList, key = { it.id }) { task ->
+                                TaskCard(task = task, onClick = { onTaskClick(task.id) })
+                            }
+                            item { Spacer(modifier = Modifier.height(16.dp)) }
                         }
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
                     }
+
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
                 }
             }
         }

@@ -88,6 +88,34 @@ public class AdminAuthController {
         return ApiResponse.success(adminAuthService.login(req.getUsername(), req.getPassword()));
     }
 
+    /**
+     * 获取当前登录用户信息
+     * GET /api/admin/auth/me
+     */
+    @GetMapping("/auth/me")
+    public ApiResponse<Map<String, Object>> me(@AuthenticationPrincipal AdminUserDetails userDetails) {
+        var u = userDetails.getAdminUser();
+        Map<String, Object> info = new java.util.HashMap<>();
+        info.put("id", u.getId());
+        info.put("username", u.getUsername());
+        info.put("displayName", u.getDisplayName());
+        info.put("roleType", u.getRoleType());
+        info.put("merchantId", u.getMerchantId());
+        return ApiResponse.success(info);
+    }
+
+    /**
+     * 修改密码
+     * PUT /api/admin/auth/change-password
+     */
+    @PutMapping("/auth/change-password")
+    public ApiResponse<Void> changePassword(
+            @AuthenticationPrincipal AdminUserDetails userDetails,
+            @Valid @RequestBody ChangePasswordRequest req) {
+        adminAuthService.changePassword(userDetails.getAdminId(), req.getOldPassword(), req.getNewPassword());
+        return ApiResponse.success(null, "密码修改成功");
+    }
+
     // ==================== 子账号管理 ====================
 
     /**
@@ -179,5 +207,14 @@ public class AdminAuthController {
 
         private Integer roleType;
         private Long merchantId;
+    }
+
+    @Data
+    public static class ChangePasswordRequest {
+        @NotBlank(message = "旧密码不能为空")
+        private String oldPassword;
+        @NotBlank(message = "新密码不能为空")
+        @Size(min = 6, max = 32, message = "密码长度6-32位")
+        private String newPassword;
     }
 }

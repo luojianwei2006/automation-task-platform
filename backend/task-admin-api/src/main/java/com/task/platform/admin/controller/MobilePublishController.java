@@ -8,6 +8,7 @@ import com.task.platform.admin.mapper.UserPublishRecordMapper;
 import com.task.platform.admin.service.MobilePublishService;
 import com.task.platform.admin.service.PublishMaterialService;
 import com.task.platform.admin.service.PublishProjectService;
+import com.task.platform.admin.service.PublishTaskService;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,7 @@ public class MobilePublishController {
     @GetMapping
     public ApiResponse<List<PublishTaskVO>> getAvailableTasks(@RequestHeader("X-User-Id") Long userId) {
         List<PublishTask> tasks = mobilePublishService.getAvailableTasks(userId);
-        List<PublishTaskVO> vos = tasks.stream().map(this::toVO).collect(Collectors.toList());
+        List<PublishTaskVO> vos = tasks.stream().map(t -> toVO(t, userId)).collect(Collectors.toList());
         return ApiResponse.success(vos);
     }
 
@@ -61,7 +62,7 @@ public class MobilePublishController {
     @GetMapping("/my")
     public ApiResponse<List<PublishTaskVO>> getMyTasks(@RequestHeader("X-User-Id") Long userId) {
         List<PublishTask> tasks = mobilePublishService.getMyTasks(userId);
-        List<PublishTaskVO> vos = tasks.stream().map(this::toVO).collect(Collectors.toList());
+        List<PublishTaskVO> vos = tasks.stream().map(t -> toVO(t, userId)).collect(Collectors.toList());
         return ApiResponse.success(vos);
     }
 
@@ -124,6 +125,10 @@ public class MobilePublishController {
     // ==================== DTO 转换 ====================
 
     private PublishTaskVO toVO(PublishTask task) {
+        return toVO(task, null);
+    }
+
+    private PublishTaskVO toVO(PublishTask task, Long userId) {
         PublishTaskVO vo = new PublishTaskVO();
         vo.setId(task.getId());
         vo.setProjectId(task.getProjectId());
@@ -152,6 +157,19 @@ public class MobilePublishController {
         vo.setImages(task.getImages());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
+        // 注入当前用户的提交记录状态（用于列表精确展示 6 态）
+        if (userId != null) {
+            UserPublishRecord rec = userPublishRecordMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<UserPublishRecord>()
+                    .eq(UserPublishRecord::getUserId, userId)
+                    .eq(UserPublishRecord::getTaskId, task.getId())
+                    .orderByDesc(UserPublishRecord::getId)
+                    .last("LIMIT 1")
+            );
+            if (rec != null) {
+                vo.setSubmissionStatus(rec.getStatus());
+            }
+        }
         return vo;
     }
 
@@ -200,7 +218,7 @@ public class MobilePublishController {
         if (record == null) {
             return ApiResponse.error(400, "请先领取任务");
         }
-        task.setStatus("COMPLETED");
+        task.setStatus(PublishTaskService.STATUS_COMPLETED);
         mobilePublishService.updateTask(task);
         log.info("[DEBUG] publish: userId={}, taskId={}", userId, id);
         record.setStatus("MERGED");

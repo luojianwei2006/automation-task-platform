@@ -49,9 +49,10 @@ public class PublishProjectController {
     public ApiResponse<Map<String, Object>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long merchantId) {
 
-        IPage<PublishProject> result = publishProjectService.list(page, size, keyword);
+        IPage<PublishProject> result = publishProjectService.list(page, size, keyword, merchantId);
         Map<String, Object> data = new HashMap<>();
         data.put("total", result.getTotal());
         data.put("page", page);
@@ -65,8 +66,8 @@ public class PublishProjectController {
      * GET /api/publish/projects/all
      */
     @GetMapping("/all")
-    public ApiResponse<List<PublishProject>> all() {
-        return ApiResponse.success(publishProjectService.listAll());
+    public ApiResponse<List<PublishProject>> all(@RequestParam(required = false) Long merchantId) {
+        return ApiResponse.success(publishProjectService.listAll(merchantId));
     }
 
     /**

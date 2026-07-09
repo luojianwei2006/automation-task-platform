@@ -12,12 +12,15 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,6 +63,15 @@ fun MyTasksScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadMyTasks()
+    }
+
+    // ── 下拉刷新 ──
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) {
+            viewModel.loadMyTasks()
+            pullRefreshState.endRefresh()
+        }
     }
 
     Scaffold(
@@ -123,66 +135,75 @@ fun MyTasksScreen(
                 }
             }
             else -> {
-                if (myTaskList.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(padding)
-                            .background(Gray50),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            // 装饰圆环
-                            Box(
-                                modifier = Modifier
-                                    .size(80.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(AccentOrangeLight),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.HourglassEmpty,
-                                    contentDescription = null,
-                                    tint = AccentOrange,
-                                    modifier = Modifier.size(40.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                ) {
+                    if (myTaskList.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Gray50),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(AccentOrangeLight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.HourglassEmpty,
+                                        contentDescription = null,
+                                        tint = AccentOrange,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
+                                Spacer(Modifier.height(16.dp))
+                                Text(
+                                    "还没有接取任何任务",
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Gray700
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    "去任务大厅看看吧",
+                                    fontSize = 14.sp,
+                                    color = Gray500
                                 )
                             }
-                            Spacer(Modifier.height(16.dp))
-                            Text(
-                                "还没有接取任何任务",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Gray700
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                "去任务大厅看看吧",
-                                fontSize = 14.sp,
-                                color = Gray500
-                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            item {
+                                Text(
+                                    text = "共 ${myTaskList.size} 个任务",
+                                    fontSize = 13.sp,
+                                    color = Gray500,
+                                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+                                )
+                            }
+                            items(myTaskList, key = { it.id }) { task ->
+                                MyTaskCard(
+                                    task = task,
+                                    onClick = { navController.navigate("task_detail/${task.id}") }
+                                )
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.padding(padding),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        item {
-                            Text(
-                                text = "共 ${myTaskList.size} 个任务",
-                                fontSize = 13.sp,
-                                color = Gray500,
-                                modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
-                            )
-                        }
-                        items(myTaskList, key = { it.id }) { task ->
-                            MyTaskCard(
-                                task = task,
-                                onClick = { navController.navigate("task_detail/${task.id}") }
-                            )
-                        }
-                    }
+
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
                 }
             }
         }

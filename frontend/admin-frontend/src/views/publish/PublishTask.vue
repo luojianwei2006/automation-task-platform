@@ -39,6 +39,12 @@
       <el-table :data="tableData" v-loading="loading" stripe style="width: 100%">
         <el-table-column prop="id" label="任务ID" width="80" />
         <el-table-column prop="projectName" label="项目名" min-width="140" show-overflow-tooltip />
+        <el-table-column label="所属商户" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row.merchantName" size="small" type="warning">{{ row.merchantName }}</el-tag>
+            <el-tag v-else size="small" type="info">平台</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="平台" width="100">
           <template #default="{ row }">
             {{ PUBLISH_PLATFORM_MAP[row.platform] || row.platform }}
@@ -47,15 +53,18 @@
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
             <el-tag :type="PUBLISH_TASK_STATUS_MAP[row.status]?.type || 'info'">
-              {{ PUBLISH_TASK_STATUS_MAP[row.status]?.text || row.status }}
+              {{ PUBLISH_TASK_STATUS_MAP[row.status]?.text || '未知' }}
             </el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="奖励" width="100">
+          <template #default="{ row }">{{ row.rewardAmount != null ? '¥' + Number(row.rewardAmount).toFixed(2) : '-' }}</template>
+        </el-table-column>
+        <el-table-column label="预算(含费)" width="120">
+          <template #default="{ row }">{{ row.budgetPoints != null ? '¥' + Number(row.budgetPoints).toFixed(2) : '-' }}</template>
+        </el-table-column>
         <el-table-column prop="scheduledAt" label="过期时间" width="180">
           <template #default="{ row }">{{ row.scheduledAt || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="奖励" width="100">
-          <template #default="{ row }">{{ row.rewardAmount != null ? '¥' + row.rewardAmount : '-' }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建时间" width="180">
           <template #default="{ row }">{{ row.createdAt || '-' }}</template>
@@ -66,13 +75,13 @@
             <el-button size="small" type="primary" @click="showEdit(row)">编辑</el-button>
             <!-- pending（待审核）：审核通过 / 审核拒绝 / 取消 -->
             <template v-if="row.status === 'pending'">
-              <el-button size="small" type="success" @click="handleApprove(row)">
+              <el-button v-if="isSuperAdmin" size="small" type="success" @click="handleApprove(row)">
                 审核通过
               </el-button>
-              <el-button size="small" type="danger" @click="handleReject(row)">
+              <el-button v-if="isSuperAdmin" size="small" type="danger" @click="handleReject(row)">
                 审核拒绝
               </el-button>
-              <el-button size="small" type="danger" @click="handleCancel(row)">
+              <el-button v-if="isSuperAdmin" size="small" type="danger" @click="handleCancel(row)">
                 取消
               </el-button>
             </template>
@@ -107,9 +116,9 @@
       width="600px"
       @close="resetForm"
     >
-      <el-form ref="formRef" :model="form" :rules="formRules" label-width="100px">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
         <el-form-item label="选择项目" prop="projectId">
-          <el-select v-model="form.projectId" placeholder="请选择项目" style="width: 100%">
+          <el-select v-model="form.projectId" placeholder="请选择项目" style="width: 100%" @change="onProjectChange">
             <el-option
               v-for="p in projectList"
               :key="p.id"
@@ -165,6 +174,42 @@
         <el-form-item label="奖励金额（元）" prop="rewardAmount">
           <el-input-number v-model="form.rewardAmount" :min="0" :step="0.01" :precision="2" style="width:200px" />
         </el-form-item>
+
+        <!-- 服务费机制：总配额 -->
+        <el-form-item label="总配额" prop="totalQuota">
+          <el-input-number v-model="form.totalQuota" :min="1" :step="1" :precision="0" :disabled="!form.quotaEditable" style="width:200px" />
+          <span v-if="!form.quotaEditable" class="form-tip" style="margin-left:8px">仅「待审核」状态可调整</span>
+        </el-form-item>
+
+        <!-- P1 文案提示：发布不冻结、按完成逐笔结算 -->
+        <el-alert type="info" :closable="false" show-icon style="margin-bottom:12px">
+          <template #title>
+            发布不冻结资金：用户完成任务且审核通过后，按单笔（奖励 + 服务费）逐笔结算，不会一次性扣减预算。
+          </template>
+        </el-alert>
+
+        <!-- 预算实时预览（只读，后端权威重算落库） -->
+        <el-form-item label="预算预览">
+          <div class="fee-preview">
+            <div class="fee-row">
+              <span>预算（含服务费）：</span>
+              <b class="budget">{{ formatMoney(previewBudget) }}</b>
+            </div>
+            <div class="fee-sub">
+              单次奖励 {{ formatMoney(form.rewardAmount) }} × 总配额 {{ form.totalQuota }}
+              × (1 + 费率 {{ (currentFeeRate * 100).toFixed(0) }}%)
+            </div>
+          </div>
+        </el-form-item>
+
+        <!-- 服务费明细 -->
+        <el-form-item label="服务费明细">
+          <div class="fee-detail">
+            <div class="fee-cell"><span>服务费率</span><b>{{ (currentFeeRate * 100).toFixed(0) }}%</b></div>
+            <div class="fee-cell"><span>单笔服务费</span><b>{{ formatMoney(previewSingleServiceFee) }}</b></div>
+            <div class="fee-cell"><span>单笔含费成本</span><b>{{ formatMoney(previewSingleCost) }}</b></div>
+          </div>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formVisible = false">取消</el-button>
@@ -173,7 +218,7 @@
     </el-dialog>
 
     <!-- 任务详情对话框 -->
-    <el-dialog v-model="detailVisible" title="任务详情" width="600px">
+    <el-dialog v-model="detailVisible" title="任务详情" width="640px">
       <el-descriptions :column="2" border v-if="currentTask">
         <el-descriptions-item label="任务ID">{{ currentTask.id }}</el-descriptions-item>
         <el-descriptions-item label="所属项目">{{ currentTask.projectName }}</el-descriptions-item>
@@ -182,11 +227,30 @@
         </el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="PUBLISH_TASK_STATUS_MAP[currentTask.status]?.type || 'info'">
-            {{ PUBLISH_TASK_STATUS_MAP[currentTask.status]?.text || currentTask.status }}
+            {{ PUBLISH_TASK_STATUS_MAP[currentTask.status]?.text || '未知' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="奖励金额">
-          {{ currentTask.rewardAmount != null ? '¥' + currentTask.rewardAmount : '-' }}
+        <el-descriptions-item label="单次奖励">
+          {{ currentTask.rewardAmount != null ? formatMoney(currentTask.rewardAmount) : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="总配额">{{ currentTask.totalQuota != null ? currentTask.totalQuota : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="已使用配额">
+          {{ currentTask.usedQuota != null ? currentTask.usedQuota : 0 }} / {{ currentTask.totalQuota != null ? currentTask.totalQuota : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="服务费率">
+          {{ currentTask.serviceFeeRate != null ? (currentTask.serviceFeeRate * 100).toFixed(0) + '%' : '15%' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="单笔服务费">
+          {{ detailSingleServiceFee != null ? formatMoney(detailSingleServiceFee) : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="单笔含费成本">
+          {{ detailSingleCost != null ? formatMoney(detailSingleCost) : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="预算(含服务费)">
+          {{ currentTask.budgetPoints != null ? formatMoney(currentTask.budgetPoints) : '-' }}
+        </el-descriptions-item>
+        <el-descriptions-item label="已消耗预算">
+          {{ currentTask.usedPoints != null ? formatMoney(currentTask.usedPoints) : '-' }}
         </el-descriptions-item>
         <el-descriptions-item label="过期时间" :span="2">
           {{ currentTask.scheduledAt || '-' }}
@@ -236,6 +300,16 @@ import {
   PUBLISH_TASK_STATUS_MAP,
 } from '@/api/publish'
 import type { PublishTask, Project } from '@/api/publish'
+import { useUserStore } from '@/store/user'
+import {
+  computeBudget,
+  computeSingleServiceFee,
+  computeSingleCost,
+  DEFAULT_FEE_RATE,
+} from '@/utils/fee'
+
+const userStore = useUserStore()
+const isSuperAdmin = computed(() => (userStore.userInfo.roleType || 1) === 1)
 
 const loading = ref(false)
 const tableData = ref<PublishTask[]>([])
@@ -252,24 +326,40 @@ const pagination = reactive({
   total: 0,
 })
 
-// 创建表单
+// 创建/编辑表单
 const submitting = ref(false)
 const editingId = ref<number | null>(null)
 const formVisible = ref(false)
 const formRef = ref<FormInstance>()
+const currentFeeRate = ref<number>(DEFAULT_FEE_RATE)
+
 const form = reactive({
   projectId: null as number | null,
   platform: 'douyin',
   content: '',
   scheduledAt: '' as string,
   rewardAmount: 0,
+  totalQuota: 1,
+  quotaEditable: true,
 })
 
 const formRules: FormRules = {
   projectId: [{ required: true, message: '请选择项目', trigger: 'change' }],
   platform: [{ required: true, message: '请选择发布平台', trigger: 'change' }],
   content: [{ required: true, message: '请输入任务内容', trigger: 'blur' }],
+  totalQuota: [
+    { required: true, message: '请输入总配额', trigger: 'change' },
+    { type: 'number', min: 1, message: '总配额须 ≥ 1', trigger: 'change' },
+  ],
 }
+
+// 预算 / 服务费实时预览（只读，前端展示参考；落库以后端为准）
+const previewSingleServiceFee = computed(() =>
+  computeSingleServiceFee(form.rewardAmount, currentFeeRate.value))
+const previewSingleCost = computed(() =>
+  computeSingleCost(form.rewardAmount, currentFeeRate.value))
+const previewBudget = computed(() =>
+  computeBudget(form.rewardAmount, currentFeeRate.value, form.totalQuota))
 
 // 图片上传
 const imageUploadRef = ref<UploadInstance>()
@@ -287,7 +377,7 @@ const currentTask = ref<PublishTask | null>(null)
 
 async function loadProjects() {
   try {
-    const res = await getAllProjects()
+    const res = await getAllProjects(userStore.userInfo.merchantId || undefined)
     projectList.value = res || []
   } catch {
     // ignore
@@ -302,6 +392,7 @@ async function loadData() {
       size: pagination.size,
       platform: filter.platform || undefined,
       status: filter.status || undefined,
+      merchantId: userStore.userInfo.merchantId || undefined,
     })
     tableData.value = res.records || []
     pagination.total = res.total || 0
@@ -310,6 +401,12 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+/** 选项目时联动更新费率（取项目所属商户 serviceFeeRate；平台项目用默认 0.15） */
+function onProjectChange(projectId: number) {
+  const p = projectList.value.find((x) => x.id === projectId)
+  currentFeeRate.value = p?.serviceFeeRate != null ? p.serviceFeeRate! : DEFAULT_FEE_RATE
 }
 
 function showCreateDialog() {
@@ -325,6 +422,11 @@ function showEdit(row: PublishTask) {
   form.content = row.publishText || ''
   form.scheduledAt = row.scheduledAt || ''
   form.rewardAmount = row.rewardAmount || 0
+  form.totalQuota = row.totalQuota || 1
+  // 仅「待审核」状态可调整总配额
+  form.quotaEditable = row.status === 'pending'
+  // 编辑时费率取任务实际费率（后端按商户重算），无则默认
+  currentFeeRate.value = row.serviceFeeRate != null ? row.serviceFeeRate : DEFAULT_FEE_RATE
   // 加载已有图片
   imageFiles.value = []
   imageUploadRef.value?.clearFiles()
@@ -343,9 +445,18 @@ function resetForm() {
   form.content = ''
   form.scheduledAt = ''
   form.rewardAmount = 0
+  form.totalQuota = 1
+  form.quotaEditable = true
+  currentFeeRate.value = DEFAULT_FEE_RATE
   imageFiles.value = []
   imageUploadRef.value?.clearFiles()
   formRef.value?.clearValidate()
+}
+
+/** 金额格式化 */
+function formatMoney(v: number | null | undefined): string {
+  if (v == null || isNaN(v)) return '¥0.00'
+  return '¥' + Number(v).toFixed(2)
 }
 
 async function handleSubmit() {
@@ -372,14 +483,16 @@ async function handleSubmit() {
       }
     }
 
-    // 2. 创建或更新发布任务
+    // 2. 创建或更新发布任务（预算由后端用商户费率权威重算，前端不传）
+    const imagesPayload = imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined
     if (editingId.value) {
       await updatePublishTask(editingId.value, {
         platforms: form.platform,
         publishText: form.content,
         scheduledAt: form.scheduledAt || null,
         rewardAmount: form.rewardAmount,
-        images: imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined,
+        images: imagesPayload,
+        totalQuota: form.quotaEditable ? form.totalQuota : undefined,
       })
       ElMessage.success('已更新')
     } else {
@@ -388,8 +501,9 @@ async function handleSubmit() {
         platforms: form.platform,
         publishText: form.content,
         scheduledAt: form.scheduledAt || null,
-        images: imageUrls.length > 0 ? JSON.stringify(imageUrls) : undefined,
         rewardAmount: form.rewardAmount,
+        images: imagesPayload,
+        totalQuota: form.totalQuota,
       })
       ElMessage.success('发布任务已创建')
     }
@@ -428,6 +542,16 @@ const imageMaterials = computed(() => {
     return []
   }
 })
+
+// 详情对话框：单笔服务费 / 单笔含费成本由 serviceFeeRate + rewardAmount 实时派生（不在 VO 中返回）
+const detailSingleServiceFee = computed(() =>
+  currentTask.value
+    ? computeSingleServiceFee(currentTask.value.rewardAmount ?? 0, currentTask.value.serviceFeeRate ?? DEFAULT_FEE_RATE)
+    : 0)
+const detailSingleCost = computed(() =>
+  currentTask.value
+    ? computeSingleCost(currentTask.value.rewardAmount ?? 0, currentTask.value.serviceFeeRate ?? DEFAULT_FEE_RATE)
+    : 0)
 
 // ==================== 审核/下架操作 ====================
 
@@ -535,6 +659,35 @@ onMounted(() => {
   color: #999;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.fee-preview {
+  line-height: 1.6;
+}
+.fee-preview .budget {
+  color: #f56c6c;
+  font-size: 18px;
+}
+.fee-preview .fee-sub {
+  color: #909399;
+  font-size: 12px;
+}
+.fee-detail {
+  display: flex;
+  gap: 24px;
+}
+.fee-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.fee-cell span {
+  color: #909399;
+  font-size: 12px;
+}
+.fee-cell b {
+  color: #303133;
+  font-size: 15px;
 }
 
 .materials-section {

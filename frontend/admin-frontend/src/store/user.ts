@@ -4,13 +4,23 @@ import { ref } from 'vue'
 interface UserInfo {
   id?: number
   username?: string
-  role?: string
-  avatarUrl?: string
+  displayName?: string
+  roleType?: number
+  merchantId?: number | null
 }
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref<UserInfo>({})
+  const userInfo = ref<UserInfo>(loadUserInfo())
+
+  function loadUserInfo(): UserInfo {
+    try {
+      const raw = localStorage.getItem('userInfo')
+      return raw ? JSON.parse(raw) : {}
+    } catch {
+      return {}
+    }
+  }
 
   function setToken(t: string) {
     token.value = t

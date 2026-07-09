@@ -55,3 +55,6 @@ logging:
   level:
     com.task.platform: DEBUG
     org.springframework.security: INFO
+
+internal:
+  api-token: task-internal-2026

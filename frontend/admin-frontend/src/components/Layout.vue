@@ -15,6 +15,8 @@
         active-text-color="#ffffff"
         :default-openeds="openedMenus"
       >
+        <!-- 超管菜单 -->
+        <template v-if="isSuperAdmin">
         <el-menu-item index="/dashboard">
           <el-icon><DataAnalysis /></el-icon>
           <template #title>数据看板</template>
@@ -24,25 +26,37 @@
           <el-menu-item index="/user/list">C端用户</el-menu-item>
           <el-menu-item index="/user/real-auth">实名认证</el-menu-item>
         </el-sub-menu>
-        <el-sub-menu index="task-group">
-          <template #title><el-icon><List /></el-icon>业务管理</template>
-          <el-menu-item index="/task/list">任务管理</el-menu-item>
-          <el-menu-item index="/withdraw/list">提现审核</el-menu-item>
-          <el-menu-item index="/comment/words">评论词库</el-menu-item>
-        </el-sub-menu>
         <el-sub-menu index="merchant-group">
           <template #title><el-icon><OfficeBuilding /></el-icon>商户管理</template>
           <el-menu-item index="/merchant/list">商户列表</el-menu-item>
         </el-sub-menu>
+        </template>
 
+        <!-- 业务管理（超管+商户都可见） -->
+        <el-sub-menu index="task-group">
+          <template #title><el-icon><List /></el-icon>业务管理</template>
+          <el-menu-item index="/task/list">任务管理</el-menu-item>
+          <el-menu-item index="/task/review">任务审核</el-menu-item>
+          <el-menu-item v-if="isSuperAdmin" index="/withdraw/list">提现审核</el-menu-item>
+          <el-menu-item v-if="isSuperAdmin" index="/comment/words">评论词库</el-menu-item>
+        </el-sub-menu>
+
+        <!-- 商户流水（独立菜单，超管+商户都可见） -->
+        <el-menu-item index="/merchant/transactions">
+          <el-icon><Coin /></el-icon>
+          <template #title>商户流水</template>
+        </el-menu-item>
+
+        <!-- 通用的内容发布菜单（超管+商户都可见） -->
         <el-sub-menu index="publish-group">
           <template #title><el-icon><EditPen /></el-icon>内容发布</template>
           <el-menu-item index="/publish/projects">项目管理</el-menu-item>
-          <el-menu-item index="/publish/recycle-bin">回收站</el-menu-item>
+          <el-menu-item v-if="isSuperAdmin" index="/publish/recycle-bin">回收站</el-menu-item>
           <el-menu-item index="/publish/tasks">视频发布任务</el-menu-item>
           <el-menu-item index="/publish/records">发布记录审核</el-menu-item>
         </el-sub-menu>
-        <el-menu-item index="/settings">
+
+        <el-menu-item v-if="isSuperAdmin" index="/settings">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
         </el-menu-item>
@@ -55,14 +69,13 @@
       <el-header>
         <span style="font-size:18px">{{ route.meta.title }}</span>
         <div class="header-right">
-          <el-dropdown @command="handleCommand">
+            <el-dropdown @command="handleCommand">
             <span class="user-info">
-              管理员<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              {{ displayName }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
             </span>
             <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="logout">退出登录</el-dropdown-item>
-              </el-dropdown-menu>
+              <el-dropdown-item command="changePwd">修改密码</el-dropdown-item>
+              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
             </template>
           </el-dropdown>
         </div>
@@ -86,7 +99,16 @@ const router = useRouter()
 const userStore = useUserStore()
 const isCollapse = ref(false)
 
-/** 当前路由路径作为菜单高亮（项目详情页映射到项目管理） */
+const isSuperAdmin = computed(() => {
+  const info = userStore.userInfo
+  return !info.roleType || info.roleType === 1
+})
+
+const displayName = computed(() => {
+  return userStore.userInfo.displayName || '管理员'
+})
+
+/** 当前路由路径作为菜单高亮 */
 const activeMenu = computed(() => {
   const path = route.path
   if (path.startsWith('/publish/projects/')) return '/publish/projects'
@@ -97,6 +119,8 @@ function handleCommand(command: string) {
   if (command === 'logout') {
     userStore.logout()
     router.push('/login')
+  } else if (command === 'changePwd') {
+    router.push('/change-password')
   }
 }
 </script>

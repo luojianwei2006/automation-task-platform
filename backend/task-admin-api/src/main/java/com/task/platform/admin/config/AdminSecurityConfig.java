@@ -93,6 +93,9 @@ public class AdminSecurityConfig {
                 .requestMatchers("/mobile/publish/tasks").permitAll()
                 .requestMatchers("/mobile/publish/**").permitAll()
 
+                // 内部扣费接口：由 task-task-service 服务间调用，仅靠 X-Internal-Token 鉴权，无需用户 JWT
+                .requestMatchers(HttpMethod.POST, "/admin/merchants/*/task-cost").permitAll()
+
                 // 其他接口：所有已认证管理员
                 .anyRequest().authenticated()
             )

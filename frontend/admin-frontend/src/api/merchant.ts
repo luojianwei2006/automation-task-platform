@@ -45,6 +45,11 @@ export function deleteMerchant(id: number) {
   return request.delete<void>(`/merchants/${id}`)
 }
 
+// 调整商户余额（充值/扣费）
+export function adjustMerchantBalance(id: number, amount: number, remark?: string) {
+  return request.post<void>(`/merchants/${id}/balance`, { amount, remark })
+}
+
 // ==================== 类型定义 ====================
 
 export interface MerchantVO {
@@ -62,6 +67,7 @@ export interface MerchantVO {
   pointBalance: number
   totalRecharge: number
   totalConsume: number
+  serviceFeeRate: number
   status: number
   createdAt: string
   updatedAt: string
@@ -86,8 +92,8 @@ export interface CreateMerchantRequest {
   legalIdCard?: string
   /** 认证状态：0待审核 1通过 2拒绝 */
   authStatus?: number
-  /** 点数余额 */
-  pointBalance?: number
+  /** 服务费率（如 0.15 表示 15%） */
+  serviceFeeRate?: number
   /** 状态：0封禁 1正常 */
   status?: number
 }
@@ -115,4 +121,6 @@ export interface UpdateMerchantRequest {
   rejectReason?: string
   /** 点数余额 */
   pointBalance?: number
+  /** 服务费率（如 0.15 表示 15%） */
+  serviceFeeRate?: number
 }

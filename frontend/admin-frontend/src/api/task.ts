@@ -189,3 +189,8 @@ export function approveRecord(recordId: number) {
 export function rejectRecord(recordId: number, reason: string) {
   return request.post('/task-records/' + recordId + '/reject', null, { params: { reason } })
 }
+
+/** 领取记录列表（管理后台，跨任务，按状态过滤） */
+export function getRecordList(params: { page?: number; size?: number; status?: number | '' } = {}) {
+  return request.get<PageResult<any>>('/task-records', { params })
+}

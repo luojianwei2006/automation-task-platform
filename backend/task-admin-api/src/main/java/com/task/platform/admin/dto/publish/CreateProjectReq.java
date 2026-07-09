@@ -16,4 +16,7 @@ public class CreateProjectReq {
 
     /** 封面图URL */
     private String coverUrl;
+
+    /** 所属商户ID */
+    private Long merchantId;
 }

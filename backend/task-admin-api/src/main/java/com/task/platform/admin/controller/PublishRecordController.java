@@ -4,14 +4,18 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.admin.dto.publish.PublishRecordVO;
 import com.task.platform.admin.entity.AppUser;
+import com.task.platform.admin.entity.Merchant;
 import com.task.platform.admin.entity.PublishProject;
 import com.task.platform.admin.entity.PublishTask;
 import com.task.platform.admin.entity.UserPublishRecord;
 import com.task.platform.admin.mapper.AppUserMapper;
+import com.task.platform.admin.mapper.MerchantMapper;
 import com.task.platform.admin.mapper.PublishProjectMapper;
 import com.task.platform.admin.mapper.PublishTaskMapper;
 import com.task.platform.admin.mapper.UserEarningsMapper;
 import com.task.platform.admin.mapper.UserPublishRecordMapper;
+import com.task.platform.admin.service.MerchantService;
+import com.task.platform.admin.util.FeeCalculator;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,16 +41,24 @@ public class PublishRecordController {
     private final AppUserMapper appUserMapper;
     private final PublishProjectMapper publishProjectMapper;
     private final UserEarningsMapper userEarningsMapper;
+    private final MerchantService merchantService;
+    private final MerchantMapper merchantMapper;
 
     /** 全部领取/提交记录 */
     @GetMapping
     public ApiResponse<Map<String, Object>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long merchantId) {
         LambdaQueryWrapper<UserPublishRecord> wrapper = new LambdaQueryWrapper<>();
         if (status != null && !status.isEmpty()) {
             wrapper.eq(UserPublishRecord::getStatus, status);
+        }
+        // 商户过滤：通过 record → task → project → merchantId
+        if (merchantId != null && merchantId > 0) {
+            wrapper.inSql(UserPublishRecord::getTaskId,
+                "SELECT pt.id FROM t_publish_task pt JOIN t_project p ON pt.project_id = p.id WHERE p.merchant_id = " + merchantId);
         }
         wrapper.orderByDesc(UserPublishRecord::getClaimedAt);
         Page<UserPublishRecord> result = userPublishRecordMapper.selectPage(new Page<>(page, size), wrapper);
@@ -67,7 +79,7 @@ public class PublishRecordController {
         return ApiResponse.success(wrapPage(result));
     }
 
-    /** 审核通过（发放奖励） */
+    /** 审核通过（发放奖励 + 商户扣费） */
     @PostMapping("/{id}/approve")
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> approve(@PathVariable Long id) {
@@ -77,9 +89,26 @@ public class PublishRecordController {
 
         // 从发布任务获取奖励金额
         PublishTask task = publishTaskMapper.selectById(record.getTaskId());
-        BigDecimal reward = task != null && task.getRewardAmount() != null ? task.getRewardAmount() : BigDecimal.ZERO;
+        if (task == null) return ApiResponse.error(404, "关联任务不存在");
+        BigDecimal reward = task.getRewardAmount() != null ? task.getRewardAmount() : BigDecimal.ZERO;
 
-        // 发放奖励：写入收益流水
+        // 解析商户（task → project → merchant）
+        Long merchantId = null;
+        String projectName = null;
+        if (task.getProjectId() != null) {
+            PublishProject project = publishProjectMapper.selectById(task.getProjectId());
+            if (project != null) {
+                merchantId = project.getMerchantId();
+                projectName = project.getName();
+            }
+        }
+
+        // ① 扣费（先于用户收益发放）：平台任务 merchantId==null 不扣，与普通任务一致
+        if (merchantId != null) {
+            merchantService.deductTaskCost(merchantId, reward, id, projectName);
+        }
+
+        // ② 发放奖励：写入收益流水
         Long userId = record.getUserId();
         BigDecimal currentBalance = userEarningsMapper.selectLatestBalance(userId);
         if (currentBalance == null) currentBalance = BigDecimal.ZERO;
@@ -94,13 +123,22 @@ public class PublishRecordController {
         earning.put("remark", "视频发布任务审核通过，奖励发放");
         userEarningsMapper.insertEarning(earning);
 
-        // 更新记录状态
+        // ③ 更新记录状态
         record.setStatus("PASSED");
         record.setRewardAmount(reward);
         record.setReviewedAt(LocalDateTime.now());
         userPublishRecordMapper.updateById(record);
 
-        log.info("[ADMIN] approve + reward: recordId={}, userId={}, amount={}, newBalance={}", id, userId, reward, newBalance);
+        // ④ 累加任务已用配额 / 已消耗预算（逐笔结算）
+        int usedQuota = (task.getUsedQuota() != null ? task.getUsedQuota() : 0) + 1;
+        task.setUsedQuota(usedQuota);
+        BigDecimal cost = FeeCalculator.computeSingleCost(reward, resolveFeeRate(merchantId));
+        BigDecimal usedPoints = (task.getUsedPoints() != null ? task.getUsedPoints() : BigDecimal.ZERO).add(cost);
+        task.setUsedPoints(usedPoints);
+        publishTaskMapper.updateById(task);
+
+        log.info("[ADMIN] approve + deduct + reward: recordId={}, merchantId={}, userId={}, reward={}, cost={}, usedQuota={}",
+                id, merchantId, userId, reward, cost, usedQuota);
         return ApiResponse.success(null, "审核通过，奖励已发放");
     }
 
@@ -120,6 +158,18 @@ public class PublishRecordController {
     }
 
     // ====== helpers ======
+
+    /**
+     * 解析商户服务费率（平台任务 merchantId==null 时返回默认 0.15）。
+     */
+    private BigDecimal resolveFeeRate(Long merchantId) {
+        if (merchantId == null) {
+            return FeeCalculator.DEFAULT_FEE_RATE;
+        }
+        Merchant merchant = merchantMapper.selectById(merchantId);
+        return merchant != null && merchant.getServiceFeeRate() != null
+                ? merchant.getServiceFeeRate() : FeeCalculator.DEFAULT_FEE_RATE;
+    }
 
     private List<PublishRecordVO> toVOList(List<UserPublishRecord> records) {
         if (records.isEmpty()) return java.util.Collections.emptyList();

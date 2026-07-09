@@ -6,11 +6,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,8 +43,16 @@ fun AdHallScreen(onTaskClick: (Long) -> Unit) {
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(Unit) {
-        // 广告大厅：加载 platform=0（全平台广告任务）
         viewModel.loadTasks(platform = 0)
+    }
+
+    // ── 下拉刷新 ──
+    val pullRefreshState = rememberPullToRefreshState()
+    LaunchedEffect(pullRefreshState.isRefreshing) {
+        if (pullRefreshState.isRefreshing) {
+            viewModel.loadTasks(platform = 0)
+            pullRefreshState.endRefresh()
+        }
     }
 
     Scaffold(
@@ -77,28 +88,39 @@ fun AdHallScreen(onTaskClick: (Long) -> Unit) {
                 }
             }
             else -> {
-                if (taskList.isEmpty()) {
-                    Box(
-                        modifier = Modifier.fillMaxSize().padding(padding),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("暂无广告任务", color = Gray500)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .nestedScroll(pullRefreshState.nestedScrollConnection)
+                ) {
+                    if (taskList.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("暂无广告任务", color = Gray500)
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(taskList, key = { it.id }) { task ->
+                                AdCard(
+                                    task = task,
+                                    onClick = { onTaskClick(task.id) }
+                                )
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.padding(padding),
-                        contentPadding = PaddingValues(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(taskList, key = { it.id }) { task ->
-                            AdCard(
-                                task = task,
-                                onClick = { onTaskClick(task.id) }
-                            )
-                        }
-                    }
+
+                    PullToRefreshContainer(
+                        state = pullRefreshState,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
                 }
             }
         }

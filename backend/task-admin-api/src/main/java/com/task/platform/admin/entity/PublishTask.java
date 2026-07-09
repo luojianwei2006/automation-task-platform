@@ -37,9 +37,25 @@ public class PublishTask {
     /** 任务状态：pending/online/rejected/offline/claimed/running/completed/failed/cancelled */
     private String status = "pending";
 
-    /** 奖励金额 */
+    /** 奖励金额（单次奖励） */
     @TableField("reward_amount")
     private java.math.BigDecimal rewardAmount;
+
+    /** 总配额（可领取/完成的总次数），命名对齐普通任务 t_task */
+    @TableField("total_quota")
+    private Integer totalQuota = 1;
+
+    /** 已用配额（已成功结算次数） */
+    @TableField("used_quota")
+    private Integer usedQuota = 0;
+
+    /** 预算点数（含服务费，只读展示），= 单笔含费成本 × 总配额 */
+    @TableField("budget_points")
+    private java.math.BigDecimal budgetPoints = java.math.BigDecimal.ZERO;
+
+    /** 已消耗点数（已结算累计含费成本） */
+    @TableField("used_points")
+    private java.math.BigDecimal usedPoints = java.math.BigDecimal.ZERO;
 
     /** 领取人ID */
     @TableField("claimed_by")

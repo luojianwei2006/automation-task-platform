@@ -55,6 +55,7 @@ public class AdminAuthService {
      * @return JWT Token + 管理员信息
      */
     public Map<String, Object> login(String username, String password) {
+        log.info("[DEBUG] login attempt: username={}", username);
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(username, password)
@@ -62,6 +63,9 @@ public class AdminAuthService {
 
             AdminUserDetails userDetails = (AdminUserDetails) authentication.getPrincipal();
             AdminUser adminUser = userDetails.getAdminUser();
+
+            log.info("[DEBUG] login success: id={}, username={}, roleType={}", 
+                adminUser.getId(), adminUser.getUsername(), adminUser.getRoleType());
 
             // 更新最后登录时间
             adminUser.setLastLoginAt(LocalDateTime.now());
@@ -90,10 +94,33 @@ public class AdminAuthService {
             return response;
 
         } catch (BadCredentialsException e) {
+            log.warn("[DEBUG] login failed: BadCredentials for username={}", username);
             throw new BusinessException(ErrorCode.PASSWORD_ERROR, "账号或密码不正确");
         } catch (DisabledException e) {
+            log.warn("[DEBUG] login failed: account disabled, username={}", username);
             throw new BusinessException(ErrorCode.USER_DISABLED, "账号已被禁用");
         }
+    }
+
+    /**
+     * 修改密码
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void changePassword(Long adminId, String oldPassword, String newPassword) {
+        log.info("[DEBUG] changePassword: adminId={}", adminId);
+        AdminUser admin = adminUserMapper.selectById(adminId);
+        if (admin == null) {
+            log.warn("[DEBUG] changePassword: admin not found, id={}", adminId);
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND, "账号不存在");
+        }
+        if (!passwordEncoder.matches(oldPassword, admin.getPassword())) {
+            log.warn("[DEBUG] changePassword: old password mismatch for adminId={}", adminId);
+            throw new BusinessException(ErrorCode.PASSWORD_ERROR, "旧密码不正确");
+        }
+        String newHash = passwordEncoder.encode(newPassword);
+        admin.setPassword(newHash);
+        adminUserMapper.updateById(admin);
+        log.info("[DEBUG] changePassword: SUCCESS for adminId={}, newHash={}", adminId, newHash.substring(0, 20) + "...");
     }
 
     // ==================== 子账号管理 ====================
@@ -124,7 +151,8 @@ public class AdminAuthService {
 
         AdminUser newAdmin = new AdminUser();
         newAdmin.setUsername(req.getUsername());
-        newAdmin.setPassword(passwordEncoder.encode(req.getPassword()));
+        String encodedPwd = passwordEncoder.encode(req.getPassword());
+        newAdmin.setPassword(encodedPwd);
         newAdmin.setDisplayName(req.getDisplayName());
         newAdmin.setRoleType(req.getRoleType());
         newAdmin.setMerchantId(req.getMerchantId());
@@ -132,7 +160,8 @@ public class AdminAuthService {
         newAdmin.setCreatedBy(operatorId);
 
         adminUserMapper.insert(newAdmin);
-        log.info("[AdminAuth] 操作人 {} 创建子账号: {}, 角色: {}", operatorId, req.getUsername(), req.getRoleType());
+        log.info("[AdminAuth] 操作人 {} 创建子账号: {}, 角色: {}, hash={}",
+            operatorId, req.getUsername(), req.getRoleType(), encodedPwd.substring(0, 20) + "...");
     }
 
     /**

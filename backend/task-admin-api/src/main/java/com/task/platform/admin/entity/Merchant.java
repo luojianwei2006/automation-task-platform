@@ -66,6 +66,10 @@ public class Merchant {
     @TableField("total_consume")
     private BigDecimal totalConsume = BigDecimal.ZERO;
 
+    /** 服务费率（如 0.15 = 15%） */
+    @TableField("service_fee_rate")
+    private BigDecimal serviceFeeRate = new BigDecimal("0.15");
+
     /** 状态：0封禁 1正常 */
     private Integer status = 1;
 

@@ -66,25 +66,25 @@
             <el-button size="small" @click="showDetail(row)">详情</el-button>
             <el-button size="small" type="primary" @click="showEditDialog(row)">编辑</el-button>
             <el-button
-              v-if="row.status === 0"
+              v-if="row.status === 0 && isSuperAdmin"
               size="small"
               type="success"
               @click="handleReview(row, true)"
             >通过</el-button>
             <el-button
-              v-if="row.status === 0"
+              v-if="row.status === 0 && isSuperAdmin"
               size="small"
               type="danger"
               @click="handleReview(row, false)"
             >拒绝</el-button>
             <el-button
-              v-if="row.status === 1"
+              v-if="row.status === 1 && isSuperAdmin"
               size="small"
               type="warning"
               @click="handleToggle(row, false)"
             >下架</el-button>
             <el-button
-              v-if="row.status === 2"
+              v-if="row.status === 2 && isSuperAdmin"
               size="small"
               type="primary"
               @click="handleToggle(row, true)"
@@ -182,9 +182,9 @@
       @close="resetForm"
     >
       <el-form ref="formRef" :model="form" :rules="formRules" label-width="110px">
-        <!-- 发布身份选择 -->
-        <el-form-item label="发布身份">
-          <el-select v-model="form.merchantId" placeholder="请选择发布身份" style="width: 100%;" :loading="merchantLoading">
+        <!-- 发布身份选择（超管可见，商户自动绑定） -->
+        <el-form-item v-if="isSuperAdmin" label="发布身份">
+          <el-select v-model="form.merchantId" placeholder="请选择发布身份" style="width: 100%;" :loading="merchantLoading" @change="onMerchantChange">
             <el-option label="平台" :value="0" />
             <el-option
               v-for="m in merchantList"
@@ -193,6 +193,9 @@
               :value="m.id"
             />
           </el-select>
+        </el-form-item>
+        <el-form-item v-else label="发布商户">
+          <el-input :model-value="userStore.userInfo.displayName || '自身商户'" disabled />
         </el-form-item>
         <el-row :gutter="20">
           <!--- 左列 --->
@@ -279,15 +282,15 @@
               <span style="margin-left: 8px; color: #999; font-size: 12px;">0=不限</span>
             </el-form-item>
 
-            <el-form-item label="预算点数" prop="budgetPoints">
+            <el-form-item label="预算点数">
               <el-input-number
-                v-model="form.budgetPoints"
+                :model-value="computedBudget"
                 :min="0.01"
                 :precision="2"
-                :step="10"
+                disabled
                 style="width: 100%;"
               />
-              <div style="color: #999; font-size: 12px; margin-top: 2px;">含15%服务费</div>
+              <div style="color: #999; font-size: 12px; margin-top: 2px;">= {{ form.rewardAmount }} × {{ form.totalQuota }} × {{ (1 + currentFeeRate).toFixed(2) }}（含{{ (currentFeeRate * 100).toFixed(0) }}%服务费）</div>
             </el-form-item>
 
             <el-form-item label="截止时间">
@@ -471,6 +474,7 @@ import AmapPicker from '@/components/AmapPicker.vue'
 import AmapViewer from '@/components/AmapViewer.vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules } from 'element-plus'
+import { useUserStore } from '@/store/user'
 import { getTaskList, reviewTask, toggleTask, publishTask, updateTask, getTaskRecordsByTaskId, getTaskDetail, getRecordDetail, approveRecord, rejectRecord } from '@/api/task'
 import { PLATFORM_MAP, TASK_TYPE_MAP, STATUS_MAP } from '@/api/task'
 import { getAllMerchants } from '@/api/merchant'
@@ -482,6 +486,18 @@ const tableData = ref<any[]>([])
 const detailMapRef = ref()
 const detailVisible = ref(false)
 const currentTask = ref<any>(null)
+const userStore = useUserStore()
+const isSuperAdmin = computed(() => (userStore.userInfo.roleType || 1) === 1)
+
+/** 当前所选商户的服务费率（默认 0.15） */
+const currentFeeRate = ref(0.15)
+
+/** 自动计算预算 = rewardAmount × totalQuota × (1 + 服务费率) */
+const computedBudget = computed(() => {
+  const base = (form.rewardAmount || 0) * (form.totalQuota || 0)
+  const rate = currentFeeRate.value
+  return Math.round(base * (1 + rate) * 100) / 100
+})
 
 // 商户列表（超管发布/编辑任务时使用）
 const merchantList = ref<any[]>([])
@@ -557,16 +573,36 @@ function getImagesFromRecord(record: any): string[] {
     return '/api' + (trimmed.startsWith('/') ? trimmed : '/' + trimmed)
   })
 }
-// 加载商户列表（用于发布/编辑任务时的下拉选择）
+// 加载商户列表（用于发布/编辑任务时的下拉选择，仅超管需要）
 async function loadMerchantList() {
+  if (userStore.userInfo.roleType !== 1) {
+    // 商户管理员自动绑定自己的 merchantId
+    form.merchantId = userStore.userInfo.merchantId || 0
+    // 商户用自己的费率（默认 0.15）
+    currentFeeRate.value = 0.15
+    merchantList.value = []
+    return
+  }
   merchantLoading.value = true
   try {
     const res = await getAllMerchants()
     merchantList.value = res || []
+    // 超级管理员首次打开时选中平台（rate=0.15），如果已有 merchantId 则更新费率
+    onMerchantChange(form.merchantId)
   } catch (e: any) {
     ElMessage.error(e.message || '加载商户列表失败')
   } finally {
     merchantLoading.value = false
+  }
+}
+
+/** 切换发布身份时更新服务费率 */
+function onMerchantChange(val: number) {
+  if (val === 0) {
+    currentFeeRate.value = 0.15 // 平台默认 15%
+  } else {
+    const m = merchantList.value.find(x => x.id === val)
+    currentFeeRate.value = m?.serviceFeeRate ?? 0.15
   }
 }
 
@@ -582,7 +618,6 @@ const form = reactive({
   rewardAmount: 0.01,
   totalQuota: 1,
   dailyLimit: 0,
-  budgetPoints: 0.01,
   deadline: '',
   // 定位相关
   requireLocation: false,
@@ -607,7 +642,6 @@ const formRules: FormRules = {
   targetUrl: [{ required: true, message: '请输入目标链接', trigger: 'blur' }],
   rewardAmount: [{ required: true, message: '请输入单次奖励', trigger: 'blur' }],
   totalQuota: [{ required: true, message: '请输入总配额', trigger: 'blur' }],
-  budgetPoints: [{ required: true, message: '请输入预算点数', trigger: 'blur' }],
 }
 
 const filter = reactive({
@@ -652,6 +686,7 @@ async function loadTasks() {
       status: filter.status || undefined,
       platform: filter.platform || undefined,
       taskType: filter.taskType || undefined,
+      merchantId: userStore.userInfo.merchantId || undefined,
     })
     tableData.value = res.records || []
     pagination.total = res.total || 0
@@ -767,7 +802,6 @@ async function showEditDialog(row: any) {
   form.rewardAmount = row.rewardAmount || 0.01
   form.totalQuota = row.totalQuota || 1
   form.dailyLimit = row.dailyLimit || 0
-  form.budgetPoints = row.budgetPoints || 0.01
   form.deadline = row.deadline || ''
   form.requireLocation = row.requireLocation || false
   form.locationLat = row.locationLat || undefined
@@ -802,7 +836,7 @@ async function showEditDialog(row: any) {
 }
 
 function resetForm() {
-  form.merchantId = 0
+  form.merchantId = userStore.userInfo.merchantId || 0
   form.title = ''
   form.platform = undefined
   form.taskType = undefined
@@ -812,7 +846,6 @@ function resetForm() {
   form.rewardAmount = 0.01
   form.totalQuota = 1
   form.dailyLimit = 0
-  form.budgetPoints = 0.01
   form.deadline = ''
   // 定位相关字段
   form.requireLocation = false
@@ -849,6 +882,7 @@ async function handleSubmit() {
       taskType: form.taskType!,
       requirementImages: requirementImagesStr,
       commentCategoryIds: selectedCatIds.value.join(','),
+      budgetPoints: computedBudget.value,
       // 定位相关字段
       requireLocation: form.requireLocation,
       locationLat: form.locationLat ?? null,

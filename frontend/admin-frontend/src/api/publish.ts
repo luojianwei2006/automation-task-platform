@@ -48,7 +48,7 @@ export const PUBLISH_TASK_STATUS_MAP: Record<string, { text: string; type: strin
   rejected: { text: '已拒绝', type: 'danger' },
   offline: { text: '已下架', type: 'info' },
   claimed: { text: '已领取', type: 'warning' },
-  running: { text: '执行中', type: 'primary' },
+  running: { text: '进行中', type: 'primary' },
   completed: { text: '已完成', type: 'success' },
   failed: { text: '失败', type: 'danger' },
   cancelled: { text: '已取消', type: 'info' },
@@ -70,6 +70,9 @@ export interface Project {
   id: number
   name: string
   description: string
+  merchantId?: number | null
+  /** 所属商户服务费率（如 0.15 表示 15%），平台项目为 null */
+  serviceFeeRate?: number | null
   materialCount: number
   createdAt: string
   updatedAt: string
@@ -79,16 +82,19 @@ export interface ProjectListParams {
   page?: number
   size?: number
   keyword?: string
+  merchantId?: number
 }
 
 export interface CreateProjectRequest {
   name: string
   description?: string
+  merchantId?: number
 }
 
 export interface UpdateProjectRequest {
   name?: string
   description?: string
+  merchantId?: number | null
 }
 
 // --- 素材 ---
@@ -155,6 +161,18 @@ export interface PublishTask {
   updatedAt: string
   materials?: MaterialItem[]  // 任务关联素材，仅详情接口返回
   images?: string             // 任务图片URL列表（JSON数组），如 ["url1","url2"]
+
+  // 补全基础字段（后端 VO 已返回）
+  rewardAmount?: number | null
+  merchantId?: number | null
+  merchantName?: string | null
+
+  // 服务费 / 预算展示字段（后端权威重算，前端仅参考/只读展示）
+  totalQuota?: number | null         // 总配额
+  usedQuota?: number | null          // 已用配额
+  budgetPoints?: number | null       // 预算点数（含服务费，后端权威重算落库）
+  usedPoints?: number | null         // 已消耗点数（含服务费）
+  serviceFeeRate?: number | null     // 服务费率（如 0.15 表示 15%）；单笔服务费/含费成本由前端 utils/fee.ts 派生
 }
 
 export interface PublishTaskListParams {
@@ -162,6 +180,7 @@ export interface PublishTaskListParams {
   size?: number
   platform?: string
   status?: string
+  merchantId?: number
 }
 
 export interface CreatePublishTaskRequest {
@@ -169,7 +188,9 @@ export interface CreatePublishTaskRequest {
   platforms: string
   publishText: string
   scheduledAt?: string | null
+  rewardAmount?: number
   images?: string           // 图片URL列表（JSON数组字符串）
+  totalQuota?: number       // 总配额（≥1）
 }
 
 export interface UpdatePublishTaskRequest {
@@ -177,6 +198,8 @@ export interface UpdatePublishTaskRequest {
   publishText?: string
   scheduledAt?: string | null
   rewardAmount?: number
+  images?: string
+  totalQuota?: number       // 总配额（≥1，仅 pending 可调整）
 }
 
 // ==================== 项目管理 API ====================
@@ -186,9 +209,9 @@ export function getProjectList(params: ProjectListParams = {}) {
   return publishRequest.get<PageResult<Project>>('/publish/projects', { params })
 }
 
-/** 获取所有项目（下拉选择用） */
-export function getAllProjects() {
-  return publishRequest.get<Project[]>('/publish/projects/all')
+/** 获取所有项目（下拉选择用，可传 merchantId 过滤） */
+export function getAllProjects(merchantId?: number) {
+  return publishRequest.get<Project[]>('/publish/projects/all', { params: merchantId ? { merchantId } : {} })
 }
 
 /** 创建项目 */
@@ -372,7 +395,7 @@ export interface PublishRecordVO {
 }
 
 /** 获取发布记录列表 */
-export function getPublishRecords(params: { page: number; size: number; status?: string }) {
+export function getPublishRecords(params: { page: number; size: number; status?: string; merchantId?: number }) {
   return publishRequest.get('/publish/records', { params }) as Promise<{ records: PublishRecordVO[]; total: number }>
 }
 
