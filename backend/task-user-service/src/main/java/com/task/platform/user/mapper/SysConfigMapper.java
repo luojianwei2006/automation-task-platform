@@ -4,6 +4,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
+import com.task.platform.user.entity.SysConfig;
+
 @Mapper
 public interface SysConfigMapper {
 
