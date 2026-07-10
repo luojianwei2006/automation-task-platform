@@ -48,8 +48,8 @@ public class TaskService {
     @Value("${internal.api-token:}")
     private String internalApiToken;
 
-    @Value("${pay.api.base-url:http://localhost:8087}")
-    private String payApiBaseUrl;
+    @Value("${user.api.base-url:http://localhost:8081}")
+    private String userApiBaseUrl;
 
     private static final RestTemplate REST_TEMPLATE = new RestTemplate();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -455,17 +455,17 @@ public class TaskService {
             record.setManualCheckedAt(LocalDateTime.now());
             record.setCheckedAt(LocalDateTime.now());
 
-            // === 审核通过 → 委托 pay-service 发放奖励（唯一权威发奖入口，幂等） ===
+            // === 审核通过 → 调 user-service 内部接口入账（唯一权威发奖入口，幂等） ===
             // 说明：本端点为兼容端点，不再直接扣商户（商户扣费由 admin-api.approve 统一负责），
-            // 仅触发 pay grant；若 pay 临时不可达，本方法 @Transactional 回滚，记录保持待审核可重试。
+            // 仅触发入账；若 user-service 临时不可达，本方法 @Transactional 回滚，记录保持待审核可重试。
             Task task = taskMapper.selectById(record.getTaskId());
             if (task != null && task.getRewardAmount() != null
                     && task.getRewardAmount().compareTo(BigDecimal.ZERO) > 0) {
                 BigDecimal rewardAmount = task.getRewardAmount();
                 // 记录本笔奖励金额快照，供发放使用
                 record.setRewardAmount(rewardAmount);
-                // 触发发奖
-                grantUserReward(record.getUserId(), record.getId(), task.getId(), rewardAmount);
+                // 触发入账：调 user-service 内部接口入账任务奖励（幂等，唯一权威发奖入口）
+                creditUserEarnings(record.getUserId(), record.getId(), task.getId(), rewardAmount);
                 record.setRewardGrantedAt(LocalDateTime.now());
                 // 任务维度统计：已用配额 +1，已用点数累加（奖励额）
                 task.setUsedQuota((task.getUsedQuota() == null ? 0 : task.getUsedQuota()) + 1);
@@ -520,12 +520,12 @@ public class TaskService {
     }
 
     /**
-     * 委托 pay-service 发放任务奖励（内部直连 + X-Internal-Token）
-     * 幂等由 pay-service 侧 t_reward_grant.task_record_id 唯一约束保证。
+     * 调 user-service 内部接口入账任务奖励（内部直连 + X-Internal-Token）
+     * 幂等由 user-service 侧 t_user_earnings.biz_id 唯一索引保证（同一 taskRecordId 仅入账一次）。
      */
-    private void grantUserReward(Long userId, Long taskRecordId, Long taskId, BigDecimal amount) {
+    private void creditUserEarnings(Long userId, Long taskRecordId, Long taskId, BigDecimal amount) {
         try {
-            String url = payApiBaseUrl + "/pay/grant";
+            String url = userApiBaseUrl + "/internal/earnings/credit";
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
             headers.set(InternalApiConstants.HEADER_NAME, internalApiToken);
@@ -534,10 +534,11 @@ public class TaskService {
             body.put("taskRecordId", taskRecordId);
             body.put("taskId", taskId);
             body.put("amount", amount);
+            body.put("type", 1);
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
             ResponseEntity<String> resp = REST_TEMPLATE.postForEntity(url, entity, String.class);
             if (!resp.getStatusCode().is2xxSuccessful()) {
-                String msg = "发放奖励失败";
+                String msg = "奖励入账失败";
                 try {
                     if (resp.getBody() != null) {
                         ApiResponse<?> ar = OBJECT_MAPPER.readValue(resp.getBody(), ApiResponse.class);
@@ -553,8 +554,8 @@ public class TaskService {
         } catch (BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[TaskService] 调用 pay-service 发放奖励失败 userId={}, taskRecordId={}", userId, taskRecordId, e);
-            throw new BusinessException(ErrorCode.GRANT_FAILED, "发放奖励调用失败");
+            log.error("[TaskService] 调用 user-service 入账失败 userId={}, taskRecordId={}", userId, taskRecordId, e);
+            throw new BusinessException(ErrorCode.GRANT_FAILED, "奖励入账调用失败");
         }
     }
 

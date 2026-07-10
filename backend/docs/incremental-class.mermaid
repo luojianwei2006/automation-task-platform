@@ -1,0 +1,96 @@
+%% 增量设计类图（最终版，标注删除项）
+classDiagram
+    direction TB
+
+    %% ── 调用方：admin-api ──
+    class AdminTaskRecordController {
+        +approve(recordId) ApiResponse~Void~
+    }
+    class EarningsCreditClient {
+        -userApiBaseUrl : String
+        -internalApiToken : String
+        +credit(userId, taskRecordId, taskId, amount, type) void
+    }
+    class MerchantService {
+        +deductTaskCost(...) void
+    }
+    class UserTaskRecordMapper {
+        +approve(recordId, rewardAmount) void
+        +markGranted(recordId) void
+    }
+
+    %% ── user-service 内部入账（新增） ──
+    class InternalEarningsController {
+        +credit(CreditRequest) ApiResponse
+    }
+    class InternalApiFilter {
+        -expectedToken : String
+        +doFilterInternal(...) void
+    }
+    class EarningsService {
+        +getSummary(userId) EarningsSummaryVO
+        +getRecords(userId, type, page, size) Page
+        +credit(userId, taskRecordId, taskId, amount, type) CreditResult
+    }
+    class UserEarningsMapper {
+        +selectLatestBalance(userId) BigDecimal
+        +selectByBizId(bizId) UserEarnings
+        +insert(UserEarnings) int
+    }
+    class UserEarnings {
+        +userId : Long
+        +relatedId : Long
+        +type : Integer
+        +amount : BigDecimal
+        +balanceAfter : BigDecimal
+        +status : Integer
+        +bizId : String
+    }
+
+    %% ── task-service（兼容审核入口，改写） ──
+    class TaskService {
+        +reviewTaskRecord(recordId, pass, reviewResult) UserTaskRecord
+    }
+
+    %% ── 删除项（pay-service 自动发奖，整体移除） ──
+    class RewardGrantService~DELETED(admin)~ {
+        +grant(...) void
+    }
+    class RewardGrantCompensationJob~DELETED(admin)~ {
+        +compensate() void
+    }
+    class grantUserReward~DELETED(task,私有方法)~ {
+        +grantUserReward(...) void
+    }
+    class GrantController~DELETED(pay)~ {
+        +grant(...) ApiResponse
+    }
+    class GrantService~DELETED(pay)~ {
+        +grant(...) RewardGrant
+    }
+    class RewardGrant~DELETED(pay)~ {
+        +taskRecordId : Long
+    }
+
+    %% ── 关系 ──
+    AdminTaskRecordController --> EarningsCreditClient : 调用(替换原 RewardGrantService)
+    AdminTaskRecordController --> MerchantService : 扣商户费(本地,保留)
+    AdminTaskRecordController --> UserTaskRecordMapper : 状态/标记
+    EarningsCreditClient ..> InternalEarningsController : HTTP POST /internal/earnings/credit
+    InternalApiFilter ..> InternalEarningsController : 过滤/鉴权(/internal/**)
+    InternalEarningsController --> EarningsService : credit()
+    EarningsService --> UserEarningsMapper : 读写
+    UserEarningsMapper --> UserEarnings : 映射 t_user_earnings
+
+    TaskService ..> InternalEarningsController : HTTP(内联,替换 grantUserReward)
+    TaskService --> UserTaskRecordMapper : 状态更新
+
+    %% 共享常量（保留）
+    class InternalApiConstants {
+        <<constant>>
+        +HEADER_NAME : String
+        +DEFAULT_TOKEN : String
+    }
+    EarningsCreditClient ..> InternalApiConstants : 复用
+    InternalApiFilter ..> InternalApiConstants : 复用
+    TaskService ..> InternalApiConstants : 复用(扣商户/入账)

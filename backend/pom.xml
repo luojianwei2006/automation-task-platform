@@ -26,7 +26,6 @@
         <module>task-gateway</module>
         <module>task-user-service</module>
         <module>task-task-service</module>
-        <module>task-pay-service</module>
         <module>task-admin-api</module>
         <module>task-job</module>
         <module>task-upload-service</module>

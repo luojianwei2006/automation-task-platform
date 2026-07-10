@@ -36,14 +36,6 @@ spring:
           filters:
             - StripPrefix=1
 
-        # 支付服务路由
-        - id: task-pay-service
-          uri: http://127.0.0.1:8087
-          predicates:
-            - Path=/api/pay/**
-          filters:
-            - StripPrefix=1
-
         # 文件上传服务路由
         - id: task-upload-service
           uri: http://127.0.0.1:8086

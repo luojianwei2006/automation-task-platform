@@ -6,6 +6,7 @@ import com.task.platform.user.entity.UserEarnings;
 import com.task.platform.user.mapper.UserEarningsMapper;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -64,6 +65,76 @@ public class EarningsService {
         return resultPage;
     }
 
+    /**
+     * 任务奖励入账（幂等，内部接口 {@code POST /internal/earnings/credit} 调用）。
+     *
+     * <p>幂等键为 {@code bizId = String.valueOf(taskRecordId)}：
+     * <ol>
+     *   <li>插入前先 {@code selectByBizId} 查重，命中则直接返回已有记录（idempotent=true），不重复入账；</li>
+     *   <li>{@code balance_after = selectLatestBalance(userId) + amount}（NULL→0）；</li>
+     *   <li>插入流水（status=1）；并发唯一索引冲突（DuplicateKeyException）视为已入账，重新查重返回。</li>
+     * </ol>
+     * </p>
+     *
+     * @param userId       用户ID（必填）
+     * @param taskRecordId 用户任务记录ID（必填，幂等键）
+     * @param taskId       任务ID（可空）
+     * @param amount       奖励金额（必填，正数）
+     * @param type         收益类型（选填，默认 1=任务收益）
+     * @return 入账结果（含 bizId、balanceAfter、idempotent）
+     */
+    public CreditResult credit(Long userId, Long taskRecordId, Long taskId, BigDecimal amount, Integer type) {
+        String bizId = String.valueOf(taskRecordId);
+
+        // 1. 幂等前置查重
+        UserEarnings existing = userEarningsMapper.selectByBizId(bizId);
+        if (existing != null) {
+            return buildIdempotentResult(bizId, existing.getBalanceAfter());
+        }
+
+        // 2. 计算入账后余额（NULL→0）
+        BigDecimal prev = userEarningsMapper.selectLatestBalance(userId);
+        if (prev == null) {
+            prev = BigDecimal.ZERO;
+        }
+        BigDecimal balanceAfter = prev.add(amount);
+
+        // 3. 插入一条流水（status=1 已到账）
+        UserEarnings earnings = new UserEarnings();
+        earnings.setUserId(userId);
+        earnings.setRelatedId(taskRecordId);
+        earnings.setType(type != null ? type : 1);
+        earnings.setAmount(amount);
+        earnings.setBalanceAfter(balanceAfter);
+        earnings.setStatus(1);
+        earnings.setRemark("任务审核通过奖励入账");
+        earnings.setBizId(bizId);
+        earnings.setCreatedAt(LocalDateTime.now());
+
+        try {
+            userEarningsMapper.insert(earnings);
+        } catch (DuplicateKeyException e) {
+            // 并发竞态：唯一索引冲突，视为已入账，重新查重返回
+            UserEarnings hit = userEarningsMapper.selectByBizId(bizId);
+            return buildIdempotentResult(bizId, hit != null ? hit.getBalanceAfter() : balanceAfter);
+        }
+
+        CreditResult result = new CreditResult();
+        result.setBizId(bizId);
+        result.setBalanceAfter(balanceAfter);
+        result.setIdempotent(false);
+        return result;
+    }
+
+    /** 构造幂等命中结果 */
+    private CreditResult buildIdempotentResult(String bizId, BigDecimal balanceAfter) {
+        CreditResult result = new CreditResult();
+        result.setBizId(bizId);
+        result.setBalanceAfter(balanceAfter);
+        result.setIdempotent(true);
+        return result;
+    }
+
     private String getTypeLabel(Integer type) {
         if (type == null) return "未知";
         return switch (type) {
@@ -77,6 +148,17 @@ public class EarningsService {
     }
 
     // ─── VO ───
+
+    /** 入账结果（内部接口返回） */
+    @Data
+    public static class CreditResult {
+        /** 幂等键（taskRecordId 的字符串形式） */
+        private String bizId;
+        /** 入账后余额 */
+        private BigDecimal balanceAfter;
+        /** 是否幂等命中（同一 taskRecordId 已入账） */
+        private boolean idempotent;
+    }
 
     @Data
     public static class EarningsSummaryVO {

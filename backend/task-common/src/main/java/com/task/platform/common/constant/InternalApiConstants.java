@@ -3,8 +3,8 @@ package com.task.platform.common.constant;
 /**
  * 内部服务调用约定常量
  *
- * <p>服务间（task-service / admin-api → pay-service）走内网直连，
- * 请求头携带 {@link #HEADER_NAME}，由 pay-service 的 {@code InternalApiFilter} 校验。</p>
+ * <p>服务间（admin-api / task-service → user-service）走内网直连，
+ * 请求头携带 {@link #HEADER_NAME}，由 user-service 的 {@code InternalApiFilter} 校验。</p>
  */
 public final class InternalApiConstants {
 

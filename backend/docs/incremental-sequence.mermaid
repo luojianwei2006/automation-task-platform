@@ -1,0 +1,55 @@
+%% 主流程：admin-api 审核通过 → 经 user-service 内部接口入账（最终版）
+sequenceDiagram
+    participant A as 管理员/前端
+    participant GW as Gateway
+    participant Adm as AdminTaskRecordController
+    participant M as MerchantService(admin本地)
+    participant C as EarningsCreditClient
+    participant F as InternalApiFilter(user-service)
+    participant UC as InternalEarningsController
+    participant ES as EarningsService
+    participant EM as UserEarningsMapper
+    participant DB as t_user_earnings
+
+    A->>GW: POST /api/admin/task-records/{id}/approve
+    GW->>Adm: /admin/task-records/{id}/approve
+    Adm->>Adm: 查记录 + 幂等守卫(status==2 && grantedAt!=null → 已发放)
+    Adm->>M: 首次通过才 deductTaskCost(商户费) [保留不动]
+    Adm->>Adm: mapper.approve() 置 status=2 (reward_granted_at 留空)
+    Adm->>C: credit(userId, recordId, taskId, amount, type=1)
+    C->>F: POST /internal/earnings/credit (X-Internal-Token)\n{body: userId,taskRecordId,type=1,amount}
+    F->>F: 校验 token → 放行
+    F->>UC: 转发
+    UC->>ES: credit(...)
+    ES->>EM: selectByBizId(String.valueOf(taskRecordId))
+    alt 已存在(幂等命中)
+        EM-->>ES: 命中 → 返回 idempotent=true
+    else 不存在
+        ES->>EM: selectLatestBalance(userId)
+        EM-->>ES: prev (NULL→0)
+        ES->>EM: insert(type=1, amount, balance_after=prev+amount, biz_id=taskRecordId, status=1)
+        EM->>DB: 写流水 (uk_biz_id 防并发双写)
+    end
+    UC-->>C: ApiResponse{idempotent, balanceAfter}
+    C-->>Adm: 成功
+    Adm->>Adm: mapper.markGranted() 写 reward_granted_at
+    Adm-->>A: 200 成功
+
+%% 兼容流程：task-task-service 审核通过（删除 grantUserReward，改内联调 user-service）
+sequenceDiagram
+    participant TS as TaskService.reviewTaskRecord
+    participant HT as 内联 HTTP(REST_TEMPLATE)
+    participant F2 as InternalApiFilter(user-service)
+    participant UC2 as InternalEarningsController
+    participant ES2 as EarningsService
+    participant DB2 as t_user_earnings
+
+    TS->>TS: 查记录, status=1 → 置 status=2
+    TS->>HT: POST user.api-base-url/internal/earnings/credit (X-Internal-Token)\n{body: userId,taskRecordId,type=1,amount}
+    HT->>F2: 转发
+    F2->>UC2: 校验通过
+    UC2->>ES2: credit(...)
+    ES2->>DB2: 幂等查/写 t_user_earnings(type=1, biz_id=taskRecordId)
+    DB2-->>HT: 成功
+    HT-->>TS: 成功
+    TS->>TS: rewardGrantedAt=now, 累加 task.used_quota/used_points [不扣商户]

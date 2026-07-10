@@ -26,7 +26,7 @@ public class UserEarnings {
     @TableField("related_id")
     private Long relatedId;
 
-    /** 收益类型：1任务奖励 2广告奖励 3邀请返佣 4新手任务奖励 */
+    /** 收益类型：1任务收益 2广告奖励 3邀请返佣 4新手任务奖励 5提现 */
     private Integer type;
 
     /** 收益金额 */
@@ -42,7 +42,7 @@ public class UserEarnings {
     /** 备注 */
     private String remark;
 
-    /** 业务关联键（发放单号/提现单号） */
+    /** 业务关联键（发放单号/提现单号/任务记录ID，作为幂等键） */
     @TableField("biz_id")
     private String bizId;
 

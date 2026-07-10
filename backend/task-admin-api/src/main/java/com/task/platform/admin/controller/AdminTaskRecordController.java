@@ -2,8 +2,8 @@ package com.task.platform.admin.controller;
 
 import com.task.platform.admin.mapper.UserTaskRecordMapper;
 import com.task.platform.admin.security.AdminUserDetails;
+import com.task.platform.admin.service.EarningsCreditClient;
 import com.task.platform.admin.service.MerchantService;
-import com.task.platform.admin.service.RewardGrantService;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +26,7 @@ public class AdminTaskRecordController {
 
     private final UserTaskRecordMapper userTaskRecordMapper;
     private final MerchantService merchantService;
-    private final RewardGrantService rewardGrantService;
+    private final EarningsCreditClient earningsCreditClient;
 
     /**
      * 领取记录列表（跨任务，按状态过滤）
@@ -97,12 +97,11 @@ public class AdminTaskRecordController {
     }
 
     /**
-     * 审核通过：扣商户费（保留）+ 委托 pay-service 发放奖励（唯一权威发奖入口）
+     * 审核通过：扣商户费（保留）+ 调 user-service 内部接口入账（唯一权威发奖入口）
      * POST /api/admin/task-records/{recordId}/approve
      *
-     * <p>设计：先标记记录为通过（reward_granted_at 留空），再调 pay grant；
-     * 若 pay 临时不可达，记录保持 status=2 且 reward_granted_at 为 NULL，
-     * 由 RewardGrantCompensationJob 定时补偿重试（幂等），避免双发/双扣。</p>
+     * <p>设计：先标记记录为通过（reward_granted_at 留空），再调 user-service 入账；
+     * 幂等由 user-service 侧 t_user_earnings.biz_id 唯一索引保证（同一记录仅入账一次）。</p>
      */
     @PostMapping("/{recordId}/approve")
     public ApiResponse<Void> approve(@PathVariable Long recordId) {
@@ -137,10 +136,10 @@ public class AdminTaskRecordController {
         // 先标记记录为通过（reward_granted_at 留空），失败可由补偿任务重试
         userTaskRecordMapper.approve(recordId, rewardAmount);
 
-        // 委托 pay-service 发放用户奖励（幂等，唯一权威发奖入口）
-        rewardGrantService.grant(userId, recordId, taskId, rewardAmount);
+        // 委托 user-service 入账任务奖励（幂等，唯一权威发奖入口）
+        earningsCreditClient.credit(userId, recordId, taskId, rewardAmount, 1);
 
-        // 发放成功，写发放时间
+        // 入账成功，写发放时间
         userTaskRecordMapper.markGranted(recordId);
 
         return ApiResponse.success(null);

@@ -22,6 +22,13 @@ public interface UserEarningsMapper extends BaseMapper<UserEarnings> {
     BigDecimal selectLatestBalance(@Param("userId") Long userId);
 
     /**
+     * 按业务幂等键查询收益流水（用于入账幂等查重）
+     * bizId = String.valueOf(taskRecordId)
+     */
+    @Select("SELECT * FROM t_user_earnings WHERE biz_id = #{bizId} LIMIT 1")
+    UserEarnings selectByBizId(@Param("bizId") String bizId);
+
+    /**
      * 统计用户累计收益（status=1已到账的记录）
      */
     @Select("SELECT COALESCE(SUM(amount), 0) FROM t_user_earnings WHERE user_id = #{userId} AND status = 1")

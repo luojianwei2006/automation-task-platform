@@ -48,6 +48,10 @@ app:
 upload:
   api-base-url: http://localhost:8086
 
+# 内部服务调用鉴权令牌（user-service 内部接口 /internal/** 校验用）
+internal:
+  api-token: task-internal-2026
+
 # 日志配置
 logging:
   level:
