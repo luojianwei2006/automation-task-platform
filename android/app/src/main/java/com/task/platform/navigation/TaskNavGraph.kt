@@ -1,10 +1,15 @@
 package com.task.platform.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.task.platform.ui.login.LoginScreen
+import com.task.platform.update.UpdateDialog
+import com.task.platform.update.UpdateViewModel
 import com.task.platform.ui.login.RegisterScreen
 import com.task.platform.ui.login.SplashScreen
 import com.task.platform.ui.main.MainScreen
@@ -45,6 +50,7 @@ object TaskRoutes {
 @Composable
 fun TaskNavGraph(
     navController: NavHostController,
+    updateViewModel: UpdateViewModel,
     startDestination: String = TaskRoutes.SPLASH
 ) {
     NavHost(
@@ -160,4 +166,13 @@ fun TaskNavGraph(
             com.task.platform.ui.earnings.WithdrawScreen(navController = navController)
         }
     }
+
+    // 全局版本更新弹窗（覆盖在最上层，可选更新不破坏既有导航）
+    val context = LocalContext.current
+    val updateState by updateViewModel.updateState.collectAsState()
+    UpdateDialog(
+        state = updateState,
+        onUpdate = { updateViewModel.startDownload(context) },
+        onDismiss = { updateViewModel.dismiss() }
+    )
 }

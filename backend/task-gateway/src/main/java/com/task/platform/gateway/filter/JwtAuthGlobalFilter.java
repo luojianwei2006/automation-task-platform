@@ -43,6 +43,8 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             new WhiteListEntry("/api/user/auth/sms-login", "POST"),
             new WhiteListEntry("/api/user/auth/register", "POST"),
             new WhiteListEntry("/api/user/auth/sms-code", "POST"),
+            // C 端 App 版本配置（公开接口，无需登录，供安卓启动后比对更新）
+            new WhiteListEntry("/api/user/config", "GET"),
             new WhiteListEntry("/api/admin/auth/login", "POST"),
             new WhiteListEntry("/api/admin/auth/captcha", "GET"),
             // 任务大厅（仅GET请求放行，POST/PUT/DELETE仍需认证）

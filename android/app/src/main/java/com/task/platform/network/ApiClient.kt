@@ -71,6 +71,12 @@ interface ApiService {
     @GET("api/user/invite/link")
     suspend fun getInviteLink(): ApiResponse<Map<String, String>>
 
+    // ==================== App 内更新模块 ====================
+
+    /** 获取 App 版本配置（公开接口，无需登录，供启动后比对更新） */
+    @GET("api/user/config")
+    suspend fun getAppConfig(): ApiResponse<Map<String, String>>
+
     /** 修改密码 */
     @PUT("api/user/password")
     suspend fun changePassword(@Body body: Map<String, @JvmSuppressWildcards String>): ApiResponse<Void>

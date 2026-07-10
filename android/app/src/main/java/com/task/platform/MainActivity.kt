@@ -12,10 +12,13 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import com.task.platform.navigation.TaskNavGraph
+import com.task.platform.update.UpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 /**
@@ -42,7 +45,15 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
-                    TaskNavGraph(navController = navController)
+                    val updateViewModel: UpdateViewModel = hiltViewModel()
+                    // App 启动后检查一次版本更新（可选更新，失败不影响正常使用）
+                    LaunchedEffect(Unit) {
+                        updateViewModel.checkUpdate()
+                    }
+                    TaskNavGraph(
+                        navController = navController,
+                        updateViewModel = updateViewModel
+                    )
                 }
             }
         }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!--
+        APK 下载目录共享配置。
+        对应 AppUpdateManager.apkFile() 使用的 getExternalFilesDir(null)/apk/。
+        name="apk" → content URI 路径段；path="apk/" → 目录相对 external-files 根。
+    -->
+    <external-files-path
+        name="apk"
+        path="apk/" />
+</paths>
