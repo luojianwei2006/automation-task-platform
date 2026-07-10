@@ -23,8 +23,17 @@ sealed class UpdateState {
         val appName: String
     ) : UpdateState()
 
-    /** 正在下载 */
-    object Downloading : UpdateState()
+    /**
+     * 正在下载
+     * @param downloadedBytes 已下载字节数
+     * @param totalBytes     总字节数；-1 表示总大小未知（服务端未返回 Content-Length）
+     * @param percent        百分比 0~100，仅当 totalBytes > 0 时有效
+     */
+    data class Downloading(
+        val downloadedBytes: Long = 0L,
+        val totalBytes: Long = -1L,
+        val percent: Int = 0
+    ) : UpdateState()
 
     /** 下载/安装出错 */
     data class Error(val message: String) : UpdateState()

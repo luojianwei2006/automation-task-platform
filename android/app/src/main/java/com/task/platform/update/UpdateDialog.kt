@@ -16,6 +16,11 @@ import androidx.compose.ui.unit.sp
 import com.task.platform.BuildConfig
 
 /**
+ * 将字节数格式化为 MB（保留两位小数）。
+ */
+private fun formatMb(bytes: Long): String = "%.2f MB".format(bytes / 1024f / 1024f)
+
+/**
  * 版本更新弹窗（可选更新）
  *
  * - [UpdateState.Available]：显示「发现新版本」对话框，含「立即更新」与「稍后再说」；
@@ -66,9 +71,23 @@ fun UpdateDialog(
                 },
                 text = {
                     Column {
-                        Text(text = "新版本下载中，请稍候…", fontSize = 14.sp)
+                        Text(
+                            text = if (state.totalBytes > 0) {
+                                "已下载 ${formatMb(state.downloadedBytes)} / ${formatMb(state.totalBytes)} (${state.percent}%)"
+                            } else {
+                                "已下载 ${formatMb(state.downloadedBytes)}（总大小获取中…）"
+                            },
+                            fontSize = 14.sp
+                        )
                         Spacer(modifier = Modifier.height(12.dp))
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        if (state.totalBytes > 0) {
+                            LinearProgressIndicator(
+                                progress = { state.percent / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 },
                 confirmButton = {}

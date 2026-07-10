@@ -32,9 +32,11 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
-    /** 立即更新（下载并安装） */
+    /** 立即更新（下载并安装，AppUpdateManager.startDownload 为挂起函数，需 IO 协程） */
     fun startDownload(context: Context) {
-        appUpdateManager.startDownload(context)
+        viewModelScope.launch(Dispatchers.IO) {
+            appUpdateManager.startDownload(context)
+        }
     }
 
     /** 稍后再说 / 关闭弹窗 */

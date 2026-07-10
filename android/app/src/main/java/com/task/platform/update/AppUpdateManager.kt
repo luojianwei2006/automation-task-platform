@@ -1,6 +1,5 @@
 package com.task.platform.update
 
-import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -11,10 +10,15 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.task.platform.BuildConfig
 import com.task.platform.network.ApiClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -24,22 +28,27 @@ import javax.inject.Singleton
  * 职责：
  *   1. 调后端 GET /api/user/config 拉取最新版本配置；
  *   2. 与本地 [BuildConfig.VERSION_NAME] 比对，判断是否有新版本；
- *   3. 通过系统 [DownloadManager] 把 APK 下载到 App 外部私有目录；
- *   4. 下载完成后由 [DownloadCompleteReceiver] 回调 [onDownloadComplete]，
- *      再用 FileProvider + ACTION_VIEW 调起系统安装器。
+ *   3. 通过 [OkHttpClient] 流式下载 APK，并在下载过程中实时回调进度（总大小 / 已下载 / 百分比）；
+ *   4. 下载完成后用 FileProvider + ACTION_VIEW 调起系统安装器。
  *
  * 状态以 [StateFlow] 暴露给 UI（[UpdateViewModel] / Compose 弹窗）。
  *
  * 兼容性说明：
- *   - 下载落盘用 getExternalFilesDir()/apk/，原因：DownloadManager 运行在独立系统进程，
- *     无法写入 App 内部私有目录（/data/data/.../files/），但可写入 App 外部私有目录。
- *   - file_paths.xml 的 external-files-path 与下载目录、FileProvider authority 三者对应。
+ *   - 下载落盘用 getExternalFilesDir()/apk/，对应 file_paths.xml 的 external-files-path，
+ *     无需存储权限，App 外部私有目录可被 FileProvider 暴露给系统安装器。
  *   - Android 8+ 未知来源安装：未授权时引导用户去设置开启（REQUEST_INSTALL_PACKAGES 已声明）。
+ *
+ * 进度说明：
+ *   - 服务端若返回 Content-Length，则 totalBytes > 0，可计算百分比；
+ *   - 服务端未返回 Content-Length 时 totalBytes = -1，此时进度条使用不确定模式。
  */
 @Singleton
 class AppUpdateManager @Inject constructor(
     private val apiClient: ApiClient
 ) {
+    /** HTTP 客户端（流式下载 APK） */
+    private val httpClient = OkHttpClient()
+
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
@@ -78,29 +87,32 @@ class AppUpdateManager @Inject constructor(
 
     /**
      * 开始下载并安装（由 UI「立即更新」按钮触发）。
+     *
+     * 该方法为挂起函数，内部通过 [OkHttpClient] 流式下载 APK，
+     * 并持续通过 [UpdateState.Downloading] 上报进度（总大小 / 已下载 / 百分比）。
+     * 下载完成后直接调用 [installApk] 调起系统安装器。
+     *
+     * 注意：下载是阻塞 IO，调用方应在 IO 调度器（或 viewModelScope.launch(Dispatchers.IO)）中调用。
      */
-    fun startDownload(context: Context) {
+    suspend fun startDownload(context: Context) {
         val config = latestConfig
         if (config == null || config.url.isEmpty()) {
             _updateState.value = UpdateState.Error("未获取到下载地址，请稍后重试")
             return
         }
-        _updateState.value = UpdateState.Downloading
+        _updateState.value = UpdateState.Downloading(0, -1, 0)
         try {
             val file = apkFile(context)
             file.parentFile?.mkdirs()
-            val request = DownloadManager.Request(Uri.parse(config.url)).apply {
-                setTitle(config.appName.ifBlank { "任务平台" })
-                setDescription("正在下载新版本 v${config.version}")
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalFilesDir(context, null, "apk/app-release.apk")
-                setMimeType("application/vnd.android.package-archive")
-                setAllowedOverMetered(true)
-                setAllowedOverRoaming(true)
+            downloadApk(context, config.url) { downloaded, total ->
+                val percent = if (total > 0) {
+                    ((downloaded * 100 / total).toInt()).coerceIn(0, 100)
+                } else {
+                    0
+                }
+                _updateState.value = UpdateState.Downloading(downloaded, total, percent)
             }
-            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            dm.enqueue(request)
-            Log.d("AppUpdateManager", "已下发下载任务: ${config.url}")
+            installApk(context, file) // 保持不变
         } catch (e: Exception) {
             Log.e("AppUpdateManager", "下载失败: ${e.message}", e)
             _updateState.value = UpdateState.Error("下载失败：${e.message}")
@@ -108,31 +120,42 @@ class AppUpdateManager @Inject constructor(
     }
 
     /**
-     * 下载完成回调（由 [DownloadCompleteReceiver] 调用）。
+     * 通过 [OkHttpClient] 流式下载 APK 到 [apkFile]，并在下载过程中持续回调进度。
+     *
+     * @param url        下载地址
+     * @param onProgress 进度回调，参数为 (已下载字节数, 总字节数)；
+     *                   总字节数可能为 -1（服务端未返回 Content-Length）。
      */
-    fun onDownloadComplete(context: Context, downloadId: Long) {
-        try {
-            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-            val query = DownloadManager.Query().setFilterById(downloadId)
-            dm.query(query)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                    if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                        installApk(context, apkFile(context))
-                        return
+    private suspend fun downloadApk(
+        context: Context,
+        url: String,
+        onProgress: (downloaded: Long, total: Long) -> Unit
+    ) {
+        withContext(Dispatchers.IO) {
+            val file = apkFile(context)
+            file.parentFile?.mkdirs()
+
+            val request = Request.Builder().url(url).build()
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw IOException("下载失败：HTTP ${response.code} ${response.message}")
+                }
+                val body = response.body ?: throw IOException("下载失败：响应体为空")
+                val total = body.contentLength()
+                body.byteStream().use { input ->
+                    file.outputStream().use { output ->
+                        val buffer = ByteArray(8 * 1024)
+                        var downloaded = 0L
+                        var read: Int
+                        while (input.read(buffer).also { read = it } != -1) {
+                            output.write(buffer, 0, read)
+                            downloaded += read
+                            onProgress(downloaded, total)
+                        }
+                        output.flush()
                     }
-                    val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                    Log.e("AppUpdateManager", "下载未成功完成 status=$status reason=$reason")
-                    Toast.makeText(context, "下载失败，请稍后重试", Toast.LENGTH_SHORT).show()
-                    _updateState.value = UpdateState.Error("下载失败，请稍后重试")
-                } else {
-                    _updateState.value = UpdateState.Error("下载失败，请稍后重试")
                 }
             }
-        } catch (e: Exception) {
-            Log.e("AppUpdateManager", "处理下载完成事件失败: ${e.message}", e)
-            Toast.makeText(context, "安装失败：${e.message}", Toast.LENGTH_SHORT).show()
-            _updateState.value = UpdateState.Error("安装失败：${e.message}")
         }
     }
 

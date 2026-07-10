@@ -99,15 +99,6 @@
                 android:resource="@xml/file_paths" />
         </provider>
 
-        <!-- 下载完成广播（APK 下载完成后触发系统安装器） -->
-        <receiver
-            android:name=".update.DownloadCompleteReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
-            </intent-filter>
-        </receiver>
-
     </application>
 
 </manifest>
