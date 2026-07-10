@@ -96,6 +96,7 @@ public interface UserTaskRecordMapper extends BaseMapper<UserTaskRecord> {
                 r.ai_check_result   AS aiCheckResult,
                 r.review_result     AS reviewResult,
                 r.reward_amount     AS rewardAmount,
+                r.reward_granted_at AS rewardGrantedAt,
                 r.accepted_at       AS acceptedAt,
                 r.submitted_at      AS submittedAt,
                 r.checked_at        AS checkedAt,
@@ -127,6 +128,25 @@ public interface UserTaskRecordMapper extends BaseMapper<UserTaskRecord> {
             WHERE id = #{recordId}
             """)
     void approve(@Param("recordId") Long recordId, @Param("rewardAmount") BigDecimal rewardAmount);
+
+    /**
+     * 发放成功后写入发放时间
+     */
+    @Update("UPDATE t_user_task_record SET reward_granted_at = NOW() WHERE id = #{recordId}")
+    void markGranted(@Param("recordId") Long recordId);
+
+    /**
+     * 补偿任务用：查询已审核通过(status=2)但未发放(status=2 且 reward_granted_at IS NULL)的记录
+     */
+    @Select("""
+            SELECT id,
+                   user_id           AS userId,
+                   task_id           AS taskId,
+                   COALESCE(reward_amount, 0) AS rewardAmount
+            FROM t_user_task_record
+            WHERE status = 2 AND reward_granted_at IS NULL
+            """)
+    List<Map<String, Object>> selectPendingGrants();
 
     /**
      * 审核拒绝：状态回退为进行中，写入拒绝原因和审核时间

@@ -1,13 +1,13 @@
 package com.task.platform.admin.controller;
 
-import com.task.platform.admin.mapper.UserEarningsMapper;
 import com.task.platform.admin.mapper.UserTaskRecordMapper;
 import com.task.platform.admin.security.AdminUserDetails;
 import com.task.platform.admin.service.MerchantService;
+import com.task.platform.admin.service.RewardGrantService;
 import com.task.platform.common.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -18,20 +18,19 @@ import java.util.Map;
 /**
  * 管理后台 - 任务领取记录接口
  */
+@Slf4j
 @RestController
 @RequestMapping("/admin/task-records")
 @RequiredArgsConstructor
 public class AdminTaskRecordController {
 
     private final UserTaskRecordMapper userTaskRecordMapper;
-    private final UserEarningsMapper userEarningsMapper;
     private final MerchantService merchantService;
+    private final RewardGrantService rewardGrantService;
 
     /**
      * 领取记录列表（跨任务，按状态过滤）
      * GET /api/admin/task-records?status=1&page=1&size=20
-     *
-     * <p>超管看全部商户；商户管理员只看自己商户的记录。
      */
     @GetMapping
     public ApiResponse<Map<String, Object>> listRecords(
@@ -40,7 +39,6 @@ public class AdminTaskRecordController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 商户管理员只能看自己商户；超管看全部
         Long merchantId = currentUser.isSuperAdmin() ? null : currentUser.getMerchantId();
 
         List<Map<String, Object>> all = userTaskRecordMapper.selectByStatusWithUserAndTask(status, merchantId);
@@ -68,8 +66,6 @@ public class AdminTaskRecordController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 先查全部（MyBatis-Plus 的 BaseMapper 不支持联表分页，这里先查全部再手动分页）
-        // 数据量不大（一个任务的领取记录不会太多），直接查全量
         List<Map<String, Object>> all = userTaskRecordMapper.selectByTaskIdWithUser(taskId);
 
         long total = all.size();
@@ -101,53 +97,51 @@ public class AdminTaskRecordController {
     }
 
     /**
-     * 审核通过：给用户发放奖励，更新记录状态为通过
+     * 审核通过：扣商户费（保留）+ 委托 pay-service 发放奖励（唯一权威发奖入口）
      * POST /api/admin/task-records/{recordId}/approve
+     *
+     * <p>设计：先标记记录为通过（reward_granted_at 留空），再调 pay grant；
+     * 若 pay 临时不可达，记录保持 status=2 且 reward_granted_at 为 NULL，
+     * 由 RewardGrantCompensationJob 定时补偿重试（幂等），避免双发/双扣。</p>
      */
     @PostMapping("/{recordId}/approve")
-    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> approve(@PathVariable Long recordId) {
-        // 1. 获取奖励金额（COALESCE(r.reward_amount, t.reward_amount)）
+        Map<String, Object> detail = userTaskRecordMapper.selectByRecordIdWithUserAndTask(recordId);
+        if (detail == null) {
+            return ApiResponse.error(404, "记录不存在");
+        }
+
+        Integer status = detail.get("status") != null ? ((Number) detail.get("status")).intValue() : null;
+        Object grantedAtObj = detail.get("rewardGrantedAt");
+        boolean alreadyGranted = (status != null && status == 2 && grantedAtObj != null);
+        if (alreadyGranted) {
+            return ApiResponse.success(null, "已发放，无需重复操作");
+        }
+
         BigDecimal rewardAmount = userTaskRecordMapper.selectRewardAmount(recordId);
         if (rewardAmount == null) {
             return ApiResponse.error(500, "无法获取奖励金额");
         }
 
-        // 2. 获取记录得到 userId
-        Map<String, Object> detail = userTaskRecordMapper.selectByRecordIdWithUserAndTask(recordId);
-        if (detail == null) {
-            return ApiResponse.error(404, "记录不存在");
-        }
-        Long userId = ((Number) detail.get("userId")).longValue();
-
-        // === 商户扣费：用户提交审核通过 → 扣 奖励+服务费，写 TYPE_TASK_COST 流水 ===
-        // 失败（余额不足/异常）抛异常 → 整体 @Transactional 回滚 → 记录保持待审核(1)，不发放用户奖励
+        Long userId = detail.get("userId") != null ? ((Number) detail.get("userId")).longValue() : null;
         Long taskId = detail.get("taskId") != null ? ((Number) detail.get("taskId")).longValue() : null;
         Long merchantId = detail.get("merchantId") != null ? ((Number) detail.get("merchantId")).longValue() : null;
         String taskTitle = (String) detail.get("taskTitle");
-        if (merchantId != null && rewardAmount != null && rewardAmount.compareTo(BigDecimal.ZERO) > 0) {
+
+        // 首次通过（status==1）才扣商户；半处理重试（status==2 但未发奖）跳过，避免双扣
+        boolean firstAttempt = (status == null || status == 1);
+        if (firstAttempt && merchantId != null && rewardAmount.compareTo(BigDecimal.ZERO) > 0) {
             merchantService.deductTaskCost(merchantId, rewardAmount, taskId, taskTitle);
         }
 
-        // 3. 获取用户最新余额
-        BigDecimal currentBalance = userEarningsMapper.selectLatestBalance(userId);
-        if (currentBalance == null) {
-            currentBalance = BigDecimal.ZERO;
-        }
-
-        // 4. 计算新余额并写入收益明细
-        BigDecimal newBalance = currentBalance.add(rewardAmount);
-        Map<String, Object> earning = new HashMap<>();
-        earning.put("userId", userId);
-        earning.put("relatedId", recordId);
-        earning.put("type", 1); // 1=任务奖励
-        earning.put("amount", rewardAmount);
-        earning.put("balanceAfter", newBalance);
-        earning.put("remark", "任务审核通过，奖励发放");
-        userEarningsMapper.insertEarning(earning);
-
-        // 5. 更新记录状态为通过
+        // 先标记记录为通过（reward_granted_at 留空），失败可由补偿任务重试
         userTaskRecordMapper.approve(recordId, rewardAmount);
+
+        // 委托 pay-service 发放用户奖励（幂等，唯一权威发奖入口）
+        rewardGrantService.grant(userId, recordId, taskId, rewardAmount);
+
+        // 发放成功，写发放时间
+        userTaskRecordMapper.markGranted(recordId);
 
         return ApiResponse.success(null);
     }

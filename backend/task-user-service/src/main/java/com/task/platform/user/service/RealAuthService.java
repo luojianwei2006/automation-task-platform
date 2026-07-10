@@ -73,6 +73,7 @@ public class RealAuthService {
         user.setIdCard(encryptedIdCard);
         user.setIdCardFrontUrl(req.getIdCardFrontUrl());
         user.setIdCardBackUrl(req.getIdCardBackUrl());
+        user.setHoldIdCardUrl(req.getHoldIdCardUrl());
         user.setRealAuthStatus(STATUS_PENDING);
 
         userMapper.updateById(user);
@@ -133,6 +134,10 @@ public class RealAuthService {
             log.info("[RealAuth] 用户 {} 实名认证审核拒绝，原因: {}", userId, reason);
             // TODO: 发送站内消息通知用户，附带拒绝原因
         }
+
+        // 持久化审核备注与时间（C端无审核人上下文，revieweredBy 留空）
+        user.setRealAuthRemark(reason);
+        user.setRealAuthReviewedAt(LocalDateTime.now());
 
         userMapper.updateById(user);
     }

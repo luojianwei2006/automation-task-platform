@@ -48,6 +48,22 @@ public class AppUser {
     @TableField("real_auth_status")
     private Integer realAuthStatus;
 
+    /** 手持身份证照URL */
+    @TableField("hold_id_card_url")
+    private String holdIdCardUrl;
+
+    /** 实名审核备注/驳回原因 */
+    @TableField("real_auth_remark")
+    private String realAuthRemark;
+
+    /** 实名审核人ID */
+    @TableField("real_auth_reviewed_by")
+    private Long realAuthReviewedBy;
+
+    /** 实名审核时间 */
+    @TableField("real_auth_reviewed_at")
+    private LocalDateTime realAuthReviewedAt;
+
     /** 绑定微信账号 */
     private String wechatAccount;
 

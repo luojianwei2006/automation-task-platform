@@ -1,5 +1,5 @@
 server:
-  port: 8083
+  port: 8082
 
 spring:
   application:
@@ -45,6 +45,9 @@ admin:
     base-url: http://localhost:8084
 internal:
   api-token: task-internal-2026
+
+pay:
+  api-base-url: http://localhost:8087
 
 jwt:
   secret: TaskPlatformSecretKey2026@AutoTask#$%^&*()_+1234567890

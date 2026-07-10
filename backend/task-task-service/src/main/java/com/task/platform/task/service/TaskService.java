@@ -2,6 +2,7 @@ package com.task.platform.task.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.task.platform.common.constant.InternalApiConstants;
 import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ErrorCode;
 import com.task.platform.task.entity.Task;
@@ -46,6 +47,9 @@ public class TaskService {
 
     @Value("${internal.api-token:}")
     private String internalApiToken;
+
+    @Value("${pay.api.base-url:http://localhost:8087}")
+    private String payApiBaseUrl;
 
     private static final RestTemplate REST_TEMPLATE = new RestTemplate();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -356,9 +360,17 @@ public class TaskService {
             throw new BusinessException(ErrorCode.NOT_FOUND, "未接取此任务");
         }
 
-        // 2. 检查状态是否为"进行中"（0）
-        if (record.getStatus() != 0) {
+        // 2. 允许"进行中(0)"或"驳回(3 重提一次)"提交
+        if (record.getStatus() != 0 && record.getStatus() != 3) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "任务状态不正确，无法提交");
+        }
+
+        // 驳回后重提：重置提交截止时间，给予新的提交窗口
+        if (record.getStatus() == 3) {
+            Task task = taskMapper.selectById(taskId);
+            int hours = (task != null && task.getSubmitDeadlineHours() != null && task.getSubmitDeadlineHours() > 0)
+                    ? task.getSubmitDeadlineHours() : 24;
+            record.setAcceptDeadline(LocalDateTime.now().plusHours(hours));
         }
 
         // 3. 检查是否超时
@@ -368,8 +380,8 @@ public class TaskService {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "任务已超时，无法提交");
         }
 
-        // 4. 检查提交次数（最多15次）
-        if (record.getSubmitCount() >= 15) {
+        // 4. 检查提交次数（含驳回重提，最多 2 次）
+        if (record.getSubmitCount() >= 2) {
             throw new BusinessException(ErrorCode.PARAM_ERROR, "提交次数已达上限");
         }
 
@@ -443,25 +455,24 @@ public class TaskService {
             record.setManualCheckedAt(LocalDateTime.now());
             record.setCheckedAt(LocalDateTime.now());
 
-            // === 用户提交审核通过 → 扣除商户余额（奖励 + 服务费），写入 TYPE_TASK_COST 流水 ===
+            // === 审核通过 → 委托 pay-service 发放奖励（唯一权威发奖入口，幂等） ===
+            // 说明：本端点为兼容端点，不再直接扣商户（商户扣费由 admin-api.approve 统一负责），
+            // 仅触发 pay grant；若 pay 临时不可达，本方法 @Transactional 回滚，记录保持待审核可重试。
             Task task = taskMapper.selectById(record.getTaskId());
-            if (task != null && task.getMerchantId() != null
-                    && task.getRewardAmount() != null
+            if (task != null && task.getRewardAmount() != null
                     && task.getRewardAmount().compareTo(BigDecimal.ZERO) > 0) {
-                // 先扣商户余额；扣款失败抛异常，本方法 @Transactional 回滚，记录保持待审核
-                deductMerchantBalance(task.getMerchantId(), task.getRewardAmount(),
-                        task.getId(), task.getTitle());
+                BigDecimal rewardAmount = task.getRewardAmount();
+                // 记录本笔奖励金额快照，供发放使用
+                record.setRewardAmount(rewardAmount);
+                // 触发发奖
+                grantUserReward(record.getUserId(), record.getId(), task.getId(), rewardAmount);
+                record.setRewardGrantedAt(LocalDateTime.now());
                 // 任务维度统计：已用配额 +1，已用点数累加（奖励额）
                 task.setUsedQuota((task.getUsedQuota() == null ? 0 : task.getUsedQuota()) + 1);
                 task.setUsedPoints((task.getUsedPoints() == null ? BigDecimal.ZERO : task.getUsedPoints())
-                        .add(task.getRewardAmount()));
+                        .add(rewardAmount));
                 taskMapper.updateById(task);
-                // 记录本笔奖励金额，供后续发放用户奖励使用
-                record.setRewardAmount(task.getRewardAmount());
             }
-
-            // TODO: 调用支付服务发放奖励（payService.grantReward）
-            // record.setRewardGrantedAt(LocalDateTime.now());
         } else {
             record.setStatus(3); // 拒绝
             record.setReviewResult(reviewResult);
@@ -505,6 +516,45 @@ public class TaskService {
         } catch (Exception e) {
             log.error("[TaskService] 调用管理后台扣费接口失败 merchantId={}, taskId={}", merchantId, taskId, e);
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "扣除商户余额失败，请稍后重试");
+        }
+    }
+
+    /**
+     * 委托 pay-service 发放任务奖励（内部直连 + X-Internal-Token）
+     * 幂等由 pay-service 侧 t_reward_grant.task_record_id 唯一约束保证。
+     */
+    private void grantUserReward(Long userId, Long taskRecordId, Long taskId, BigDecimal amount) {
+        try {
+            String url = payApiBaseUrl + "/pay/grant";
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set(InternalApiConstants.HEADER_NAME, internalApiToken);
+            Map<String, Object> body = new HashMap<>();
+            body.put("userId", userId);
+            body.put("taskRecordId", taskRecordId);
+            body.put("taskId", taskId);
+            body.put("amount", amount);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> resp = REST_TEMPLATE.postForEntity(url, entity, String.class);
+            if (!resp.getStatusCode().is2xxSuccessful()) {
+                String msg = "发放奖励失败";
+                try {
+                    if (resp.getBody() != null) {
+                        ApiResponse<?> ar = OBJECT_MAPPER.readValue(resp.getBody(), ApiResponse.class);
+                        if (ar.getCode() != 200) {
+                            msg = ar.getMsg();
+                        }
+                    }
+                } catch (Exception ignore) {
+                    // 用默认提示
+                }
+                throw new BusinessException(ErrorCode.GRANT_FAILED, msg);
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[TaskService] 调用 pay-service 发放奖励失败 userId={}, taskRecordId={}", userId, taskRecordId, e);
+            throw new BusinessException(ErrorCode.GRANT_FAILED, "发放奖励调用失败");
         }
     }
 

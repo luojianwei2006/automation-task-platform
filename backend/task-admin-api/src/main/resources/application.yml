@@ -58,3 +58,6 @@ logging:
 
 internal:
   api-token: task-internal-2026
+
+pay:
+  api-base-url: http://localhost:8087

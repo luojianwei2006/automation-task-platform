@@ -31,7 +31,7 @@ public class WithdrawService {
     private final SysConfigMapper sysConfigMapper;
     private final UserEarningsMapper userEarningsMapper;
 
-    private static final BigDecimal DEFAULT_MIN_AMOUNT = new BigDecimal("10");
+    private static final BigDecimal DEFAULT_MIN_AMOUNT = BigDecimal.ZERO;
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("5000");
 
     private BigDecimal getMinAmount() {
@@ -57,12 +57,17 @@ public class WithdrawService {
         if (user == null) throw new BusinessException(ErrorCode.USER_NOT_FOUND);
 
         if (user.getRealAuthStatus() == null || user.getRealAuthStatus() != 2) {
-            throw new BusinessException(ErrorCode.PARAM_ERROR, "请先完成实名认证");
+            throw new BusinessException(ErrorCode.REAL_NAME_AUTH_REQUIRED);
         }
 
+        // 金额合法性：必须大于 0；保留单笔上限 5000
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BusinessException(ErrorCode.PARAM_ERROR, "提现金额必须大于0");
+        }
+        // 无门槛：仅当 min_withdraw_amount > 0 时才校验下限
         BigDecimal minAmount = getMinAmount();
-        if (amount.compareTo(minAmount) < 0) {
-            throw new BusinessException(400, "提现金额不能低于" + minAmount + "元");
+        if (minAmount.compareTo(BigDecimal.ZERO) > 0 && amount.compareTo(minAmount) < 0) {
+            throw new BusinessException(ErrorCode.WITHDRAW_AMOUNT_TOO_SMALL, "提现金额不能低于" + minAmount + "元");
         }
         if (amount.compareTo(MAX_AMOUNT) > 0) {
             throw new BusinessException(ErrorCode.WITHDRAW_AMOUNT_TOO_LARGE);
@@ -75,18 +80,19 @@ public class WithdrawService {
         }
         BigDecimal balanceAfter = balance.subtract(amount);
 
+        String withdrawNo = "WD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+                + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+
         UserEarnings earnings = new UserEarnings();
         earnings.setUserId(userId);
-        earnings.setType(3); // 提现
+        earnings.setType(5); // 5=提现（修正原误用 3=邀请返佣）
         earnings.setAmount(amount.negate()); // 负数 = 支出
         earnings.setBalanceAfter(balanceAfter);
         earnings.setStatus(1);
         earnings.setRemark("提现-" + method);
+        earnings.setBizId(withdrawNo);
         earnings.setCreatedAt(LocalDateTime.now());
         userEarningsMapper.insert(earnings);
-
-        String withdrawNo = "WD" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
-                + UUID.randomUUID().toString().substring(0, 6).toUpperCase();
 
         WithdrawRecord record = new WithdrawRecord();
         record.setWithdrawNo(withdrawNo);

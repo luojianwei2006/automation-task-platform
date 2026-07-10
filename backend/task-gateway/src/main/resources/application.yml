@@ -38,7 +38,7 @@ spring:
 
         # 支付服务路由
         - id: task-pay-service
-          uri: http://127.0.0.1:8083
+          uri: http://127.0.0.1:8087
           predicates:
             - Path=/api/pay/**
           filters:

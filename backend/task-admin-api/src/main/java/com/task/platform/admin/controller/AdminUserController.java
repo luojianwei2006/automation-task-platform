@@ -14,6 +14,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -154,10 +155,12 @@ public class AdminUserController {
     @PostMapping("/{userId}/real-auth/review")
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ApiResponse<Void> reviewRealAuth(
+            @AuthenticationPrincipal AdminUserDetails currentUser,
             @PathVariable Long userId,
             @RequestBody ReviewRequest req) {
 
-        adminUserService.reviewRealAuth(userId, req.isPass(), req.getReason());
+        adminUserService.reviewRealAuth(userId, req.isPass(), req.getReason(),
+                currentUser != null ? currentUser.getAdminId() : null);
         return ApiResponse.success(null, req.isPass() ? "认证审核通过" : "认证审核拒绝");
     }
 

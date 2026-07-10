@@ -42,6 +42,10 @@ public class UserEarnings {
     /** 备注 */
     private String remark;
 
+    /** 业务关联键（发放单号/提现单号） */
+    @TableField("biz_id")
+    private String bizId;
+
     @TableField("created_at")
     private LocalDateTime createdAt;
 }

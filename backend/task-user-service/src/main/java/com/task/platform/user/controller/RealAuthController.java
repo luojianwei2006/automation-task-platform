@@ -1,46 +1,109 @@
 package com.task.platform.user.controller;
 
+import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ApiResponse;
+import com.task.platform.common.response.ErrorCode;
+import com.task.platform.common.utils.JwtUtil;
 import com.task.platform.user.service.RealAuthService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 /**
  * 实名认证接口
  *
- * @author TaskPlatform
+ * <p>路径对齐安卓端：/user/realname/{upload,submit,status}（网关去前缀后）。
+ * 照片上传经本端点转发 upload-service，返回其 accessUrl。</p>
  */
+@Slf4j
 @RestController
-@RequestMapping("/user/real-auth")
+@RequestMapping("/user/realname")
 @RequiredArgsConstructor
 public class RealAuthController {
 
     private final RealAuthService realAuthService;
 
+    private static final RestTemplate REST = new RestTemplate();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    @Value("${upload.api.base-url:http://localhost:8086}")
+    private String uploadApiBaseUrl;
+
+    /**
+     * 实名照片上传（身份证/人脸），内部转发 upload-service
+     * POST /api/user/realname/upload
+     */
+    @PostMapping("/upload")
+    public ApiResponse<UploadResult> upload(
+            @RequestHeader("Authorization") String authorization,
+            @RequestParam("file") MultipartFile file) {
+        Long userId = JwtUtil.getUserId(extractToken(authorization));
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error(400, "上传文件不能为空");
+        }
+        try {
+            String url = uploadApiBaseUrl + "/upload/image?type=idcard";
+            LinkedMultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+            body.add("file", new ByteArrayResource(file.getBytes()) {
+                @Override
+                public String getFilename() {
+                    return file.getOriginalFilename();
+                }
+            });
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+            HttpEntity<LinkedMultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> resp = REST.postForEntity(url, entity, String.class);
+            if (resp.getStatusCode().is2xxSuccessful() && resp.getBody() != null) {
+                ApiResponse<UploadResult> ar = OBJECT_MAPPER.readValue(resp.getBody(),
+                        OBJECT_MAPPER.getTypeFactory().constructParametricType(ApiResponse.class, UploadResult.class));
+                if (ar.getCode() == 200 && ar.getData() != null) {
+                    return ApiResponse.success(ar.getData());
+                }
+                return ApiResponse.error(ar.getCode(), ar.getMsg());
+            }
+            return ApiResponse.error(500, "上传失败");
+        } catch (IOException e) {
+            log.error("[RealAuthController] 读取上传文件失败 userId={}", userId, e);
+            return ApiResponse.error(500, "上传失败");
+        } catch (Exception e) {
+            log.error("[RealAuthController] 转发实名图片上传失败 userId={}", userId, e);
+            return ApiResponse.error(500, "上传失败");
+        }
+    }
+
     /**
      * 提交实名认证申请
-     * POST /api/v1/user/real-auth
-     *
-     * Request Body:
-     * {
-     *   "realName": "张三",
-     *   "idCard": "110101199001010011",
-     *   "idCardFrontUrl": "https://cos.xxx.com/xxx.jpg",
-     *   "idCardBackUrl": "https://cos.xxx.com/xxx.jpg",
-     *   "holdIdCardUrl": "https://cos.xxx.com/xxx.jpg"
-     * }
+     * POST /api/user/realname/submit
      */
-    @PostMapping
+    @PostMapping("/submit")
     public ApiResponse<Void> submitRealAuth(
             @RequestHeader("Authorization") String authorization,
             @Valid @RequestBody RealAuthRequest req) {
-
-        Long userId = extractUserId(authorization);
+        Long userId = JwtUtil.getUserId(extractToken(authorization));
 
         RealAuthService.RealAuthRequest serviceReq = new RealAuthService.RealAuthRequest();
         serviceReq.setRealName(req.getRealName());
@@ -55,25 +118,23 @@ public class RealAuthController {
 
     /**
      * 查询实名认证状态
-     * GET /api/v1/user/real-auth/status
-     *
-     * Response:
-     * {
-     *   "status": 1,             // 0未认证 1审核中 2已认证 3失败
-     *   "statusDesc": "审核中...",
-     *   "realName": "张三",
-     *   "idCardMasked": "110101********0011"
-     * }
+     * GET /api/user/realname/status
      */
     @GetMapping("/status")
     public ApiResponse<RealAuthService.RealAuthStatusVO> getAuthStatus(
             @RequestHeader("Authorization") String authorization) {
-
-        Long userId = extractUserId(authorization);
+        Long userId = JwtUtil.getUserId(extractToken(authorization));
         return ApiResponse.success(realAuthService.getAuthStatus(userId));
     }
 
-    // ==================== DTO ====================
+    // ==================== 工具 ====================
+
+    private String extractToken(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            throw new BusinessException(ErrorCode.TOKEN_INVALID);
+        }
+        return authorization.substring(7);
+    }
 
     @Data
     public static class RealAuthRequest {
@@ -99,13 +160,12 @@ public class RealAuthController {
         private String holdIdCardUrl;
     }
 
-    // ==================== 工具方法 ====================
-
-    private Long extractUserId(String authorization) {
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
-            throw new com.task.platform.common.exception.BusinessException(
-                    com.task.platform.common.response.ErrorCode.TOKEN_INVALID);
-        }
-        return com.task.platform.common.utils.JwtUtil.getUserId(authorization.substring(7));
+    /** 上传结果（与 upload-service UploadResult 结构一致） */
+    @Data
+    public static class UploadResult {
+        private String relativePath;
+        private String accessUrl;
+        private String filename;
+        private long size;
     }
 }

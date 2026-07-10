@@ -62,6 +62,7 @@ public enum ErrorCode {
     WITHDRAW_NEED_MANUAL_REVIEW(5003, "提现金额超过200元，需人工审核"),
     PAYMENT_FAILED(5004, "支付失败"),
     RECHARGE_FAILED(5005, "充值失败"),
+    GRANT_FAILED(5006, "奖励发放失败"),
     
     // ========== 商户相关 (6000-6999) ==========
     MERCHANT_NOT_FOUND(6000, "商户不存在"),

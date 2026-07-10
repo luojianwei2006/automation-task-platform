@@ -60,6 +60,11 @@ public class AdminUserService {
         vo.setIdCardMasked(maskIdCard(idCard));
         vo.setIdCardFrontUrl(toAccessUrl(user.getIdCardFrontUrl()));
         vo.setIdCardBackUrl(toAccessUrl(user.getIdCardBackUrl()));
+        vo.setHoldIdCardUrl(toAccessUrl(user.getHoldIdCardUrl()));
+        vo.setRealAuthRemark(user.getRealAuthRemark());
+        vo.setRealAuthReviewedBy(user.getRealAuthReviewedBy());
+        vo.setRealAuthReviewedAt(user.getRealAuthReviewedAt());
+        vo.setSubmittedAt(user.getCreatedAt());
         vo.setStatusDesc(getStatusDesc(vo.getStatus()));
         return vo;
     }
@@ -71,7 +76,7 @@ public class AdminUserService {
      * @param pass    true=通过, false=拒绝
      * @param reason  拒绝原因（pass=false 时必填）
      */
-    public void reviewRealAuth(Long userId, boolean pass, String reason) {
+    public void reviewRealAuth(Long userId, boolean pass, String reason, Long reviewedBy) {
         AppUser user = getUserById(userId);
 
         if (STATUS_PENDING != user.getRealAuthStatus()) {
@@ -92,6 +97,10 @@ public class AdminUserService {
             // TODO: 发送站内消息通知用户，附带拒绝原因
         }
 
+        // 持久化审核备注与审核人/时间
+        user.setRealAuthRemark(reason);
+        user.setRealAuthReviewedBy(reviewedBy);
+        user.setRealAuthReviewedAt(LocalDateTime.now());
         appUserMapper.updateById(user);
     }
 
@@ -201,6 +210,16 @@ public class AdminUserService {
         private String idCardMasked;
         private String idCardFrontUrl;
         private String idCardBackUrl;
+        /** 手持身份证/人脸照URL */
+        private String holdIdCardUrl;
+        /** 审核备注/驳回原因 */
+        private String realAuthRemark;
+        /** 审核人ID */
+        private Long realAuthReviewedBy;
+        /** 审核时间 */
+        private LocalDateTime realAuthReviewedAt;
+        /** 提交时间 */
+        private LocalDateTime submittedAt;
     }
 
     // =================== 私有工具 ===================

@@ -1,0 +1,102 @@
+classDiagram
+    %% ===== user-service =====
+    class RealAuthController {
+        +POST /user/realname/upload(MultipartFile) ApiResponse~UploadResult~
+        +POST /user/realname/submit(RealAuthRequest) ApiResponse~Void~
+        +GET  /user/realname/status() ApiResponse~RealAuthStatusVO~
+    }
+    class RealAuthService {
+        +submitRealAuth(userId, RealAuthRequest)
+        +getAuthStatus(userId) RealAuthStatusVO
+        +reviewRealAuth(userId, pass, reason)
+    }
+    class WithdrawService {
+        +applyWithdraw(userId, amount, method, account)
+        +getRecords(userId) List~WithdrawRecord~
+    }
+    class EarningsService {
+        +getSummary(userId) EarningsSummaryVO
+        +getRecords(userId, type, page, size) Page~EarningsRecordVO~
+    }
+    class User {
+        +Long id
+        +String realName
+        +String idCard
+        +String idCardFrontUrl
+        +String idCardBackUrl
+        +Integer realAuthStatus
+        +String holdIdCardUrl
+        +String realAuthRemark
+        +Long realAuthReviewedBy
+        +LocalDateTime realAuthReviewedAt
+    }
+
+    %% ===== task-service =====
+    class TaskService {
+        +acceptTask(userId, taskId) UserTaskRecord
+        +submitTask(userId, taskId, urls, lat, lng) UserTaskRecord
+        +reviewTaskRecord(recordId, pass, reason) UserTaskRecord
+        -grantUserReward(userId, taskRecordId, taskId, amount)
+    }
+    class UserTaskRecord {
+        +Long id
+        +Long userId
+        +Long taskId
+        +Integer status  %% 0进行中 1审核中 2通过 3驳回 4放弃
+        +BigDecimal rewardAmount
+        +LocalDateTime rewardGrantedAt
+        +Integer submitCount
+    }
+
+    %% ===== pay-service (NEW) =====
+    class GrantController {
+        +POST /pay/grant(GrantRequest) ApiResponse~GrantResult~
+    }
+    class GrantService {
+        +grant(userId, taskRecordId, taskId, amount) RewardGrant
+    }
+    class InternalApiFilter {
+        +doFilter(req, resp, chain)
+    }
+    class RewardGrant {
+        +Long id
+        +String grantNo
+        +Long userId
+        +Long taskRecordId  %% 唯一幂等键
+        +BigDecimal amount
+        +Integer status
+        +String bizId
+    }
+
+    %% ===== admin-api =====
+    class AdminRewardGrantController {
+        +GET /admin/reward-grants(...) ApiResponse~Map~
+    }
+    class AdminUserService {
+        +reviewRealAuth(userId, pass, reason)
+    }
+    class AppUser {
+        +Long id
+        +String realName
+        +String idCard
+        +String idCardFrontUrl
+        +String idCardBackUrl
+        +Integer realAuthStatus
+        +String holdIdCardUrl
+        +String realAuthRemark
+        +Long realAuthReviewedBy
+        +LocalDateTime realAuthReviewedAt
+    }
+
+    %% ===== 关系 =====
+    RealAuthController ..> RealAuthService : 使用
+    RealAuthService ..> User : 持久化
+    WithdrawService ..> User : 读余额/实名
+    TaskService ..> UserTaskRecord : 状态机
+    TaskService ..> GrantController : 内部HTTP调 /pay/grant
+    GrantController ..> GrantService : 调用
+    GrantService ..> RewardGrant : 写发放记录
+    GrantService ..> UserEarnings : 写余额流水(共享库)
+    InternalApiFilter ..> GrantController : 前置校验X-Internal-Token
+    AdminRewardGrantController ..> RewardGrant : 读发放记录
+    AdminUserService ..> AppUser : 实名审核持久化

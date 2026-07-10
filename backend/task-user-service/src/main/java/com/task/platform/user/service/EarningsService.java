@@ -71,6 +71,7 @@ public class EarningsService {
             case 2 -> "广告奖励";
             case 3 -> "邀请返佣";
             case 4 -> "新手任务奖励";
+            case 5 -> "提现";
             default -> "其他";
         };
     }

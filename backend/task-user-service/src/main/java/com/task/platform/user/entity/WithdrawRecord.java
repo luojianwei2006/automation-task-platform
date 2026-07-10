@@ -18,7 +18,7 @@ public class WithdrawRecord {
     private String method;
     private String account;
     private String realName;
-    private Integer status; // 0=待审核 1=待打款 2=已打款 3=已拒绝
+    private Integer status; // 0=待打款 1=已打款 2=已拒绝（本期无门槛提现，去掉"待审核"中间态）
     private String rejectReason;
     private String transactionId;
     private String transferVoucherUrl;
