@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.task.platform.admin.entity.AppUser;
 import com.task.platform.admin.mapper.AppUserMapper;
 import com.task.platform.admin.mapper.UserEarningsMapper;
+import com.task.platform.admin.security.AdminUserDetails;
 import com.task.platform.admin.service.AdminUserService;
 import com.task.platform.common.exception.BusinessException;
 import com.task.platform.common.response.ApiResponse;
