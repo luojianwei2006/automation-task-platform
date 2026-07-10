@@ -65,7 +65,7 @@ fun UpdateDialog(
 
         is UpdateState.Downloading -> {
             AlertDialog(
-                onDismissRequest = onDismiss,
+                onDismissRequest = {},
                 title = {
                     Text(text = "正在下载更新", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                 },

@@ -14,8 +14,8 @@ import javax.inject.Inject
  * 持有 [AppUpdateManager] 的状态与能力，供 Compose UI 通过 [updateState] 观察、
  * 通过 [checkUpdate] / [startDownload] / [dismiss] 交互。
  *
- * 注：状态 StateFlow 由 [AppUpdateManager]（单例）持有，因为下载完成广播也会更新同一状态，
- * 保证 UI 与广播处理结果一致。
+ * 注：状态 StateFlow 由 [AppUpdateManager]（单例）持有，下载与安装逻辑统一写入同一 StateFlow，
+ * UI 通过观察它刷新。
  */
 @HiltViewModel
 class UpdateViewModel @Inject constructor(
