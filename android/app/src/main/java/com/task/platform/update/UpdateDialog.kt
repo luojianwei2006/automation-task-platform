@@ -30,12 +30,14 @@ private fun formatMb(bytes: Long): String = "%.2f MB".format(bytes / 1024f / 102
  * @param state       当前更新状态
  * @param onUpdate    点击「立即更新」
  * @param onDismiss   点击「稍后再说」或点击对话框外部 / 返回键
+ * @param onCancel    下载中点击「取消」（暂停语义：保留 .part 以便续传，对话框会重新弹出可再次下载）
  */
 @Composable
 fun UpdateDialog(
     state: UpdateState,
     onUpdate: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCancel: () -> Unit = {}
 ) {
     when (state) {
         is UpdateState.Available -> {
@@ -82,7 +84,7 @@ fun UpdateDialog(
                         Spacer(modifier = Modifier.height(12.dp))
                         if (state.totalBytes > 0) {
                             LinearProgressIndicator(
-                                progress = { state.percent / 100f },
+                                progress = state.percent / 100f,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
@@ -90,7 +92,12 @@ fun UpdateDialog(
                         }
                     }
                 },
-                confirmButton = {}
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = onCancel) {
+                        Text(text = "取消")
+                    }
+                }
             )
         }
 

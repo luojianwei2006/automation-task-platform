@@ -1,11 +1,14 @@
 package com.task.platform.update
 
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.task.platform.BuildConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 /**
@@ -25,10 +28,10 @@ class UpdateViewModel @Inject constructor(
     /** UI 状态（透传自 AppUpdateManager） */
     val updateState = appUpdateManager.updateState
 
-    /** App 启动后检查一次更新 */
+    /** App 启动后检查一次更新（开机自动，受进程级去重约束） */
     fun checkUpdate() {
         viewModelScope.launch(Dispatchers.IO) {
-            appUpdateManager.checkUpdate()
+            appUpdateManager.checkUpdate(isAuto = true)
         }
     }
 
@@ -39,8 +42,33 @@ class UpdateViewModel @Inject constructor(
         }
     }
 
+    /** 取消下载（暂停语义：保留 .part，可再次点击「立即更新」从片段续传） */
+    fun cancelDownload() {
+        appUpdateManager.cancelDownload()
+    }
+
     /** 稍后再说 / 关闭弹窗 */
     fun dismiss() {
         appUpdateManager.dismiss()
+    }
+
+    /**
+     * 手动检查新版本（设置页按钮用）：检查后弹 Toast 反馈结果。
+     * 若检测到新版本，不弹 Toast —— TaskNavGraph 根部的 UpdateDialog
+     * 会因 state=Available 自动弹出。
+     */
+    fun manualCheck(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val result = appUpdateManager.checkUpdate(isAuto = false)
+            withContext(Dispatchers.Main) {
+                if (result.hasUpdate) {
+                    // 不弹 Toast，TaskNavGraph 根部的 UpdateDialog 会因 state=Available 自动弹出
+                } else if (result.isError) {
+                    Toast.makeText(context, "检查失败：${result.message}", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "已是最新版本 v${BuildConfig.VERSION_NAME}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 }

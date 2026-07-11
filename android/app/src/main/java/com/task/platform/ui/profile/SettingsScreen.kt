@@ -1,5 +1,6 @@
 package com.task.platform.ui.profile
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -38,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.task.platform.R
+import com.task.platform.update.UpdateViewModel
 import com.task.platform.viewmodel.ProfileViewModel
 
 /**
@@ -50,6 +53,7 @@ fun SettingsScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
+    val updateViewModel: UpdateViewModel = hiltViewModel()
     val error by viewModel.errorMessage.collectAsState()
 
     var showChangePwDialog by remember { mutableStateOf(false) }
@@ -111,6 +115,21 @@ fun SettingsScreen(
                 colors = ButtonDefaults.outlinedButtonColors()
             ) {
                 Text("关于我们")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 检查新版本
+        SettingsCard(title = "版本更新") {
+            Button(
+                onClick = {
+                    Toast.makeText(context, "正在检查…", Toast.LENGTH_SHORT).show()
+                    updateViewModel.manualCheck(context)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00))
+            ) {
+                Text("检查新版本", color = MaterialTheme.colorScheme.onPrimary)
             }
         }
 

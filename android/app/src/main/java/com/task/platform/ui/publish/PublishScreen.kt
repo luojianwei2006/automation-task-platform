@@ -497,6 +497,22 @@ private fun PublishTaskCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // 配额信息：剩余 / 总
+            val remainCount = task.totalQuota - task.usedQuota
+            if (remainCount >= 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "剩余 $remainCount / ${task.totalQuota}",
+                        fontSize = 11.sp,
+                        color = if (remainCount > 0) Gray500 else Color(0xFFE53935)
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
             // 底部：平台标签 + 操作按钮
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1562,6 +1578,22 @@ private fun PublishDetailScreen(
                                 Spacer(modifier = Modifier.height(4.dp))
                                 PublishStatusTag(status = task.submissionStatus?.takeIf { it.isNotBlank() } ?: task.status)
                             }
+                        }
+
+                        // 配额信息：剩余名额 / 总
+                        val detailRemain = task.totalQuota - task.usedQuota
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("剩余名额", fontSize = 13.sp, color = Gray500)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "$detailRemain / ${task.totalQuota}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (detailRemain > 0) Gray900 else Color(0xFFE53935)
+                            )
                         }
                     }
                 }

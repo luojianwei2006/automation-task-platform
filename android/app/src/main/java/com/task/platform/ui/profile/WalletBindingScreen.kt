@@ -47,7 +47,8 @@ private val GrayBorder = Color(0xFFE8EAED)
 data class WalletItem(
     val type: Int,      // 1=微信, 2=支付宝
     val name: String,
-    val qrcodeUrl: String
+    val qrcodeUrl: String,
+    val account: String? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,6 +58,13 @@ fun WalletBindingScreen(
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val userInfo by viewModel.userInfo.collectAsState()
+
+    // 进入页面即刷新资料：从 DataStore 缓存或后端 API 恢复 userInfo，
+    // 解决重新进入页面时 hiltViewModel 新建实例导致列表为空的问题。
+    LaunchedEffect(Unit) {
+        viewModel.loadProfile()
+    }
+
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -69,8 +77,8 @@ fun WalletBindingScreen(
 
     val wallets = userInfo?.let { info ->
         listOfNotNull(
-            info.wechatQrcode?.let { WalletItem(1, "微信收款码", it) },
-            info.alipayQrcode?.let { WalletItem(2, "支付宝收款码", it) }
+            info.wechatQrcode?.let { WalletItem(1, "微信收款码", it, info.wechatAccount) },
+            info.alipayQrcode?.let { WalletItem(2, "支付宝收款码", it, info.alipayAccount) }
         )
     } ?: emptyList()
 
@@ -230,21 +238,33 @@ fun WalletBindingScreen(
             onConfirm = { type, account, uri ->
                 // 先关闭弹窗
                 showAddEditDialog = false
-                // 再异步调用 API：先上传图片，再绑定钱包
+                // 再异步调用 API：有图则上传绑定，无图则保留原图
                 scope.launch {
-                    viewModel.bindWalletWithUri(
-                        type = type,
-                        account = account,
-                        uri = uri
-                    ) { success, msg ->
-                        if (success) {
-                            viewModel.loadProfile()
-                        } else {
-                            // 绑定失败，重新打开弹窗让用户重试
-                            editingWallet = if (account.isNotBlank()) {
-                                com.task.platform.ui.profile.WalletItem(type, "", "")
-                            } else null
-                            showAddEditDialog = true
+                    // 失败重开弹窗：保持 editingWallet 状态以便回填（编辑场景保留原图）
+                    val reopen = {
+                        editingWallet = editingWallet?.copy(
+                            type = type,
+                            name = if (type == 1) "微信收款码" else "支付宝收款码"
+                        ) ?: com.task.platform.ui.profile.WalletItem(type, "", "")
+                        showAddEditDialog = true
+                    }
+                    if (uri != null) {
+                        viewModel.bindWalletWithUri(
+                            type = type,
+                            account = account,
+                            uri = uri
+                        ) { success, _ ->
+                            if (success) viewModel.loadProfile() else reopen()
+                        }
+                    } else {
+                        // 编辑时保留原图；新增无图则传空串（后端按字段更新，不会清空已有图）
+                        val keepQrcode = editingWallet?.qrcodeUrl ?: ""
+                        viewModel.bindWallet(
+                            type = type,
+                            account = account,
+                            qrcodeUrl = keepQrcode
+                        ) { success, _ ->
+                            if (success) viewModel.loadProfile() else reopen()
                         }
                     }
                 }
@@ -318,11 +338,11 @@ fun WalletCard(
 fun AddEditDialog(
     existing: WalletItem?,
     onDismiss: () -> Unit,
-    onConfirm: (type: Int, account: String, uri: Uri) -> Unit
+    onConfirm: (type: Int, account: String, uri: Uri?) -> Unit
 ) {
     var selectedType by remember { mutableStateOf(existing?.type ?: 1) }
     var selectedUri by remember { mutableStateOf<Uri?>(null) }
-    var accountInput by remember { mutableStateOf("") }
+    var accountInput by remember { mutableStateOf(existing?.account ?: "") }
     var isLoading by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
@@ -345,39 +365,47 @@ fun AddEditDialog(
         },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // 类型选择
+                // 类型选择（Material3 ExposedDropdownMenuBox，兼容 1.2.1 写法）
                 Text("账户类型", fontWeight = FontWeight.Medium, fontSize = 14.sp, color = Color(0xFF202124))
                 Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    FilterChip(
-                        selected = selectedType == 1,
-                        onClick = { selectedType = 1 },
-                        label = { Text("微信", fontWeight = FontWeight.Medium) },
-                        leadingIcon = if (selectedType == 1) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        } else null,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Green.copy(alpha = 0.15f),
-                            selectedLabelColor = Green
+                val typeOptions = listOf(1 to "微信收款码", 2 to "支付宝收款码")
+                var typeExpanded by remember { mutableStateOf(false) }
+                val typeSelectedLabel =
+                    typeOptions.firstOrNull { it.first == selectedType }?.second ?: typeOptions[0].second
+                ExposedDropdownMenuBox(
+                    expanded = typeExpanded,
+                    onExpandedChange = { typeExpanded = it }
+                ) {
+                    OutlinedTextField(
+                        readOnly = true,
+                        value = typeSelectedLabel,
+                        onValueChange = { },
+                        label = { Text("账户类型") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Blue,
+                            unfocusedBorderColor = GrayBorder
                         )
                     )
-                    Spacer(Modifier.width(8.dp))
-                    FilterChip(
-                        selected = selectedType == 2,
-                        onClick = { selectedType = 2 },
-                        label = { Text("支付宝", fontWeight = FontWeight.Medium) },
-                        leadingIcon = if (selectedType == 2) {
-                            { Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                        } else null,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Blue.copy(alpha = 0.15f),
-                            selectedLabelColor = Blue
-                        )
-                    )
+                    ExposedDropdownMenu(
+                        expanded = typeExpanded,
+                        onDismissRequest = { typeExpanded = false }
+                    ) {
+                        typeOptions.forEach { (type, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    selectedType = type
+                                    typeExpanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -417,6 +445,15 @@ fun AddEditDialog(
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
                         )
+                        // 编辑模式：提示可点击更换收款码
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.3f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("点击更换收款码", color = Color.White, fontSize = 12.sp)
+                        }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
@@ -432,34 +469,38 @@ fun AddEditDialog(
                     }
                 }
 
-                // 账号输入
-                if (selectedUri != null || existing != null) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    OutlinedTextField(
-                        value = accountInput,
-                        onValueChange = { accountInput = it },
-                        label = { Text(if (selectedType == 1) "微信账号（选填）" else "支付宝账号（选填）") },
-                        placeholder = { Text("请输入收款账号，方便核对") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Blue,
-                            unfocusedBorderColor = GrayBorder
-                        )
+                // 账号输入（选填，新增/编辑均展示，支持"只填账号"绑定）
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = accountInput,
+                    onValueChange = { accountInput = it },
+                    label = { Text(if (selectedType == 1) "微信账号（选填）" else "支付宝账号（选填）") },
+                    placeholder = { Text("请输入收款账号，方便核对") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Blue,
+                        unfocusedBorderColor = GrayBorder
                     )
-                }
+                )
             }
         },
         confirmButton = {
+            val isAddMode = existing == null
+            val canConfirm = if (isAddMode) {
+                (selectedUri != null || accountInput.isNotBlank()) && !isLoading
+            } else {
+                !isLoading
+            }
             Button(
                 onClick = {
-                    if (selectedUri != null && !isLoading) {
+                    if (!isLoading) {
                         isLoading = true
-                        onConfirm(selectedType, accountInput, selectedUri!!)
+                        onConfirm(selectedType, accountInput, selectedUri)
                     }
                 },
-                enabled = selectedUri != null && !isLoading,
+                enabled = canConfirm,
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(

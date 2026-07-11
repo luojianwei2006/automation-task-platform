@@ -13,6 +13,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -45,6 +46,10 @@ class LoginViewModel @Inject constructor(
     private val _savedPassword = MutableStateFlow<String?>(null)
     val savedPassword: StateFlow<String?> = _savedPassword.asStateFlow()
 
+    // 全局开关：注册/登录是否需要短信验证码（来自 /api/user/config 的 require_phone_verify）
+    private val _requirePhoneVerify = MutableStateFlow(true)
+    val requirePhoneVerify: StateFlow<Boolean> = _requirePhoneVerify.asStateFlow()
+
     init {
         // 加载保存的账号密码
         viewModelScope.launch {
@@ -52,6 +57,10 @@ class LoginViewModel @Inject constructor(
         }
         viewModelScope.launch {
             dataStoreManager.getSavedPassword().collect { _savedPassword.value = it }
+        }
+        // 订阅「是否需要短信验证码」开关，驱动 UI 显隐与校验放宽
+        viewModelScope.launch {
+            dataStoreManager.getRequirePhoneVerify().collect { _requirePhoneVerify.value = it }
         }
     }
 
@@ -167,7 +176,8 @@ class LoginViewModel @Inject constructor(
         inviteCode: String?
     ) {
         if (!validatePhone(phone)) return
-        if (code.length != 6) {
+        // 仅当全局开关要求短信验证时，才强制 6 位验证码（开关关闭时后端接受空验证码）
+        if (_requirePhoneVerify.value && code.length != 6) {
             _uiState.value = UiState.Error("请输入6位验证码")
             return
         }

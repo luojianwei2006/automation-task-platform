@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
 import com.task.platform.navigation.TaskNavGraph
+import kotlinx.coroutines.delay
 import com.task.platform.update.UpdateViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -46,8 +47,12 @@ class MainActivity : ComponentActivity() {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     val updateViewModel: UpdateViewModel = hiltViewModel()
-                    // App 启动后检查一次版本更新（可选更新，失败不影响正常使用）
+                    // App 启动后检查一次版本更新（可选更新，失败不影响正常使用）。
+                    // 延迟至 App 前台稳定、Splash（约 2 秒）尾声再查，避免冷启动系统网络
+                    // 未就绪导致首个请求偶发失败；delay 在 LaunchedEffect 默认 Main 协程中
+                    // 非阻塞，安全。
                     LaunchedEffect(Unit) {
+                        delay(1200)
                         updateViewModel.checkUpdate()
                     }
                     TaskNavGraph(

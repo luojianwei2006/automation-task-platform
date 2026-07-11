@@ -2,7 +2,8 @@
 <paths>
     <!--
         APK 下载目录共享配置。
-        对应 AppUpdateManager.apkFile() 使用的 getExternalFilesDir(null)/apk/。
+        对应 AppUpdateManager 中 updatePartFile()/updateApkFile() 使用的
+        getExternalFilesDir(null)/apk/（含断点续传片段文件 app_update_<version>.apk.part）。
         name="apk" → content URI 路径段；path="apk/" → 目录相对 external-files 根。
     -->
     <external-files-path

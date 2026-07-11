@@ -38,6 +38,9 @@ class DataStoreManager @Inject constructor(
         val KEY_AUTO_MODE = stringPreferencesKey("auto_mode")  // 自动化模式：manual/semi/auto
         val KEY_FIRST_LAUNCH = stringPreferencesKey("first_launch")
 
+        // 注册开关：是否校验短信验证码（来自 /api/user/config 的 require_phone_verify）
+        val KEY_REQUIRE_PHONE_VERIFY = stringPreferencesKey("require_phone_verify")
+
         // 记住密码
         val KEY_SAVED_PHONE = stringPreferencesKey("saved_phone")
         val KEY_SAVED_PASSWORD = stringPreferencesKey("saved_password")
@@ -111,6 +114,20 @@ class DataStoreManager @Inject constructor(
     fun isFirstLaunch(): Flow<Boolean> {
         return context.dataStore.data.map { preferences ->
             preferences[KEY_FIRST_LAUNCH] != "false"
+        }
+    }
+
+    /** 保存「注册时是否验证手机号」开关（来自 /api/user/config 的 require_phone_verify） */
+    suspend fun setRequirePhoneVerify(value: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[KEY_REQUIRE_PHONE_VERIFY] = value.toString()
+        }
+    }
+
+    /** 读取开关，默认 true（与后端一致：缺失/异常一律按强制验证，更安全） */
+    fun getRequirePhoneVerify(): Flow<Boolean> {
+        return context.dataStore.data.map { preferences ->
+            preferences[KEY_REQUIRE_PHONE_VERIFY] != "false"
         }
     }
 

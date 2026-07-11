@@ -61,12 +61,16 @@ fun LoginScreen(
     val countdown by viewModel.countdown.collectAsState()
     val savedPhone by viewModel.savedPhone.collectAsState()
     val savedPassword by viewModel.savedPassword.collectAsState()
+    // 全局开关：是否需要短信验证码（关闭时隐藏短信登录 Tab、放宽校验）
+    val requirePhoneVerify by viewModel.requirePhoneVerify.collectAsState()
 
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var smsCode by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isSmsMode by remember { mutableStateOf(false) }
+    // 开关关闭时强制短信态不可达，避免残留 isSmsMode 导致密码区被隐藏
+    val effectiveSmsMode = isSmsMode && requirePhoneVerify
     var credentialsLoaded by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
@@ -182,7 +186,8 @@ fun LoginScreen(
                         // Tab 切换
                         LoginTabBar(
                             isSmsMode = isSmsMode,
-                            onModeChange = { isSmsMode = it }
+                            onModeChange = { if (requirePhoneVerify) isSmsMode = it },
+                            showSmsTab = requirePhoneVerify
                         )
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -205,7 +210,7 @@ fun LoginScreen(
                         Spacer(modifier = Modifier.height(14.dp))
 
                         // 密码模式
-                        AnimatedVisibility(visible = !isSmsMode, enter = fadeIn(), exit = fadeOut()) {
+                        AnimatedVisibility(visible = !effectiveSmsMode, enter = fadeIn(), exit = fadeOut()) {
                             ModernPasswordField(
                                 value = password,
                                 onValueChange = { password = it },
@@ -221,7 +226,7 @@ fun LoginScreen(
                         }
 
                         // 验证码模式
-                        AnimatedVisibility(visible = isSmsMode, enter = fadeIn(), exit = fadeOut()) {
+                        AnimatedVisibility(visible = effectiveSmsMode, enter = fadeIn(), exit = fadeOut()) {
                             SmsCodeField(
                                 code = smsCode,
                                 onCodeChange = { if (it.length <= 6) smsCode = it },
@@ -237,7 +242,7 @@ fun LoginScreen(
                         Button(
                             onClick = {
                                 focusManager.clearFocus()
-                                if (isSmsMode) {
+                                if (effectiveSmsMode) {
                                     viewModel.loginWithSms(phone, smsCode)
                                 } else {
                                     viewModel.loginWithPassword(phone, password)
@@ -312,7 +317,8 @@ fun LoginScreen(
 @Composable
 fun LoginTabBar(
     isSmsMode: Boolean,
-    onModeChange: (Boolean) -> Unit
+    onModeChange: (Boolean) -> Unit,
+    showSmsTab: Boolean = true
 ) {
     Row(
         modifier = Modifier
@@ -328,12 +334,15 @@ fun LoginTabBar(
             onClick = { onModeChange(false) },
             modifier = Modifier.weight(1f)
         )
-        LoginTabItem(
-            text = "验证码登录",
-            selected = isSmsMode,
-            onClick = { onModeChange(true) },
-            modifier = Modifier.weight(1f)
-        )
+        // 仅当全局开关要求短信验证时，才渲染「验证码登录」Tab
+        if (showSmsTab) {
+            LoginTabItem(
+                text = "验证码登录",
+                selected = isSmsMode,
+                onClick = { onModeChange(true) },
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
 

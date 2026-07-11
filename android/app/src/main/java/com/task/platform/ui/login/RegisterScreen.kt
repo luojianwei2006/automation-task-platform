@@ -50,6 +50,8 @@ fun RegisterScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val countdown by viewModel.countdown.collectAsState()
+    // 全局开关：是否需要短信验证码（关闭时隐藏注册页验证码输入框、放宽校验）
+    val requirePhoneVerify by viewModel.requirePhoneVerify.collectAsState()
 
     var phone by remember { mutableStateOf("") }
     var smsCode by remember { mutableStateOf("") }
@@ -87,7 +89,7 @@ fun RegisterScreen(
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "返回",
-                            tint = Color.White
+                            tint = Gray700
                         )
                     }
                 },
@@ -186,48 +188,50 @@ fun RegisterScreen(
                         )
                     )
 
-                    // 验证码
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = smsCode,
-                            onValueChange = { if (it.length <= 6) smsCode = it },
-                            label = { Text("短信验证码", fontSize = 13.sp) },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Next
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                            ),
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = RegOrange,
-                                unfocusedBorderColor = Gray300,
-                                focusedLabelColor = RegOrange,
-                                cursorColor = RegOrange
-                            )
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Button(
-                            onClick = { viewModel.sendSmsCode(phone, type = 1) },
-                            enabled = countdown == 0 && uiState !is LoginViewModel.UiState.Loading,
-                            modifier = Modifier.height(56.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (countdown > 0) Gray300 else RegOrange,
-                                contentColor = Color.White
-                            )
+                    // 验证码（仅当全局开关要求短信验证时才渲染）
+                    if (requirePhoneVerify) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (countdown > 0) "${countdown}s" else "获取验证码",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
+                            OutlinedTextField(
+                                value = smsCode,
+                                onValueChange = { if (it.length <= 6) smsCode = it },
+                                label = { Text("短信验证码", fontSize = 13.sp) },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Next
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                                ),
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = RegOrange,
+                                    unfocusedBorderColor = Gray300,
+                                    focusedLabelColor = RegOrange,
+                                    cursorColor = RegOrange
+                                )
                             )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Button(
+                                onClick = { viewModel.sendSmsCode(phone, type = 1) },
+                                enabled = countdown == 0 && uiState !is LoginViewModel.UiState.Loading,
+                                modifier = Modifier.height(56.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (countdown > 0) Gray300 else RegOrange,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = if (countdown > 0) "${countdown}s" else "获取验证码",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
 
@@ -381,6 +385,29 @@ fun RegisterScreen(
                     .padding(bottom = 24.dp),
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
+
+            // 返回登录
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "已有账号？",
+                    color = Gray500,
+                    fontSize = 13.sp
+                )
+                TextButton(onClick = onNavigateBack) {
+                    Text(
+                        text = "返回登录",
+                        color = RegOrange,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
         }
     }
 }

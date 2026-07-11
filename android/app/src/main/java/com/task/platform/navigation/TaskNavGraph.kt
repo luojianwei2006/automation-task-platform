@@ -173,6 +173,7 @@ fun TaskNavGraph(
     UpdateDialog(
         state = updateState,
         onUpdate = { updateViewModel.startDownload(context) },
-        onDismiss = { updateViewModel.dismiss() }
+        onDismiss = { updateViewModel.dismiss() },
+        onCancel = { updateViewModel.cancelDownload() }
     )
 }

@@ -71,7 +71,15 @@ data class TaskDTO(
     /** 位置描述 */
     @SerializedName("locationDesc") val locationDesc: String? = null,
     /** 评论词分类ID（逗号分隔） */
-    @SerializedName("commentCategoryIds") val commentCategoryIds: String? = null
+    @SerializedName("commentCategoryIds") val commentCategoryIds: String? = null,
+    /** 用户记录状态：0进行中 1待审核 2通过 3拒绝 4超时放弃 */
+    @SerializedName("recordStatus") val recordStatus: Int? = null,
+    /** 用户记录ID */
+    @SerializedName("recordId") val recordId: Long? = null,
+    /** 提交次数 */
+    @SerializedName("submitCount") val submitCount: Int? = null,
+    /** 审核结果/拒绝原因 */
+    @SerializedName("reviewResult") val reviewResult: String? = null
 )
 
 /**
@@ -172,6 +180,10 @@ data class PublishTaskDTO(
     val platforms: String,
     val publishText: String? = null,
     val status: String,
+    /** 总配额（可领取/完成的总次数） */
+    @SerializedName("totalQuota") val totalQuota: Int = 0,
+    /** 已用配额（已成功结算次数） */
+    @SerializedName("usedQuota") val usedQuota: Int = 0,
     val scheduledAt: String? = null,
     val createdAt: String,
     /** 素材列表 */

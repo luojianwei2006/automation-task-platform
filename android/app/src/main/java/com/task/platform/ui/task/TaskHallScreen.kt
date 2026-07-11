@@ -53,19 +53,27 @@ fun TaskHallScreen(
     val viewModel: TaskViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val taskList by viewModel.taskList.collectAsState()
+    val myTaskList by viewModel.myTaskList.collectAsState()
+    var selectedTab by remember { mutableIntStateOf(0) }
     var selectedPlatform by remember { mutableIntStateOf(0) }
     var selectedType by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) { viewModel.loadTasks() }
+    // 进入页面时同时预加载两个数据源：切 Tab 仅切数据源，不再重新请求，避免卡顿
+    LaunchedEffect(Unit) {
+        viewModel.loadTasks()
+        viewModel.loadMyTasks()
+    }
 
     // ── 下拉刷新 ──
     val pullRefreshState = rememberPullToRefreshState()
     LaunchedEffect(pullRefreshState.isRefreshing) {
         if (pullRefreshState.isRefreshing) {
+            // 下拉刷新时同时刷新两个数据源；loadTasks 带上当前 platform/type 筛选
             viewModel.loadTasks(
                 platform = if (selectedPlatform > 0) selectedPlatform else null,
                 type = if (selectedType > 0) selectedType else null
             )
+            viewModel.loadMyTasks()
             pullRefreshState.endRefresh()
         }
     }
@@ -103,33 +111,59 @@ fun TaskHallScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // 统计行
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .padding(horizontal = 12.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    HallStatItem("任务总数", "${taskList.size}", Icons.Default.Assignment)
-                    Box(
+                // 统计行（随 Tab 切换数据源：全部任务 / 我的任务）
+                if (selectedTab == 0) {
+                    Row(
                         modifier = Modifier
-                            .width(1.dp)
-                            .height(40.dp)
-                            .background(Color.White.copy(alpha = 0.3f))
-                    )
-                    HallStatItem("进行中", "${taskList.count { it.status == 1 }}", Icons.Default.PlayArrow)
-                    Box(
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        HallStatItem("任务总数", "${taskList.size}", Icons.Default.Assignment)
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(40.dp)
+                                .background(Color.White.copy(alpha = 0.3f))
+                        )
+                        HallStatItem("进行中", "${taskList.count { it.status == 1 }}", Icons.Default.PlayArrow)
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(40.dp)
+                                .background(Color.White.copy(alpha = 0.3f))
+                        )
+                        HallStatItem("今日新增", "${taskList.size}", Icons.Default.NewReleases)
+                    }
+                } else {
+                    Row(
                         modifier = Modifier
-                            .width(1.dp)
-                            .height(40.dp)
-                            .background(Color.White.copy(alpha = 0.3f))
-                    )
-                    HallStatItem("今日新增", "${taskList.size}", Icons.Default.NewReleases)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        HallStatItem("我的任务", "${myTaskList.size}", Icons.Default.CheckCircle)
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(40.dp)
+                                .background(Color.White.copy(alpha = 0.3f))
+                        )
+                        HallStatItem("进行中", "${myTaskList.count { (it.recordStatus ?: it.status) == 0 }}", Icons.Default.PlayArrow)
+                    }
                 }
             }
         }
+
+        // ===== 分段切换：全部任务 / 我的任务 =====
+        SegmentedTab(
+            selected = selectedTab,
+            onSelect = { selectedTab = it }
+        )
 
         // ===== 筛选栏 =====
         Row(
@@ -175,12 +209,17 @@ fun TaskHallScreen(
                 }
             }
             else -> {
+                // 根据当前 Tab 切换数据源：0=全部任务，1=我的任务
+                val displayList = when (selectedTab) {
+                    0 -> taskList
+                    else -> myTaskList
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .nestedScroll(pullRefreshState.nestedScrollConnection)
                 ) {
-                    if (taskList.isEmpty()) {
+                    if (displayList.isEmpty()) {
                         HallEmptyView()
                     } else {
                         LazyColumn(
@@ -188,8 +227,16 @@ fun TaskHallScreen(
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(taskList, key = { it.id }) { task ->
-                                TaskCard(task = task, onClick = { onTaskClick(task.id) })
+                            items(displayList, key = { it.id }) { task ->
+                                TaskCard(
+                                    task = task,
+                                    onClick = { onTaskClick(task.id) },
+                                    statusTag = if (selectedTab == 0) {
+                                        taskStatusLabel(task.status) to taskStatusColor(task.status)
+                                    } else {
+                                        taskRecordStatusLabel(task.recordStatus ?: task.status) to taskRecordStatusColor(task.recordStatus ?: task.status)
+                                    }
+                                )
                             }
                             item { Spacer(modifier = Modifier.height(16.dp)) }
                         }
@@ -266,12 +313,52 @@ private fun FilterChipGroup(
     }
 }
 
+// ==================== 分段切换（全部任务 / 我的任务） ====================
+
+@Composable
+private fun SegmentedTab(
+    selected: Int,
+    onSelect: (Int) -> Unit
+) {
+    val tabs = listOf("全部任务" to 0, "我的任务" to 1)
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(24.dp),
+        color = Gray100
+    ) {
+        Row(modifier = Modifier.padding(4.dp)) {
+            tabs.forEach { (text, index) ->
+                val isSelected = selected == index
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(if (isSelected) Orange else Color.Transparent)
+                        .clickable { onSelect(index) }
+                        .padding(vertical = 9.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = text,
+                        fontSize = 14.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color.White else Gray700
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ==================== 任务卡片 ====================
 
 @Composable
 private fun TaskCard(
     task: TaskDTO,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    statusTag: Pair<String, Color> = taskStatusLabel(task.status) to taskStatusColor(task.status)
 ) {
     val remainCount = task.totalQuota - task.usedQuota
 
@@ -374,6 +461,9 @@ private fun TaskCard(
                 }
                 TaskTag(text = typeLabel, color = typeColor)
 
+                // 状态标签（默认任务发布状态；我的任务 tab 可覆盖为记录状态）
+                TaskTag(text = statusTag.first, color = statusTag.second)
+
                 Spacer(modifier = Modifier.weight(1f))
 
                 // 定位图标
@@ -395,6 +485,58 @@ private fun TaskCard(
             }
         }
     }
+}
+
+// ==================== 状态映射（与 MyTasksScreen 语义一致） ====================
+
+/**
+ * 任务发布状态 → 主色 Color
+ * 0=待审核(蓝) 1=进行中(绿) 2=暂停(橙) 3=结束(红) 4=拒绝(红)
+ */
+private fun taskStatusColor(status: Int): Color = when (status) {
+    1 -> Color(0xFF4CAF50)   // 进行中-绿
+    2 -> Color(0xFFFF9800)   // 暂停-橙
+    3 -> Color(0xFFE53935)   // 结束-红
+    4 -> Color(0xFFE53935)   // 拒绝-红
+    else -> Color(0xFF42A5F5) // 待审核-蓝
+}
+
+/**
+ * 任务发布状态 → 文案
+ * 0=待审核 1=进行中 2=暂停 3=结束 4=拒绝
+ */
+private fun taskStatusLabel(status: Int): String = when (status) {
+    1 -> "进行中"
+    2 -> "暂停"
+    3 -> "结束"
+    4 -> "拒绝"
+    else -> "待审核"
+}
+
+/**
+ * 用户记录状态 → 文案（记录语义，与任务发布状态不同）
+ * 0=进行中 1=待审核 2=已通过 3=已拒绝 4=已超时
+ */
+private fun taskRecordStatusLabel(status: Int): String = when (status) {
+    0 -> "进行中"
+    1 -> "待审核"
+    2 -> "已通过"
+    3 -> "已拒绝"
+    4 -> "已超时"
+    else -> "进行中"
+}
+
+/**
+ * 用户记录状态 → 主色 Color
+ * 0=进行中(绿) 1=待审核(蓝) 2=已通过(深绿) 3=已拒绝(红) 4=已超时(灰)
+ */
+private fun taskRecordStatusColor(status: Int): Color = when (status) {
+    0 -> Color(0xFF4CAF50)
+    1 -> Color(0xFF42A5F5)
+    2 -> Color(0xFF2E7D32)
+    3 -> Color(0xFFE53935)
+    4 -> Color(0xFF9E9E9E)
+    else -> Color(0xFF4CAF50)
 }
 
 // ==================== 标签组件 ====================
