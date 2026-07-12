@@ -69,12 +69,14 @@ fun EarningsScreen(
 ) {
     val earningsSummary by viewModel.earningsSummary.collectAsState()
     val earningsRecords by viewModel.earningsRecords.collectAsState()
+    // 收益 Tab 仅展示奖励记录，过滤掉提现(type=5)
+    val displayRecords = earningsRecords.filter { it.type != 5 }
     val isLoading by viewModel.isLoading.collectAsState()
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    val tabs = listOf("全部", "任务收益", "邀请奖励", "提现", "其他")
-    val tabTypes = listOf<Int?>(null, 1, 2, 5, 4)
+    val tabs = listOf("全部", "任务收益", "邀请奖励", "其他")
+    val tabTypes = listOf<Int?>(null, 1, 2, 4)
 
     // 列表状态，用于上拉加载更多
     val listState = rememberLazyListState()
@@ -249,7 +251,7 @@ fun EarningsScreen(
         HorizontalDivider(color = Gray100, thickness = 1.dp)
 
         // ===== 收益明细列表 =====
-        if (isLoading && earningsRecords.isEmpty()) {
+        if (isLoading && displayRecords.isEmpty()) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -258,7 +260,7 @@ fun EarningsScreen(
             ) {
                 CircularProgressIndicator(color = HallOrange)
             }
-        } else if (earningsRecords.isEmpty()) {
+        } else if (displayRecords.isEmpty()) {
             Box(modifier = Modifier.weight(1f)) {
                 EarningsEmptyView()
             }
@@ -270,9 +272,9 @@ fun EarningsScreen(
                     .fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                items(earningsRecords) { record ->
+                items(displayRecords) { record ->
                     EarningsRecordItem(record = record)
-                    if (earningsRecords.indexOf(record) < earningsRecords.size - 1) {
+                    if (displayRecords.indexOf(record) < displayRecords.size - 1) {
                         HorizontalDivider(
                             color = Gray100,
                             thickness = 1.dp
