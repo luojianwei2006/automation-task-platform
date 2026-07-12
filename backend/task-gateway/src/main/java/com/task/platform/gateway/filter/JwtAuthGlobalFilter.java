@@ -25,7 +25,7 @@ import java.util.List;
  * - POST /api/user/auth/login（密码登录）
  * - POST /api/user/auth/sms-login（验证码登录）
  * - POST /api/user/auth/register（注册）
- * - POST /api/user/auth/sms-code（发送验证码）
+ * - POST /api/user/auth/sms/send（发送验证码）
  * - GET /api/admin/auth/login（管理员登录）
  * - GET /api/task/tasks（任务大厅列表 - 仅GET）
  * - GET /api/task/tasks/*（任务详情 - 仅GET）
@@ -42,7 +42,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             new WhiteListEntry("/api/user/auth/login", "POST"),
             new WhiteListEntry("/api/user/auth/sms-login", "POST"),
             new WhiteListEntry("/api/user/auth/register", "POST"),
-            new WhiteListEntry("/api/user/auth/sms-code", "POST"),
+            new WhiteListEntry("/api/user/auth/sms/send", "POST"),
             // C 端 App 版本配置（公开接口，无需登录，供安卓启动后比对更新）
             new WhiteListEntry("/api/user/config", "GET"),
             new WhiteListEntry("/api/admin/auth/login", "POST"),
@@ -65,38 +65,27 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
         String path = request.getPath().toString();
         String method = request.getMethod().name();
 
-        // PUBLISH401: 记录所有经过 Gateway 的请求
-        log.info("PUBLISH401 Gateway filter: path={}, method={}", path, method);
-
         // 1. 白名单检查
         if (isWhitelisted(path, method)) {
-            log.info("PUBLISH401 Gateway whitelist: MATCH → path={}, method={}", path, method);
             return chain.filter(exchange);
         }
-        log.info("PUBLISH401 Gateway whitelist: NO_MATCH → path={}, method={}", path, method);
 
         // 2. OPTIONS 预检请求放行
         if ("OPTIONS".equals(method)) {
-            log.info("PUBLISH401 Gateway OPTIONS: path={}", path);
             return chain.filter(exchange);
         }
 
         // 3. 提取 Token
         String token = extractToken(request);
         if (token == null) {
-            log.warn("PUBLISH401 Gateway: Token MISSING → path={}", path);
             return unauthorized(exchange, "未登录，请先登录");
         }
-        log.info("PUBLISH401 Gateway: Token PRESENT → path={}, tokenPrefix={}***", path, token.substring(0, Math.min(10, token.length())));
 
         // 4. 解析并校验 Token
         try {
-            // PUBLISH401: 打印 JWT secret 前缀用于跨服务对比
-            log.info("PUBLISH401 Gateway: JwtUtil secretPrefix={}", JwtUtil.getSecretPrefix());
             Claims claims = JwtUtil.parseToken(token);
             Long userId = Long.valueOf(claims.getSubject());
             String role = claims.get("role", String.class);
-            log.info("PUBLISH401 Gateway: Token VALID → path={}, userId={}, role={}", path, userId, role);
 
             // 将用户信息传递给下游服务
             ServerHttpRequest mutatedRequest = request.mutate()
@@ -107,7 +96,7 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange.mutate().request(mutatedRequest).build());
 
         } catch (Exception e) {
-            log.warn("PUBLISH401 Gateway: Token INVALID → path={}, error={}", path, e.getMessage());
+            log.warn("Token 校验失败 path={}, error={}", path, e.getMessage());
             return unauthorized(exchange, "登录已过期，请重新登录");
         }
     }

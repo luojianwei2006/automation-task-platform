@@ -154,6 +154,9 @@ public class MobilePublishController {
         vo.setMaxRetry(task.getMaxRetry());
         vo.setRemark(task.getRemark());
         vo.setRewardAmount(task.getRewardAmount());
+        // 填充配额（移动端列表/详情需展示剩余/总配额，漏填会导致安卓显示 0/0）
+        vo.setTotalQuota(task.getTotalQuota() != null ? task.getTotalQuota() : 0);
+        vo.setUsedQuota(task.getUsedQuota() != null ? task.getUsedQuota() : 0);
         vo.setImages(task.getImages());
         vo.setCreatedAt(task.getCreatedAt());
         vo.setUpdatedAt(task.getUpdatedAt());
@@ -198,6 +201,10 @@ public class MobilePublishController {
         record.setTaskId(id);
         record.setStatus("CLAIMED");
         userPublishRecordMapper.insert(record);
+        // 领取即占用配额，使剩余配额 = 总配额 - 已领取数
+        int uq = (task.getUsedQuota() != null ? task.getUsedQuota() : 0) + 1;
+        task.setUsedQuota(uq);
+        mobilePublishService.updateTask(task);
         return ApiResponse.success(null, "领取成功");
     }
 

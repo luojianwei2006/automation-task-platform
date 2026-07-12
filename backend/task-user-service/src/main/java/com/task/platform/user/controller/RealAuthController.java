@@ -35,12 +35,13 @@ import java.io.IOException;
 /**
  * 实名认证接口
  *
- * <p>路径对齐安卓端：/user/realname/{upload,submit,status}（网关去前缀后）。
+ * <p>路径对齐安卓端：/user/real-auth/{upload,status}（网关去前缀后）。
+ * 提交接口映射到类根 /user/real-auth（安卓 POST api/user/real-auth，无 /submit 后缀）。
  * 照片上传经本端点转发 upload-service，返回其 accessUrl。</p>
  */
 @Slf4j
 @RestController
-@RequestMapping("/user/realname")
+@RequestMapping("/user/real-auth")
 @RequiredArgsConstructor
 public class RealAuthController {
 
@@ -54,7 +55,7 @@ public class RealAuthController {
 
     /**
      * 实名照片上传（身份证/人脸），内部转发 upload-service
-     * POST /api/user/realname/upload
+     * POST /api/user/real-auth/upload
      */
     @PostMapping("/upload")
     public ApiResponse<UploadResult> upload(
@@ -97,9 +98,9 @@ public class RealAuthController {
 
     /**
      * 提交实名认证申请
-     * POST /api/user/realname/submit
+     * POST /api/user/real-auth
      */
-    @PostMapping("/submit")
+    @PostMapping
     public ApiResponse<Void> submitRealAuth(
             @RequestHeader("Authorization") String authorization,
             @Valid @RequestBody RealAuthRequest req) {
@@ -118,7 +119,7 @@ public class RealAuthController {
 
     /**
      * 查询实名认证状态
-     * GET /api/user/realname/status
+     * GET /api/user/real-auth/status
      */
     @GetMapping("/status")
     public ApiResponse<RealAuthService.RealAuthStatusVO> getAuthStatus(

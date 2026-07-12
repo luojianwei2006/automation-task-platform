@@ -89,7 +89,7 @@ fun RegisterScreen(
                         Icon(
                             Icons.Default.ArrowBack,
                             contentDescription = "返回",
-                            tint = Gray700
+                            tint = RegOrange
                         )
                     }
                 },

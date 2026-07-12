@@ -228,7 +228,7 @@
       <el-descriptions :column="1" border>
         <el-descriptions-item label="用户">{{ realAuthDialog.user?.phone }}</el-descriptions-item>
         <el-descriptions-item label="真实姓名">{{ realAuthDialog.detail?.realName }}</el-descriptions-item>
-        <el-descriptions-item label="身份证">{{ realAuthDialog.detail?.idCardMasked }}</el-descriptions-item>
+        <el-descriptions-item label="身份证">{{ realAuthDialog.detail?.idCard }}</el-descriptions-item>
       </el-descriptions>
 
       <el-divider />
@@ -567,7 +567,7 @@ const realAuthDialog = reactive({
   visible: false,
   loading: false,
   user: null as UserItem | null,
-  detail: null as { realName: string; idCardMasked: string } | null
+  detail: null as { realName: string; idCard: string } | null
 })
 
 const realAuthForm = reactive({
@@ -658,13 +658,13 @@ async function openEditDialog(row: UserItem) {
   userForm.status = row.status
   userFormDialog.visible = true
 
-  // 从详情接口获取真实手机号（列表数据是脱敏的）
+  // 详情接口同样返回明文手机号
   try {
     const res = await getUserDetail(row.id)
     userForm.phone = (res as any)?.phone ?? ''
     userForm.nickname = (res as any)?.nickname ?? ''
   } catch {
-    // 降级：使用列表数据（手机号是脱敏的）
+    // 降级：使用列表数据（已是明文手机号）
     userForm.phone = row.phone
     userForm.nickname = row.nickname || ''
   }

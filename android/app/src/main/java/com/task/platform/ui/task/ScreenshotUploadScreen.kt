@@ -74,7 +74,7 @@ fun ScreenshotUploadScreen(
                 title = { Text("上传截图") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "返回")
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Color(0xFFFF8C00))
                     }
                 }
             )

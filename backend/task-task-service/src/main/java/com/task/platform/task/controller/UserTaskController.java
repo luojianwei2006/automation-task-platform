@@ -5,6 +5,7 @@ import com.task.platform.common.response.ApiResponse;
 import com.task.platform.task.entity.Task;
 import com.task.platform.task.entity.UserTaskRecord;
 import com.task.platform.task.security.JwtClaims;
+import com.task.platform.task.vo.MyTaskVO;
 import com.task.platform.task.service.TaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,13 +50,13 @@ public class UserTaskController {
     }
 
     @GetMapping("/records")
-    public ApiResponse<Page<Task>> getMyTasks(
+    public ApiResponse<Page<MyTaskVO>> getMyTasks(
             @AuthenticationPrincipal JwtClaims currentUser,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
         if (currentUser == null || currentUser.getUserId() == null)
             return ApiResponse.error(401, "未登录");
-        Page<Task> result = taskService.getMyTaskRecords(currentUser.getUserId(), page, size);
+        Page<MyTaskVO> result = taskService.getMyTaskRecords(currentUser.getUserId(), page, size);
         return ApiResponse.success(result);
     }
 

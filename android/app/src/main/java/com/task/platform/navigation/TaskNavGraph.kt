@@ -22,6 +22,7 @@ import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.ScreenshotUploadScreen
 import com.task.platform.ui.task.TaskDetailScreen
 import com.task.platform.ui.earnings.EarningsScreen
+import com.task.platform.ui.earnings.TransactionRecordsScreen
 
 /**
  * 导航路由定义
@@ -36,6 +37,7 @@ object TaskRoutes {
     const val MY_TASKS = "my_tasks"
     const val SCREENSHOT_UPLOAD = "screenshot_upload/{taskId}"
     const val EARNINGS = "earnings"
+    const val EARNINGS_RECORDS = "earnings_records"
     const val WITHDRAW = "withdraw"
     const val PROFILE = "profile"
     const val WALLET_BINDING = "wallet_binding"
@@ -159,6 +161,11 @@ fun TaskNavGraph(
         // ===== 收益页 =====
         composable(TaskRoutes.EARNINGS) {
             EarningsScreen(navController = navController)
+        }
+
+        // ===== 流水记录页 =====
+        composable(TaskRoutes.EARNINGS_RECORDS) {
+            TransactionRecordsScreen(navController = navController)
         }
 
         // ===== 提现页 =====

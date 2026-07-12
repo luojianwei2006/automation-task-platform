@@ -52,8 +52,8 @@
         </el-table-column>
         <el-table-column label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="PUBLISH_TASK_STATUS_MAP[row.status]?.type || 'info'">
-              {{ PUBLISH_TASK_STATUS_MAP[row.status]?.text || '未知' }}
+            <el-tag :type="PUBLISH_TASK_STATUS_MAP[(row.status || '').toLowerCase()]?.type || 'info'">
+              {{ PUBLISH_TASK_STATUS_MAP[(row.status || '').toLowerCase()]?.text || '未知' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -226,8 +226,8 @@
           {{ PUBLISH_PLATFORM_MAP[currentTask.platform] || currentTask.platform }}
         </el-descriptions-item>
         <el-descriptions-item label="状态">
-          <el-tag :type="PUBLISH_TASK_STATUS_MAP[currentTask.status]?.type || 'info'">
-            {{ PUBLISH_TASK_STATUS_MAP[currentTask.status]?.text || '未知' }}
+          <el-tag :type="PUBLISH_TASK_STATUS_MAP[(currentTask.status || '').toLowerCase()]?.type || 'info'">
+            {{ PUBLISH_TASK_STATUS_MAP[(currentTask.status || '').toLowerCase()]?.text || '未知' }}
           </el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="单次奖励">

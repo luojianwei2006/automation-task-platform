@@ -7,13 +7,16 @@ import com.task.platform.common.response.ErrorCode;
 import com.task.platform.common.utils.JwtUtil;
 import com.task.platform.common.utils.PasswordUtil;
 import com.task.platform.user.entity.User;
+import com.task.platform.user.entity.SysConfig;
 import com.task.platform.user.mapper.UserMapper;
+import com.task.platform.user.mapper.SysConfigMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +31,7 @@ public class UserService extends ServiceImpl<UserMapper, User> {
 
     private final StringRedisTemplate redisTemplate;
     private final UserMapper userMapper;
+    private final SysConfigMapper sysConfigMapper;
 
     // Redis Key前缀
     private static final String SMS_CODE_PREFIX = "sms:code:";
@@ -50,8 +54,10 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     public Map<String, Object> register(String phone, String code,
                                         String password, String nickname,
                                         String inviteCode) {
-        // 1. 校验验证码
-        verifySmsCode(phone, code);
+        // 1. 校验验证码（如开启手机号验证）
+        if (isPhoneVerifyRequired()) {
+            verifySmsCode(phone, code);
+        }
 
         // 2. 检查手机号是否已注册
         if (userMapper.selectByPhone(phone) != null) {
@@ -76,6 +82,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
         user.setInviteCode(generateInviteCode());
         user.setInviterId(inviterId);
         user.setStatus(1);
+        user.setCreatedAt(LocalDateTime.now());
+        user.setUpdatedAt(LocalDateTime.now());
 
         save(user);
 
@@ -141,6 +149,8 @@ public class UserService extends ServiceImpl<UserMapper, User> {
             user.setPassword(PasswordUtil.encode(IdUtil.fastSimpleUUID()));
             user.setInviteCode(generateInviteCode());
             user.setStatus(1);
+            user.setCreatedAt(LocalDateTime.now());
+            user.setUpdatedAt(LocalDateTime.now());
             save(user);
             isNewUser = true;
         } else {
@@ -162,12 +172,46 @@ public class UserService extends ServiceImpl<UserMapper, User> {
     }
 
     /**
+     * 是否为测试环境：sys_config 中 test_env = true 时返回 true
+     */
+    private boolean isTestEnv() {
+        try {
+            SysConfig cfg = sysConfigMapper.selectByConfigKey("test_env");
+            return cfg != null && "true".equalsIgnoreCase(cfg.getConfigValue());
+        } catch (Exception e) {
+            log.warn("[SMS] 读取 test_env 配置失败，按生产环境处理: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * 注册时是否需要验证手机号（短信验证码）。
+     * sys_config 中 require_phone_verify='false' 时返回 false（免验证）；
+     * 缺失或非 'false' 一律返回 true（默认强制验证，最安全兜底）。
+     */
+    private boolean isPhoneVerifyRequired() {
+        try {
+            SysConfig cfg = sysConfigMapper.selectByConfigKey("require_phone_verify");
+            return cfg == null || !"false".equalsIgnoreCase(cfg.getConfigValue());
+        } catch (Exception e) {
+            log.warn("[SMS] 读取 require_phone_verify 配置失败，按需验证处理: {}", e.getMessage());
+            return true;
+        }
+    }
+
+    /**
      * 发送短信验证码（Redis双Key设计）
      *
      * @param phone   手机号
      * @param type    类型：1注册 2登录 3重置密码
      */
     public void sendSmsCode(String phone, Integer type) {
+        if (isTestEnv()) {
+            // 测试环境：统一验证码 666666，跳过频率/冷却限制
+            redisTemplate.opsForValue().set(SMS_CODE_PREFIX + phone, "666666", SMS_CODE_TTL);
+            log.info("[SMS][测试环境] 手机号: {}, 类型: {}, 固定验证码: 666666", phone, type);
+            return;
+        }
         // 1. 检查每日发送频率限制
         String limitKey = SMS_LIMIT_PREFIX + phone;
         String countStr = redisTemplate.opsForValue().get(limitKey);

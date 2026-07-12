@@ -20,14 +20,6 @@ spring:
           filters:
             - StripPrefix=1  # 移除 /api 前缀，转发 /user/** 到 user-service
 
-        # 用户信息服务路由（ Profile 相关）
-        - id: task-user-info-service
-          uri: http://127.0.0.1:8081
-          predicates:
-            - Path=/api/user-info/**
-          filters:
-            - StripPrefix=1
-
         # 任务服务路由
         - id: task-task-service
           uri: http://127.0.0.1:8082

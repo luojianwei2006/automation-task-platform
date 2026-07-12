@@ -129,16 +129,14 @@ public class PublishRecordController {
         record.setReviewedAt(LocalDateTime.now());
         userPublishRecordMapper.updateById(record);
 
-        // ④ 累加任务已用配额 / 已消耗预算（逐笔结算）
-        int usedQuota = (task.getUsedQuota() != null ? task.getUsedQuota() : 0) + 1;
-        task.setUsedQuota(usedQuota);
+        // ④ 累加任务已消耗预算（逐笔结算）；已用配额由领取时占用，审核通过不再重复累加
         BigDecimal cost = FeeCalculator.computeSingleCost(reward, resolveFeeRate(merchantId));
         BigDecimal usedPoints = (task.getUsedPoints() != null ? task.getUsedPoints() : BigDecimal.ZERO).add(cost);
         task.setUsedPoints(usedPoints);
         publishTaskMapper.updateById(task);
 
         log.info("[ADMIN] approve + deduct + reward: recordId={}, merchantId={}, userId={}, reward={}, cost={}, usedQuota={}",
-                id, merchantId, userId, reward, cost, usedQuota);
+                id, merchantId, userId, reward, cost, task.getUsedQuota());
         return ApiResponse.success(null, "审核通过，奖励已发放");
     }
 
@@ -153,6 +151,13 @@ public class PublishRecordController {
         record.setReviewResult(reason);
         record.setReviewedAt(LocalDateTime.now());
         userPublishRecordMapper.updateById(record);
+        // 审核拒绝：回退已占用配额，使名额可被重新领取/准确展示
+        PublishTask rTask = publishTaskMapper.selectById(record.getTaskId());
+        if (rTask != null) {
+            int ruq = (rTask.getUsedQuota() != null ? rTask.getUsedQuota() : 0) - 1;
+            rTask.setUsedQuota(Math.max(ruq, 0));
+            publishTaskMapper.updateById(rTask);
+        }
         log.info("[ADMIN] reject: recordId={}, reason={}", id, reason);
         return ApiResponse.success(null, "已拒绝");
     }

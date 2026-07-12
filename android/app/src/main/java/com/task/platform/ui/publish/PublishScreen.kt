@@ -875,7 +875,7 @@ private fun PublishDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Gray900)
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
                     }
                     Text(
                         "发布任务详情",

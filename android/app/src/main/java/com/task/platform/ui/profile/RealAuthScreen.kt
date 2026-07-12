@@ -85,7 +85,7 @@ fun RealAuthScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Color.White)
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

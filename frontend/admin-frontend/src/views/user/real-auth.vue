@@ -120,7 +120,7 @@
           <b>{{ reviewDialog.detail?.realName }}</b>
         </el-descriptions-item>
         <el-descriptions-item label="身份证号">
-          <span class="id-card-font">{{ reviewDialog.detail?.idCardMasked }}</span>
+          <span class="id-card-font">{{ reviewDialog.detail?.idCard }}</span>
         </el-descriptions-item>
         <el-descriptions-item label="身份证正面">
           <el-image
@@ -239,7 +239,7 @@ const reviewDialog = reactive({
   visible: false,
   loading: false,
   row: null as UserItem | null,
-  detail: null as { realName: string; idCardMasked: string; idCardFrontUrl?: string; idCardBackUrl?: string } | null,
+  detail: null as { realName: string; idCard: string; idCardFrontUrl?: string; idCardBackUrl?: string } | null,
   balance: null as number | null
 })
 

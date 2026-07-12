@@ -4,12 +4,12 @@ import request from '@/utils/request'
 
 export interface UserItem {
   id: number
-  phone: string       // 脱敏手机号
+  phone: string       // 手机号（明文）
   nickname: string
   avatarUrl: string
   realAuthStatus: number // 0未认证 1审核中 2已认证 3失败
   realName?: string   // 真实姓名
-  idCard?: string     // 脱敏身份证号
+  idCard?: string     // 身份证号（明文）
   inviteCode: string
   status: number      // 0封禁 1正常
   createdAt: string

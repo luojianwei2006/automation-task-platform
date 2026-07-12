@@ -52,6 +52,7 @@ public class SysConfigController {
         config.put("app_version", getConfigValue("app_version", ""));
         config.put("app_download_url", getConfigValue("app_download_url", ""));
         config.put("app_name", getConfigValue("app_name", "任务平台"));
+        config.put("require_phone_verify", getConfigValue("require_phone_verify", "true"));
         return ApiResponse.success(config);
     }
 

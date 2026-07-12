@@ -2,31 +2,15 @@ package com.task.platform.ui.earnings
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Celebration
-import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material.icons.filled.Payments
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -39,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -46,34 +31,36 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.task.platform.model.EarningsRecord
-import com.task.platform.viewmodel.EarningsViewModel
 import com.task.platform.navigation.TaskRoutes
+import com.task.platform.viewmodel.EarningsViewModel
+import kotlinx.coroutines.flow.*
 
-// ─── 配色（复用 TaskHallScreen） ───────────────────────────────────────
-private val HallOrange = Color(0xFFFF8C00)
-private val HallOrangeLight = Color(0xFFFFB347)
-private val HallOrangeBg = Color(0xFFFFF8F0)
-private val Gray50 = Color(0xFFFAFAFA)
-private val Gray100 = Color(0xFFF5F5F5)
-private val Gray300 = Color(0xFFE0E0E0)
-private val Gray500 = Color(0xFF9E9E9E)
-private val Gray700 = Color(0xFF616161)
-private val Gray900 = Color(0xFF212121)
+// ─── 配色（同包 TransactionRecordsScreen 复用，故用 internal） ─────────
+internal val HallOrange = Color(0xFFFF8C00)
+internal val HallOrangeLight = Color(0xFFFFB347)
+internal val HallOrangeBg = Color(0xFFFFF8F0)
+internal val Gray50 = Color(0xFFFAFAFA)
+internal val Gray100 = Color(0xFFF5F5F5)
+internal val Gray300 = Color(0xFFE0E0E0)
+internal val Gray500 = Color(0xFF9E9E9E)
+internal val Gray700 = Color(0xFF616161)
+internal val Gray900 = Color(0xFF212121)
 
 /** 收入绿色 */
-private val IncomeGreen = Color(0xFF4CAF50)
+internal val IncomeGreen = Color(0xFF4CAF50)
 /** 支出红色 */
-private val ExpenseRed = Color(0xFFE53935)
+internal val ExpenseRed = Color(0xFFE53935)
 
 /**
- * 收益中心屏幕
- * 橙色渐变头部（总余额 + 统计 + 提现按钮）+ 标签页切换 + 收益明细列表
+ * 收益中心屏幕（底部"收益" Tab）
+ * 展示橙色渐变头部：总余额 + 三列统计 + 提现按钮，
+ * 并在下方提供类型筛选 Tab 与完整收益明细列表（支持上拉加载更多）。
+ * 明细列表 UI 复用同包 TransactionRecordsScreen 的 EarningsRecordItem / EarningsEmptyView。
  */
 @Composable
 fun EarningsScreen(
@@ -86,10 +73,27 @@ fun EarningsScreen(
 
     var selectedTab by remember { mutableIntStateOf(0) }
 
-    // 初始加载
+    val tabs = listOf("全部", "任务收益", "邀请奖励", "提现", "其他")
+    val tabTypes = listOf<Int?>(null, 1, 2, 5, 4)
+
+    // 列表状态，用于上拉加载更多
+    val listState = rememberLazyListState()
+
+    // 初始加载：概览 + 明细（与流水记录页一致）
     LaunchedEffect(Unit) {
         viewModel.loadEarningsSummary()
         viewModel.loadEarningsRecords(refresh = true)
+    }
+
+    // 上拉加载更多：滚动接近列表底部时触发
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val layoutInfo = listState.layoutInfo
+            val lastVisibleIndex = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisibleIndex >= layoutInfo.totalItemsCount - 2
+        }.distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadMore() }
     }
 
     Column(
@@ -110,6 +114,13 @@ fun EarningsScreen(
                 .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
             Column {
+                Text(
+                    text = "我的收益",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(modifier = Modifier.height(12.dp))
                 // 总余额
                 Text(
                     text = "总余额（元）",
@@ -146,7 +157,7 @@ fun EarningsScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     EarningsStatItem(
-                        label = "今日收益",
+                        label = "今日收入",
                         value = "¥${String.format("%.2f", earningsSummary?.todayEarnings ?: 0.0)}",
                         icon = Icons.Default.TrendingUp
                     )
@@ -157,7 +168,7 @@ fun EarningsScreen(
                             .background(Color.White.copy(alpha = 0.3f))
                     )
                     EarningsStatItem(
-                        label = "累计收益",
+                        label = "累计收入",
                         value = "¥${String.format("%.2f", earningsSummary?.totalEarnings ?: 0.0)}",
                         icon = Icons.Default.AccountBalanceWallet
                     )
@@ -200,10 +211,7 @@ fun EarningsScreen(
             }
         }
 
-        // ===== 标签页切换 =====
-        val tabs = listOf("全部", "任务收益", "邀请奖励", "其他")
-        val tabTypes = listOf(null, 1, 2, 4)
-
+        // ===== 类型筛选 Tab 行 =====
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -243,26 +251,31 @@ fun EarningsScreen(
         // ===== 收益明细列表 =====
         if (isLoading && earningsRecords.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(color = HallOrange)
             }
         } else if (earningsRecords.isEmpty()) {
-            EarningsEmptyView()
+            Box(modifier = Modifier.weight(1f)) {
+                EarningsEmptyView()
+            }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp)
+                state = listState,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 items(earningsRecords) { record ->
                     EarningsRecordItem(record = record)
                     if (earningsRecords.indexOf(record) < earningsRecords.size - 1) {
                         HorizontalDivider(
                             color = Gray100,
-                            thickness = 1.dp,
-                            modifier = Modifier.padding(vertical = 0.dp)
+                            thickness = 1.dp
                         )
                     }
                 }
@@ -317,116 +330,5 @@ private fun EarningsStatItem(
             fontSize = 12.sp,
             color = Color.White.copy(alpha = 0.7f)
         )
-    }
-}
-
-// ==================== 收益记录项 ====================
-
-@Composable
-private fun EarningsRecordItem(record: EarningsRecord) {
-    val isIncome = record.amount >= 0
-    val icon = when (record.type) {
-        1 -> Icons.Default.Payments
-        2 -> Icons.Default.Celebration
-        3 -> Icons.Default.AccountBalanceWallet
-        else -> Icons.Default.ReceiptLong
-    }
-    val iconBg = when (record.type) {
-        1 -> Color(0xFFE8F5E9)
-        2 -> Color(0xFFFFF3E0)
-        3 -> Color(0xFFFFEBEE)
-        else -> Color(0xFFE3F2FD)
-    }
-    val iconTint = when (record.type) {
-        1 -> IncomeGreen
-        2 -> HallOrange
-        3 -> ExpenseRed
-        else -> Color(0xFF42A5F5)
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.White)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // 类型图标
-        Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(iconBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.width(14.dp))
-
-        // 描述文字 + 日期
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = record.description,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                color = Gray900,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = record.createdAt,
-                fontSize = 13.sp,
-                color = Gray500
-            )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        // 金额
-        Text(
-            text = if (isIncome) "+${String.format("%.2f", record.amount)}" else String.format("%.2f", record.amount),
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isIncome) IncomeGreen else ExpenseRed
-        )
-    }
-}
-
-// ==================== 空状态 ====================
-
-@Composable
-private fun EarningsEmptyView() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.Inbox,
-                contentDescription = null,
-                modifier = Modifier.size(72.dp),
-                tint = Gray300
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "暂无收益记录",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Medium,
-                color = Gray500
-            )
-            Text(
-                text = "完成任务后收益将在此展示",
-                fontSize = 16.sp,
-                color = Gray500,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
     }
 }

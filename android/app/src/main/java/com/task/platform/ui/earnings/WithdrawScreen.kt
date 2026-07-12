@@ -38,7 +38,6 @@ import kotlinx.coroutines.launch
 /** 收款方式品牌点缀色（仅用于视觉，不影响逻辑）。 */
 private val WeChatGreen = Color(0xFF07C160)
 private val AlipayBlue = Color(0xFF1677FF)
-private val Gray900 = Color(0xFF212121)
 
 private data class PaymentOption(
     val method: String,
@@ -89,7 +88,7 @@ fun WithdrawScreen(
                 title = { Text("申请提现", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Gray900)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color(0xFFFF8C00))
                     }
                 }
             )

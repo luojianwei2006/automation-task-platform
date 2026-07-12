@@ -9,9 +9,11 @@ import com.task.platform.task.entity.Task;
 import com.task.platform.task.entity.UserTaskRecord;
 import com.task.platform.task.mapper.TaskMapper;
 import com.task.platform.task.mapper.UserTaskRecordMapper;
+import com.task.platform.task.vo.MyTaskVO;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -326,24 +328,53 @@ public class TaskService {
      * 我的任务记录
      * 查询用户接取过的任务，关联 t_user_task_record + t_task，返回 Task 对象（含任务完整信息）
      */
-    public Page<Task> getMyTaskRecords(Long userId, int page, int size) {
+    public Page<MyTaskVO> getMyTaskRecords(Long userId, int page, int size) {
+        // 1. 查该用户全部记录，按 acceptedAt 降序（便于去重时保留最新）
         LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
                 .eq(UserTaskRecord::getUserId, userId)
                 .orderByDesc(UserTaskRecord::getAcceptedAt);
-        Page<UserTaskRecord> recordPage = userTaskRecordMapper.selectPage(new Page<>(page, size), wrapper);
+        List<UserTaskRecord> allRecords = userTaskRecordMapper.selectList(wrapper);
 
-        // 根据 record 中的 taskId 批量查出完整 Task 信息
-        List<Task> tasks = new java.util.ArrayList<>();
-        for (UserTaskRecord record : recordPage.getRecords()) {
+        // 2. 终态优先去重：已通过(2)/已拒绝(3) 视为任务最终结果，优先展示；无终态则取最新
+        java.util.List<UserTaskRecord> terminalRecords = new java.util.ArrayList<>();
+        for (UserTaskRecord r : allRecords) {
+            if (r.getStatus() == 2 || r.getStatus() == 3) terminalRecords.add(r); // 已降序，先到即终态中最新
+        }
+        java.util.Map<Long, UserTaskRecord> latestByTask = new java.util.LinkedHashMap<>();
+        for (UserTaskRecord r : terminalRecords) {
+            latestByTask.putIfAbsent(r.getTaskId(), r); // 终态任务：保留终态中最新
+        }
+        for (UserTaskRecord r : allRecords) {
+            if (r.getStatus() != 2 && r.getStatus() != 3) {
+                latestByTask.putIfAbsent(r.getTaskId(), r); // 非终态任务：仅当尚无终态记录时保留最新
+            }
+        }
+        java.util.List<UserTaskRecord> distinctRecords = new java.util.ArrayList<>(latestByTask.values());
+
+        // 3. 内存分页（按去重后的任务数分页）
+        long total = distinctRecords.size();
+        int fromIndex = (page - 1) * size;
+        int toIndex = Math.min(fromIndex + size, distinctRecords.size());
+        java.util.List<MyTaskVO> vos = new java.util.ArrayList<>();
+        for (int i = fromIndex; i < toIndex; i++) {
+            UserTaskRecord record = distinctRecords.get(i);
             Task task = taskMapper.selectById(record.getTaskId());
             if (task != null) {
-                tasks.add(task);
+                MyTaskVO vo = new MyTaskVO();
+                BeanUtils.copyProperties(task, vo);
+                vo.setRecordId(record.getId());
+                vo.setRecordStatus(record.getStatus());
+                vo.setSubmitCount(record.getSubmitCount());
+                vo.setReviewResult(record.getReviewResult());
+                vo.setAcceptedAt(record.getAcceptedAt());
+                vo.setSubmittedAt(record.getSubmittedAt());
+                vos.add(vo);
             }
         }
 
-        Page<Task> taskPage = new Page<>(page, size, recordPage.getTotal());
-        taskPage.setRecords(tasks);
-        return taskPage;
+        Page<MyTaskVO> voPage = new Page<>(page, size, total);
+        voPage.setRecords(vos);
+        return voPage;
     }
 
     /**
@@ -577,8 +608,15 @@ public class TaskService {
     public UserTaskRecord getTaskRecord(Long userId, Long taskId) {
         LambdaQueryWrapper<UserTaskRecord> wrapper = new LambdaQueryWrapper<UserTaskRecord>()
                 .eq(UserTaskRecord::getUserId, userId)
-                .eq(UserTaskRecord::getTaskId, taskId);
-        return userTaskRecordMapper.selectOne(wrapper);
+                .eq(UserTaskRecord::getTaskId, taskId)
+                .orderByDesc(UserTaskRecord::getAcceptedAt);
+        List<UserTaskRecord> records = userTaskRecordMapper.selectList(wrapper);
+        if (records.isEmpty()) return null;
+        // 终态优先：已通过(2)/已拒绝(3) 视为最终结果，优先返回（已降序，取最早终态）
+        for (UserTaskRecord r : records) {
+            if (r.getStatus() == 2 || r.getStatus() == 3) return r;
+        }
+        return records.get(0); // 无终态则取最新
     }
 
     /**

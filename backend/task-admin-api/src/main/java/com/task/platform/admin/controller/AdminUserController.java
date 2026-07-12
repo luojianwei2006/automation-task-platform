@@ -69,7 +69,7 @@ public class AdminUserController {
 
         IPage<AppUser> pageResult = appUserMapper.selectPage(new Page<>(page, size), wrapper);
 
-        // 脱敏处理 + 批量填充余额
+        // 批量填充余额（手机号/身份证号均返回明文，不再脱敏）
         List<Long> userIds = pageResult.getRecords().stream()
                 .map(AppUser::getId)
                 .collect(Collectors.toList());
@@ -221,15 +221,15 @@ public class AdminUserController {
     private Map<String, Object> buildUserVO(AppUser user, BigDecimal balance) {
         Map<String, Object> vo = new HashMap<>();
         vo.put("id", user.getId());
-        vo.put("phone", maskPhone(user.getPhone()));
+        vo.put("phone", user.getPhone());
         vo.put("nickname", user.getNickname());
         vo.put("avatarUrl", user.getAvatarUrl());
         vo.put("realAuthStatus", user.getRealAuthStatus() != null ? user.getRealAuthStatus() : 0);
         // 实名信息（管理后台可见）
         vo.put("realName", user.getRealName());
-        vo.put("idCard", maskIdCard(user.getIdCard()));
+        vo.put("idCard", decodeIdCard(user.getIdCard()));
         log.info("[buildUserVO] userId={}, realName={}, idCard={}", 
-                user.getId(), user.getRealName(), maskIdCard(user.getIdCard()));
+                user.getId(), user.getRealName(), decodeIdCard(user.getIdCard()));
         vo.put("inviteCode", user.getInviteCode());
         vo.put("status", user.getStatus());
         vo.put("createdAt", user.getCreatedAt());
@@ -238,28 +238,18 @@ public class AdminUserController {
         return vo;
     }
 
-    /** 用户详情 VO（手机号不过敏，供编辑弹窗使用） */
+    /** 用户详情 VO（返回明文手机号，供编辑弹窗使用） */
     private Map<String, Object> buildUserDetailVO(AppUser user) {
-        Map<String, Object> vo = buildUserVO(user, null);
-        vo.put("phone", user.getPhone()); // 覆盖脱敏手机号
-        return vo;
-    }
-
-    private String maskPhone(String phone) {
-        if (phone == null || phone.length() < 7) return phone;
-        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+        return buildUserVO(user, null);
     }
 
     /**
-     * 身份证脱敏：保留前6位和后4位
-     * 例：110101 ******** 0011
+     * 解码身份证号：库中以 [ENCRYPTED]<明文18位> 形式存储，
+     * 去除 [ENCRYPTED] 前缀即可得到明文身份证号（占位"加密"，非真 AES）。
      */
-    private String maskIdCard(String idCard) {
-        if (idCard == null || idCard.length() < 18) return idCard;
-        // 如果是加密存储的 [ENCRYPTED] 前缀，先尝试去除
-        String raw = idCard.startsWith("[ENCRYPTED]") ? idCard.substring(11) : idCard;
-        if (raw.length() != 18) return raw;
-        return raw.substring(0, 6) + "********" + raw.substring(14);
+    private String decodeIdCard(String idCard) {
+        if (idCard == null) return null;
+        return idCard.startsWith("[ENCRYPTED]") ? idCard.substring(11) : idCard;
     }
 
     /**

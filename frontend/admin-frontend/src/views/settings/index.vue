@@ -9,6 +9,40 @@
         </el-button>
       </div>
 
+      <!-- 测试环境开关 -->
+      <el-card shadow="never" class="test-env-card">
+        <div class="test-env-row">
+          <div>
+            <div class="test-env-title">测试环境模式</div>
+            <div class="test-env-desc">开启后，所有短信验证码统一为 666666（仅用于开发/测试，生产务必关闭）</div>
+          </div>
+          <el-switch
+            v-model="testEnv"
+            :loading="testEnvSaving"
+            active-text="开启"
+            inactive-text="关闭"
+            @change="onTestEnvChange"
+          />
+        </div>
+      </el-card>
+
+      <!-- 手机号验证开关 -->
+      <el-card shadow="never" class="phone-verify-card">
+        <div class="test-env-row">
+          <div>
+            <div class="test-env-title">注册时验证手机号（短信验证码）</div>
+            <div class="test-env-desc">关闭后，用户注册将不再要求短信验证码（适用于内测/邀请制等场景）</div>
+          </div>
+          <el-switch
+            v-model="phoneVerify"
+            :loading="phoneVerifySaving"
+            active-text="开启"
+            inactive-text="关闭"
+            @change="onPhoneVerifyChange"
+          />
+        </div>
+      </el-card>
+
       <!-- 配置表格 -->
       <el-table
         :data="tableData"
@@ -90,12 +124,18 @@ import { getSettings, updateSettings, type SysConfigItem } from '@/api/settings'
 // ---------- 表格数据 ----------
 const tableData = ref<SysConfigItem[]>([])
 const loading = ref(false)
+const testEnv = ref(false)
+const phoneVerify = ref(true)
 
 /** 拉取最新配置 */
 async function fetchSettings() {
   loading.value = true
   try {
     tableData.value = await getSettings()
+    const t = tableData.value.find((c: SysConfigItem) => c.configKey === 'test_env')
+    if (t) testEnv.value = t.configValue === 'true'
+    const p = tableData.value.find((c: SysConfigItem) => c.configKey === 'require_phone_verify')
+    if (p) phoneVerify.value = p.configValue === 'true'
   } catch {
     // 错误已在 request 拦截器中统一提示
   } finally {
@@ -157,6 +197,34 @@ async function handleSubmit() {
   }
 }
 
+// ---------- 测试环境开关 ----------
+const testEnvSaving = ref(false)
+async function onTestEnvChange(val: boolean) {
+  testEnvSaving.value = true
+  try {
+    await updateSettings({ test_env: String(val) })
+    ElMessage.success(val ? '已开启测试环境（验证码统一为666666）' : '已关闭测试环境')
+  } catch {
+    // 错误已在 request 拦截器统一提示；回滚开关
+    testEnv.value = !val
+  } finally {
+    testEnvSaving.value = false
+  }
+}
+
+const phoneVerifySaving = ref(false)
+async function onPhoneVerifyChange(val: boolean) {
+  phoneVerifySaving.value = true
+  try {
+    await updateSettings({ require_phone_verify: String(val) })
+    ElMessage.success(val ? '已开启注册手机号验证' : '已关闭注册手机号验证（注册免验证码）')
+  } catch {
+    phoneVerify.value = !val
+  } finally {
+    phoneVerifySaving.value = false
+  }
+}
+
 // ---------- 工具函数 ----------
 
 /** 格式化时间 */
@@ -204,4 +272,10 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 8px;
 }
+
+.test-env-card { margin-bottom: 16px; }
+.phone-verify-card { margin-bottom: 16px; }
+.test-env-row { display: flex; align-items: center; justify-content: space-between; }
+.test-env-title { font-size: 14px; font-weight: 600; color: #303133; }
+.test-env-desc { font-size: 12px; color: #909399; margin-top: 4px; }
 </style>

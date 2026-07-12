@@ -52,12 +52,9 @@ public class AdminUserService {
         RealAuthStatusVO vo = new RealAuthStatusVO();
         vo.setStatus(user.getRealAuthStatus() != null ? user.getRealAuthStatus() : STATUS_UNAUTHENTICATED);
         vo.setRealName(user.getRealName());
-        // 身份证脱敏：保留前6位和后4位
+        // 身份证号：库中以 [ENCRYPTED] 前缀占位存储，去前缀即得明文
         String idCard = user.getIdCard();
-        if (idCard != null && idCard.length() > 11 && idCard.startsWith("[ENCRYPTED]")) {
-            idCard = idCard.substring(11);
-        }
-        vo.setIdCardMasked(maskIdCard(idCard));
+        vo.setIdCard(decodeIdCard(idCard));
         vo.setIdCardFrontUrl(toAccessUrl(user.getIdCardFrontUrl()));
         vo.setIdCardBackUrl(toAccessUrl(user.getIdCardBackUrl()));
         vo.setHoldIdCardUrl(toAccessUrl(user.getHoldIdCardUrl()));
@@ -207,7 +204,7 @@ public class AdminUserService {
         private Integer status;
         private String statusDesc;
         private String realName;
-        private String idCardMasked;
+        private String idCard;
         private String idCardFrontUrl;
         private String idCardBackUrl;
         /** 手持身份证/人脸照URL */
@@ -236,9 +233,6 @@ public class AdminUserService {
     }
 
     /**
-     * 身份证脱敏：保留前6位和后4位
-     */
-    /**
      * 将相对路径转为客户端可访问的 URL（拼 /api 前缀走 Gateway）
      * 已为 http 开头的完整 URL 则保持不变
      */
@@ -248,8 +242,12 @@ public class AdminUserService {
         return "/api" + (path.startsWith("/") ? path : "/" + path);
     }
 
-    private String maskIdCard(String idCard) {
-        if (idCard == null || idCard.length() != 18) return idCard;
-        return idCard.substring(0, 6) + "********" + idCard.substring(14);
+    /**
+     * 解码身份证号：库中以 [ENCRYPTED]<明文18位> 形式存储，
+     * 去除 [ENCRYPTED] 前缀即可得到明文身份证号（占位"加密"，非真 AES）。
+     */
+    private String decodeIdCard(String idCard) {
+        if (idCard == null) return null;
+        return idCard.startsWith("[ENCRYPTED]") ? idCard.substring(11) : idCard;
     }
 }

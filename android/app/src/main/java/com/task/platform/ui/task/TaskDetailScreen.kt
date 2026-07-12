@@ -131,7 +131,7 @@ fun TaskDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Gray900)
+                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
                     }
                     Text("任务详情", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Gray900, modifier = Modifier.weight(1f))
                 }
