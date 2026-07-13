@@ -24,11 +24,11 @@
 | 模块 | 端口 | 职责 |
 |------|------|------|
 | `task-gateway` | 8085 | API 网关 + JWT 鉴权（StripPrefix=1 转发下游） |
-| `task-user-service` | 8081 | 用户注册/登录、实名认证、收益与提现（余额入账 `t_user_earnings`）、钱包绑定、系统配置 `sys_config` |
+| `task-user-service` | 8081 | 用户注册/登录、实名认证、收益与提现（余额入账 `t_user_earnings`）、钱包绑定、系统配置 `sys_config`、协议读接口（匿名 `GET /api/user/agreements/{type}`） |
 | `task-task-service` | 8082 | 任务 CRUD、领取、提交、截图审核（审核通过经内部接口入账奖励） |
-| `task-admin-api` | 8084 | 管理后台 API（RBAC、商户、发布任务、交易结算、审核上架/下架、系统设置） |
+| `task-admin-api` | 8084 | 管理后台 API（RBAC、商户、发布任务、交易结算、审核上架/下架、系统设置、协议管理写接口） |
 | `task-upload-service` | 8086 | 统一文件上传（本地存储，预留 OSS/COS） |
-| `task-common` | — | 公共模块（Result、枚举、工具类） |
+| `task-common` | — | 公共模块（Result、枚举、工具类；协议实体 `Agreement` / Mapper / VO） |
 | `task-job` | — | 定时任务 |
 
 > ⚠️ 原 `task-pay-service`（奖励自动发放）已在「奖励入账改造」中整体删除：奖励改为审核通过时由 `task-user-service` 内部接口 `POST /internal/earnings/credit` 直接写入用户虚拟余额（`t_user_earnings`），不再有独立发奖模块。
@@ -52,7 +52,22 @@ Vue 3 + TypeScript + Element Plus + Pinia。商户/平台运营后台，含系�
 
 ---
 
-## 安卓端功能完成度（截至 2026-07-12）
+## 协议文档功能（2026-07-13 新增）
+
+管理后台可视化编辑、安卓端 WebView 展示三份平台文档（**关于我们 / 隐私协议 / 注册协议**），采用 HTML5 富文本（wangEditor）。
+
+- **存储**：独立表 `t_agreement`（`type` 唯一索引：about / privacy / register，`content_html` 存完整 HTML）。
+- **后端接口**：
+  - 写（管理后台，RBAC 超管/商户管理员）：`POST /api/admin/agreements`、`GET /api/admin/agreements?type=`
+  - 读（匿名，网关白名单放行 `GET /api/user/agreements/**`）：`GET /api/user/agreements/{type}`
+- **管理后台**：新增「协议管理」页面（el-tabs 切换三份、wangEditor 编辑、图片自定义上传复用统一上传服务、预览弹窗）。
+- **安卓端**：`AgreementScreen`（WebView 按 HTML5 原样渲染）由三处入口进入 —— 个人中心「关于我们」、登录/注册页「用户协议」「隐私政策」可点文字。
+
+> ⚠️ 协议内容需由运营在管理后台填写，或执行 `backend/sql/agreement_seed_data.sql` 初始化；库为空时安卓端显示"暂无协议内容"。
+
+---
+
+## 安卓端功能完成度（截至 2026-07-13）
 
 ### ✅ 已完成页面（UI + 接口调用齐全）
 
@@ -63,7 +78,8 @@ Vue 3 + TypeScript + Element Plus + Pinia。商户/平台运营后台，含系�
 | 广告大厅 | ✅ | 复用任务大厅逻辑 |
 | 发布任务大厅 / 发布详情 / 提交审核 / 合并历史 | ✅ | 完整；列表状态精确映射 6 态 |
 | 收益中心 | ✅ | 概览 + 奖励明细列表（类型筛选：全部/任务收益/邀请奖励/其他，已移除「提现」Tab，仅展示奖励 type≠5）+ 加载更多；「流水记录」为独立页（含提现） |
-| 个人中心 / 关于页 / 钱包绑定 | ✅ | UI 完整 |
+| 协议文档页（关于我们 / 用户协议 / 隐私政策） | ✅ | WebView 按 HTML5 原样渲染；个人中心「关于我们」、登录/注册页「用户协议」「隐私政策」三入口接匿名读接口 |
+| 个人中心 / 钱包绑定 | ✅ | UI 完整；「关于我们」入口跳协议接口 |
 
 ### ⚠️ 已知缺口（安卓端）
 
@@ -117,6 +133,14 @@ npm run dev
 - **网关路径**：Gateway 去掉 `/api` 前缀后，下游 SecurityConfig 必须匹配去掉前缀后的路径（如 `/task/**` 而非 `/api/task/**`）。
 - **上传 URL 格式**：统一为 `/api/upload/uploads/{type}/{uuid}.ext`。
 - **系统配置 `sys_config`**：`upload_domain` / `api_base_url` / `app_name` 等全局配置由管理后台「系统设置」在线维护；安卓端截图上传 / 图片地址应读取 `upload_domain` 而非硬编码。
+- **协议文档**：管理后台「协议管理」用 wangEditor 编辑 HTML5；安卓端 WebView 原样展示。读接口 `GET /api/user/agreements/{type}` 匿名且网关白名单放行（`JwtAuthGlobalFilter` 中 `WHITE_LIST` 已含该路径）。
+- **Gateway 不连数据库**：`task-gateway` 已从 `task-common` 依赖排除 `mybatis-plus-boot-starter`，避免 Spring Boot 误建 DataSource（仅保留 Redis 用于限流）。
+
+---
+
+## 品牌更新（2026-07-13）
+
+应用品牌视觉已更新：Logo 融入抖音 / 快手 / 网赚元素，启动页（Splash）与应用图标（ic_launcher）已更换。相关资源：`android/app/src/main/res/drawable/ic_launcher_foreground.png`、`ic_logo.png`、`ic_launcher_background.xml` 及 `mipmap-*` 各密度图标。
 
 ---
 

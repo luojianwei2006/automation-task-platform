@@ -114,13 +114,8 @@ fun ProfileScreen(
     var showAutoModeDialog by remember { mutableStateOf(false) }
     val currentMode = userInfo?.autoMode ?: 0
 
-    // 消息通知 & 关于我们
+    // 消息通知
     var showNotificationDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
-    @Suppress("DEPRECATION")
-    val appVersion = remember {
-        try { context.packageManager.getPackageInfo(context.packageName, 0).versionName } catch (_: Exception) { "1.0.0" }
-    }
 
     Column(
         modifier = Modifier
@@ -283,7 +278,7 @@ fun ProfileScreen(
                     MenuItemRow(
                         icon = MenuIcon.About,
                         title = "关于我们",
-                        onClick = { showAboutDialog = true }
+                        onClick = { navController.navigate("agreement/about") }
                     )
                     MenuDivider()
                     MenuItemRow(
@@ -414,24 +409,6 @@ fun ProfileScreen(
         )
     }
 
-    // ─── 关于我们弹窗 ───
-    if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = { Text("关于我们", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("自动化任务平台", fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(4.dp))
-                    Text("版本 $appVersion", fontSize = 13.sp, color = Gray500)
-                    Spacer(Modifier.height(12.dp))
-                    Text("高效完成自动化任务，轻松赚取收益", fontSize = 13.sp, color = Gray700)
-                }
-            },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showAboutDialog = false }) { Text("关闭") } }
-        )
-    }
 }
 
 // ==================== 邀请好友弹窗 ====================

@@ -264,3 +264,21 @@ data class MergeHistoryVO(
     val fileSize: Long? = null,
     val createdAt: String? = null
 )
+
+/**
+ * 协议文档 VO（对应后端 AgreementVO / t_agreement）
+ * 安卓端通过匿名接口 GET /api/user/agreements/{type} 获取，交给 WebView 渲染。
+ *
+ * @param type       协议类型：about / privacy / register
+ * @param title      协议标题（用于顶部标题栏）
+ * @param contentHtml 协议内容 HTML 片段（标准 HTML，图片为相对 URL）
+ * @param version    版本号
+ * @param updatedAt  更新时间（格式化字符串，如 2025-07-12 21:44:00）
+ */
+data class AgreementVO(
+    val type: String = "",
+    val title: String = "",
+    val contentHtml: String = "",
+    val version: Int = 0,
+    val updatedAt: String? = null
+)

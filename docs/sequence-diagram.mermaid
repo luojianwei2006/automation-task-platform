@@ -1,80 +1,63 @@
-%% 链路一：任务提交 -> 人工审核 -> 系统自动发奖
 sequenceDiagram
-    autonumber
-    participant U as 安卓App
-    participant GW as Gateway(8085)
-    participant TS as task-service
-    participant AD as admin-api
-    participant PAY as pay-service
-    participant DB as MySQL(task_platform)
+    participant U as 管理员(浏览器)
+    participant FE as 协议管理页(Vue)
+    participant GW as 网关(Gateway)
+    participant AC as AgreementController(admin-api)
+    participant AS as AgreementService(admin-api)
+    participant M as AgreementMapper(common)
+    participant DB as t_agreement
 
-    U->>GW: POST /api/task/tasks/{id}/submit(截图)
-    GW->>TS: /task/tasks/{id}/submit (StripPrefix)
-    TS->>DB: 写 t_user_task_record(status=1 审核中)
-    TS-->>U: 提交成功
-
-    Note over AD: 运营在后台点击「通过」
-    AD->>GW: POST /api/task/tasks/records/{rid}/review?pass=true
-    GW->>TS: /task/tasks/records/{rid}/review
-    TS->>DB: 商户扣费(调 admin 内部 /admin/merchants/{m}/task-cost)
-    TS->>DB: 更新 record(status=2 通过, reward_amount 快照)
-    TS->>PAY: POST {payApiBaseUrl}/pay/grant (X-Internal-Token) [内部直连]
-    PAY->>DB: 幂等查 t_reward_grant(task_record_id)
-    alt 未发放
-        PAY->>DB: 插 t_reward_grant(status=1)
-        PAY->>DB: 插 t_user_earnings(type=1, amount, balance_after+=奖励)
+    U->>FE: 选择类型/编辑HTML/点保存
+    FE->>FE: 校验 title/contentHtml 非空且未超长
+    FE->>GW: POST /api/admin/agreements (Bearer token)
+    GW->>GW: 白名单不匹配 → 校验 JWT → 注入 X-User-Id
+    GW->>AC: /admin/agreements
+    AC->>AC: @PreAuthorize 角色校验(SUPER_ADMIN/MERCHANT_ADMIN)
+    alt 无权限
+        AC-->>FE: 403 (ApiResponse.error)
+    else 通过
+        AC->>AS: save(req, X-User-Id)
+        AS->>M: selectOne(type)
+        alt 已存在
+            AS->>M: updateById(version+1, title, contentHtml, updatedBy)
+        else 不存在
+            AS->>M: insert(version=1, ...)
+        end
+        M->>DB: 写库(updated_at 自动刷新)
+        AS-->>AC: Agreement(含新version/updatedAt)
+        AC-->>GW: ApiResponse.success(Agreement)
+        GW-->>FE: 200 {data: Agreement}
+        FE-->>U: ElMessage.success("保存成功") + 刷新版本/时间
     end
-    PAY-->>TS: 发放成功(grantNo)
-    TS->>DB: 更新 record.reward_granted_at=now()
-    TS-->>AD: 审核完成
-    Note right of DB: 余额已自动增加，App 查 /api/user/balance 可见
 
 ---
 
-%% 链路二：实名提交 -> 人工审核
 sequenceDiagram
-    autonumber
-    participant U as 安卓App
-    participant GW as Gateway(8085)
-    participant US as user-service
-    participant UP as upload-service
-    participant AD as admin-api
-    participant DB as MySQL(task_platform)
+    participant U as 用户(安卓)
+    participant NF as NavGraph/入口页
+    participant AG as AgreementScreen(Compose)
+    participant API as ApiClient.getAgreement(type)
+    participant GW as 网关(Gateway)
+    participant UC as AgreementController(user-service)
+    participant M as AgreementMapper(common)
+    participant DB as t_agreement
+    participant WV as WebView(AndroidView)
 
-    U->>GW: POST /api/user/realname/upload(身份证/人脸照)
-    GW->>US: /user/realname/upload
-    US->>UP: 内部转发 POST /upload/image?type=idcard
-    UP-->>US: accessUrl=/api/upload/uploads/idcard/{uuid}.ext
-    US-->>U: {accessUrl, relativePath}
-
-    U->>GW: POST /api/user/realname/submit(姓名/身份证/照片URL)
-    GW->>US: /user/realname/submit
-    US->>DB: 写 t_user(real_name,id_card(AES),*_url,real_auth_status=1 审核中)
-    US-->>U: 提交成功，等待审核
-
-    Note over AD: 运营在后台实名审核页
-    AD->>DB: 读 t_user(姓名/身份证/三张照URL/状态)
-    AD->>AD: 运营点击 通过/驳回
-    AD->>DB: 写 t_user(real_auth_status=2或3, real_auth_remark, reviewed_by/at)
-    Note right of DB: App 查 /api/user/realname/status 可见结果
-
----
-
-%% 链路三：提现申请（无门槛）
-sequenceDiagram
-    autonumber
-    participant U as 安卓App
-    participant GW as Gateway(8085)
-    participant US as user-service
-    participant DB as MySQL(task_platform)
-    participant AD as admin-api
-
-    U->>GW: POST /api/user/withdraw/apply(amount,method,account)
-    GW->>US: /user/withdraw/apply
-    US->>DB: 校验 real_auth_status=2(已实名) & 余额>=amount
-    US->>DB: 插 t_user_earnings(type=5 提现, amount=-, balance_after-=amount)
-    US->>DB: 插 t_withdraw_record(status=0 待打款, withdraw_no)
-    US-->>U: 提现申请已提交
-
-    Note over AD: 运营后台打款
-    AD->>DB: 上传转账凭证 -> t_withdraw_record(status=1 已打款, voucher_url)
+    U->>NF: 点击「隐私协议」→ navigate("agreement/privacy")
+    NF->>AG: AgreementScreen(navController, type="privacy")
+    AG->>AG: LaunchedEffect → 调 API
+    AG->>API: GET /api/user/agreements/privacy (无 token)
+    API->>GW: 请求
+    GW->>GW: 白名单匹配 /api/user/agreements GET → 放行
+    GW->>UC: /user/agreements/privacy
+    UC->>UC: 校验 type ∈ {about,privacy,register}
+    UC->>M: selectOne(type)
+    M->>DB: 查询
+    DB-->>M: Agreement
+    UC-->>GW: ApiResponse.success(AgreementVO)
+    GW-->>API: 200
+    API-->>AG: AgreementVO
+    AG->>AG: 拼装 HTML = CSS模板 + contentHtml
+    AG->>WV: loadDataWithBaseURL(BASE_URL, html, ...)
+    WV-->>U: 渲染协议（图片/链接可点）
+    AG-->>U: 顶部标题栏 + 底部「更新于 updatedAt vVersion」

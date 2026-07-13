@@ -50,3 +50,10 @@ frontend/.env.local
 
 # Uploads (runtime files)
 uploads/
+
+# Debug / QA reports (not for repo)
+QA_Regression_Report.md
+WithdrawScreen_static_review_report.md
+android/qa_static_review_report.md
+android/qa_static_review_report_taskhall.md
+backend/docs/qa-regression-report-reward-to-balance.md

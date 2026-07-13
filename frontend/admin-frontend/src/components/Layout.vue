@@ -60,6 +60,10 @@
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
         </el-menu-item>
+        <el-menu-item v-if="isSuperAdmin" index="/agreements">
+          <el-icon><Document /></el-icon>
+          <template #title>协议管理</template>
+        </el-menu-item>
       </el-menu>
     </el-aside>
 

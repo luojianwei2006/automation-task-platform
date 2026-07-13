@@ -17,6 +17,7 @@ import com.task.platform.ui.profile.RealAuthScreen
 import com.task.platform.ui.profile.WalletBindingScreen
 import com.task.platform.ui.profile.SettingsScreen
 import com.task.platform.ui.profile.AboutScreen
+import com.task.platform.ui.profile.AgreementScreen
 import com.task.platform.ui.profile.EditProfileScreen
 import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.ScreenshotUploadScreen
@@ -44,6 +45,7 @@ object TaskRoutes {
     const val SETTINGS = "settings"
     const val EDIT_PROFILE = "edit_profile"
     const val ABOUT = "about"
+    const val AGREEMENT = "agreement/{type}"
 }
 
 /**
@@ -85,7 +87,8 @@ fun TaskNavGraph(
                 },
                 onNavigateToRegister = {
                     navController.navigate(TaskRoutes.REGISTER)
-                }
+                },
+                navController = navController
             )
         }
 
@@ -97,7 +100,8 @@ fun TaskNavGraph(
                 },
                 onNavigateBack = {
                     navController.popBackStack()
-                }
+                },
+                navController = navController
             )
         }
 
@@ -151,6 +155,12 @@ fun TaskNavGraph(
         // ===== 关于页 =====
         composable(TaskRoutes.ABOUT) {
             AboutScreen(navController = navController)
+        }
+
+        // ===== 协议文档页（WebView 展示） =====
+        composable(TaskRoutes.AGREEMENT) { backStackEntry ->
+            val agreementType = backStackEntry.arguments?.getString("type") ?: "about"
+            AgreementScreen(navController = navController, type = agreementType)
         }
 
         // ===== 编辑资料页 =====

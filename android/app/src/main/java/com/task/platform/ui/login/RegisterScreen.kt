@@ -1,6 +1,7 @@
 package com.task.platform.ui.login
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.focus.FocusDirection
+import androidx.navigation.NavController
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.task.platform.viewmodel.LoginViewModel
 
@@ -46,6 +48,7 @@ private val Gray700 = Color(0xFF616161)
 fun RegisterScreen(
     onRegisterSuccess: () -> Unit,
     onNavigateBack: () -> Unit,
+    navController: NavController,
     viewModel: LoginViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -375,16 +378,28 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 用户协议
-            Text(
-                text = "注册即表示您同意《用户协议》和《隐私政策》",
-                color = Gray500,
-                fontSize = 11.sp,
+            // 用户协议 / 隐私政策（点击跳转协议详情，无需登录即可查看）
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 24.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text("注册即表示您同意", color = Gray500, fontSize = 11.sp)
+                Text(
+                    text = "《用户协议》",
+                    color = RegOrange,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable { navController.navigate("agreement/register") }
+                )
+                Text("和", color = Gray500, fontSize = 11.sp)
+                Text(
+                    text = "《隐私政策》",
+                    color = RegOrange,
+                    fontSize = 11.sp,
+                    modifier = Modifier.clickable { navController.navigate("agreement/privacy") }
+                )
+            }
 
             // 返回登录
             Row(

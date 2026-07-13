@@ -4,6 +4,7 @@ import android.content.Context
 import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
 import com.task.platform.model.AutoRecord
+import com.task.platform.model.AgreementVO
 import com.task.platform.model.MergeHistoryVO
 import com.task.platform.model.MergeResultVO
 import com.task.platform.model.PublishMaterialPreviewVO
@@ -76,6 +77,10 @@ interface ApiService {
     /** 获取 App 版本配置（公开接口，无需登录，供启动后比对更新） */
     @GET("api/user/config")
     suspend fun getAppConfig(): ApiResponse<Map<String, String>>
+
+    /** 获取协议文档（公开接口，无需登录，供 WebView 展示：about/privacy/register） */
+    @GET("api/user/agreements/{type}")
+    suspend fun getAgreement(@Path("type") type: String): ApiResponse<AgreementVO>
 
     /** 修改密码 */
     @PUT("api/user/password")

@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -104,6 +106,41 @@ fun AboutScreen(navController: NavController) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // 协议与条款入口
+        Text(
+            text = "协议与条款",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { navController.navigate("agreement/about") },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("关于我们", color = MaterialTheme.colorScheme.onPrimary)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = { navController.navigate("agreement/privacy") },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("隐私协议", color = MaterialTheme.colorScheme.onPrimary)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Button(
+            onClick = { navController.navigate("agreement/register") },
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("注册协议", color = MaterialTheme.colorScheme.onPrimary)
         }
     }
 }

@@ -13,7 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "com.task.platform.admin",
     "com.task.platform.common"
 })
-@MapperScan("com.task.platform.admin.mapper")
+@MapperScan({"com.task.platform.admin.mapper", "com.task.platform.common.mapper"})
 @EnableScheduling
 public class AdminApplication {
 

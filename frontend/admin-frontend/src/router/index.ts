@@ -63,6 +63,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '系统设置' }
       },
       {
+        path: 'agreements',
+        name: 'Agreements',
+        component: () => import('../views/agreements/index.vue'),
+        meta: { title: '协议管理' }
+      },
+      {
         path: 'comment/words',
         name: 'CommentWords',
         component: () => import('../views/comment/index.vue'),

@@ -54,6 +54,12 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- MyBatis-Plus（提供 Agreement 实体与 AgreementMapper 的 BaseMapper 支撑，供 admin-api / user-service 共享） -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
+        </dependency>
+
         <!-- JWT (JJWT 0.12+) - JwtUtil 依赖 -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

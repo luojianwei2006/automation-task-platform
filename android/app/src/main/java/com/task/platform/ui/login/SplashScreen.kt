@@ -48,10 +48,11 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.delay
 
-// 配色
-private val SplashOrange = Color(0xFFFF8C00)
-private val SplashOrangeLight = Color(0xFFFFB347)
-private val SplashPeach = Color(0xFFFFCCBC)
+// 配色：融合三平台元素（抖音青 / 快手橙 / 金币黄 / 桃粉）
+private val SplashDouyin = Color(0xFF00E5FF)      // 抖音青
+private val SplashKuaishou = Color(0xFFFF6B00)    // 快手橙
+private val SplashGold = Color(0xFFFFC107)        // 金币黄
+private val SplashPeach = Color(0xFFFFCCBC)       // 桃粉（保留尾部柔和过渡）
 
 /**
  * 启动页
@@ -119,7 +120,7 @@ fun SplashScreen(
             .fillMaxSize()
             .background(
                 brush = Brush.verticalGradient(
-                    colors = listOf(SplashOrange, SplashOrangeLight, SplashPeach)
+                    colors = listOf(SplashDouyin, SplashKuaishou, SplashGold, SplashPeach)
                 )
             ),
         contentAlignment = Alignment.Center
@@ -199,7 +200,7 @@ fun SplashScreen(
                 ) + fadeIn(tween(500))
             ) {
                 Text(
-                    text = "轻松做任务 · 赚取奖励",
+                    text = "抖音 · 快手任务 · 赚取奖励",
                     color = Color.White.copy(alpha = 0.85f),
                     fontSize = 15.sp,
                     letterSpacing = 2.sp

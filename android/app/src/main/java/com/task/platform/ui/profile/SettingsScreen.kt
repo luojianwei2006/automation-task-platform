@@ -120,13 +120,37 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // 关于我们
+        // 关于我们（直接走公开读接口 agreement/about，从后台读取协议内容）
         SettingsCard(title = "关于") {
             Button(
-                onClick = { navController.navigate("about") },
+                onClick = { navController.navigate("agreement/about") },
                 colors = ButtonDefaults.outlinedButtonColors()
             ) {
                 Text("关于我们")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 隐私协议
+        SettingsCard(title = "隐私协议") {
+            Button(
+                onClick = { navController.navigate("agreement/privacy") },
+                colors = ButtonDefaults.outlinedButtonColors()
+            ) {
+                Text("查看隐私协议")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // 注册协议
+        SettingsCard(title = "注册协议") {
+            Button(
+                onClick = { navController.navigate("agreement/register") },
+                colors = ButtonDefaults.outlinedButtonColors()
+            ) {
+                Text("查看注册协议")
             }
         }
 
