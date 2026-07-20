@@ -29,6 +29,15 @@ public interface FileStorageService {
     String getAccessUrl(String relativePath);
 
     /**
+     * 上传视频文件到存储后端
+     *
+     * @param file 上传的 MultipartFile（video/*）
+     * @return 相对路径，格式: /upload/uploads/video/{uuid}.{ext}
+     * @throws com.task.platform.common.exception.BusinessException 当文件校验不通过时
+     */
+    String uploadVideo(MultipartFile file);
+
+    /**
      * 删除存储的文件
      *
      * @param relativePath 上传后返回的相对路径

@@ -88,7 +88,7 @@ fun MainScreen(navController: NavHostController) {
                     )
                 }
                 composable(BottomNavItem.Publish.route) {
-                    PublishScreen()
+                    PublishScreen(navController = navController)
                 }
                 composable(BottomNavItem.Earnings.route) {
                     EarningsScreen(navController = navController)

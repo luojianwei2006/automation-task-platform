@@ -1,8 +1,10 @@
 package com.task.platform.ui.publish
 
 import com.task.platform.rewriteLocalImageUrl
+import com.task.platform.mapImageUrl
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import android.content.Intent
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -103,7 +105,7 @@ private val StatusCompleted = Color(0xFF4CAF50) // 绿色
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PublishScreen() {
+fun PublishScreen(navController: androidx.navigation.NavHostController) {
     val viewModel: PublishViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val taskList by viewModel.taskList.collectAsState()
@@ -140,6 +142,7 @@ fun PublishScreen() {
     if (showDetailDialog && detailTask != null) {
         PublishDetailScreen(
             task = detailTask!!,
+            navController = navController,
             onBack = {
                 showDetailDialog = false
                 detailTask = null
@@ -667,6 +670,7 @@ private fun PublishEmptyView() {
 @Composable
 private fun PublishDetailScreen(
     task: PublishTaskDTO,
+    navController: androidx.navigation.NavHostController,
     onBack: () -> Unit
 ) {
     // 图片预览 Dialog 状态
@@ -686,13 +690,13 @@ private fun PublishDetailScreen(
     var submittedScreenshots by remember { mutableStateOf<List<String>>(emptyList()) }
     var submissionStatus by remember { mutableStateOf("") }
     var submissionReward by remember { mutableStateOf<Double?>(null) }
-    // 剪辑选项
-    var transitionType by remember { mutableStateOf("none") }
-    var fadeInOut by remember { mutableStateOf(false) }
-    var subtitleText by remember { mutableStateOf("") }
+    // 剪辑选项已移除（改为相册选视频流程，编辑在 VideoEditorScreen 完成）
     var isClaimed by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     var selectedMergeUrl by remember { mutableStateOf("") }
+    // 相册选视频相关状态
+    var pickedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var uploadingVideo by remember { mutableStateOf(false) }
 
     // 进入页面时检查是否已有领取/提交记录（不自动领取）
     LaunchedEffect(task.id) {
@@ -728,6 +732,17 @@ private fun PublishDetailScreen(
 
     val context = LocalContext.current
     val pmViewModel: PublishViewModel = hiltViewModel()
+
+    // 相册选视频 launcher：仅记录已选视频 URI，上传由"上传视频"按钮手动触发
+    val videoPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            pickedVideoUri = uris[0]
+            selectedMergeUrl = ""
+            uploadingVideo = false
+        }
+    }
     val taskVideoList = remember(task.id) {
         mutableStateListOf<VideoSortItem>().also { list ->
             val videos = (task.materials ?: emptyList())
@@ -787,8 +802,15 @@ private fun PublishDetailScreen(
 
     // 视频预览 Dialog
     if (showVideoPreview && videoPreviewUrl.isNotBlank()) {
+        // 本地 content:///file:// URI 直接用，远程相对路径走 mapImageUrl 拼全 URL
+        val finalVideoUrl = if (videoPreviewUrl.startsWith("content://") ||
+            videoPreviewUrl.startsWith("file://")) {
+            videoPreviewUrl
+        } else {
+            mapImageUrl(videoPreviewUrl)
+        }
         VideoPreviewDialog(
-            url = mapImageUrl(videoPreviewUrl),
+            url = finalVideoUrl,
             onDismiss = { showVideoPreview = false }
         )
     }
@@ -819,8 +841,11 @@ private fun PublishDetailScreen(
         }
         AlertDialog(
             onDismissRequest = { showPublishDialog = false },
-            title = { Text("确认发布", fontWeight = FontWeight.Bold) },
-            text = { Text("确认后标记为已发布，并打开分享平台。发布后请在对应平台截图，然后提交审核。") },
+            title = { Text("确认发布视频", fontWeight = FontWeight.Bold) },
+            text = {
+                val platformName = task.platforms.ifBlank { "目标平台" }
+                Text("点击确认后将打开「$platformName」App，请在 App 内完成视频发布。\n\n发布完成后，回到本页点击底部\"提交\"按钮，上传发布截图即可完成任务审核。")
+            },
             confirmButton = {
                 Button(
                     onClick = {
@@ -1249,11 +1274,11 @@ private fun PublishDetailScreen(
                     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("合并预览", fontSize = 13.sp, color = Gray500)
+                        Text("视频", fontSize = 13.sp, color = Gray500)
                         Spacer(modifier = Modifier.height(8.dp))
 
                         if (!isClaimed) {
-                            // 未领取 → 显示领取按钮 + 示例预览
+                            // 未领取 → 显示领取按钮
                             Button(
                                 onClick = {
                                     coroutineScope.launch {
@@ -1270,36 +1295,9 @@ private fun PublishDetailScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = StatusCompleted)
                             ) {
-                                Text("领取任务后开始合并", color = Color.White)
+                                Text("领取任务", color = Color.White)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
-
-                            // 随机展示3个已有合并效果
-                            val historyPreview by pmViewModel.mergeHistory.collectAsState()
-                            val samples = historyPreview.take(3)
-                            if (samples.isNotEmpty()) {
-                                Text("效果预览（已完成的合并）", fontSize = 11.sp, color = Gray500)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    samples.forEach { h ->
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            VideoThumbnailCard(
-                                                videoUrl = h.outputUrl,
-                                                label = h.createdAt?.let { formatTime(it) } ?: "",
-                                                onClick = {
-                                                    videoPreviewUrl = h.outputUrl
-                                                    showVideoPreview = true
-                                                },
-                                                modifier = Modifier.fillMaxWidth()
-                                            )
-                                        }
-                                    }
-                                    repeat(3 - samples.size) { Spacer(modifier = Modifier.weight(1f)) }
-                                }
-                            }
                         } else {
                             // 已领取 → 显示合并流程
 
@@ -1368,15 +1366,24 @@ private fun PublishDetailScreen(
                                 }
                                 Spacer(modifier = Modifier.height(12.dp))
                             } else {
-                                // 正常合并流程
-                            val currentUrl = when (val s = mergeState) {
-                                is MergeState.Success -> s.url
-                                else -> if (selectedMergeUrl.isNotBlank()) selectedMergeUrl else null
-                            }
-                            if (currentUrl != null) {
+                                // 选视频 + 编辑视频（替代原合并流程）
+                            // 从相册选择视频 → 仅记录已选视频，上传由下方"上传视频"按钮手动触发
+                            if (selectedMergeUrl.isBlank() && pickedVideoUri == null) {
+                                Button(
+                                    onClick = { videoPicker.launch("video/*") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(8.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                ) {
+                                    Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("从相册选择视频", color = Color.White)
+                                }
+                            } else {
+                                // 预览按钮（本地 content:// 或已上传远程 URL）
                                 Button(
                                     onClick = {
-                                        videoPreviewUrl = currentUrl
+                                        videoPreviewUrl = pickedVideoUri?.toString() ?: selectedMergeUrl
                                         showVideoPreview = true
                                     },
                                     modifier = Modifier.fillMaxWidth(),
@@ -1385,148 +1392,120 @@ private fun PublishDetailScreen(
                                 ) {
                                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("预览", color = Color.White)
+                                    Text("预览视频", color = Color.White)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Button(
-                                    onClick = { saveVideoToGallery(context, currentUrl) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = StatusCompleted)
-                                ) {
-                                    Icon(Icons.Default.Download, contentDescription = null, tint = Color.White)
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text("保存到相册", color = Color.White)
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                            }
-
-                            // 剪辑选项
-                            Text("剪辑选项", fontSize = 12.sp, color = Gray500)
-                            Spacer(modifier = Modifier.height(4.dp))
-                            // 转场
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("转场:", fontSize = 12.sp, color = Gray700, modifier = Modifier.width(48.dp))
-                                Box(modifier = Modifier.weight(1f)) {
-                                    var expanded by remember { mutableStateOf(false) }
-                                    val options = listOf(
-                                        "none" to "无",
-                                        "fade" to "淡入淡出",
-                                        "fadeblack" to "黑场过渡",
-                                        "fadewhite" to "白场过渡",
-                                        "wipeleft" to "左擦",
-                                        "wiperight" to "右擦",
-                                        "wipeup" to "上擦",
-                                        "wipedown" to "下擦",
-                                        "slideleft" to "左滑",
-                                        "slideright" to "右滑",
-                                        "slideup" to "上滑",
-                                        "slidedown" to "下滑",
-                                        "circlecrop" to "圆形裁剪",
-                                        "circleopen" to "圆形展开",
-                                        "circleclose" to "圆形收缩",
-                                        "dissolve" to "溶解",
-                                        "pixelize" to "像素化",
-                                        "horzopen" to "水平展开",
-                                        "vertopen" to "垂直展开"
-                                    )
-                                    val selectedLabel = options.find { it.first == transitionType }?.second ?: "无"
-                                    OutlinedButton(
-                                        onClick = { expanded = true },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) { Text(selectedLabel, fontSize = 12.sp) }
-                                    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                                        options.forEach { (k, v) ->
-                                            DropdownMenuItem(onClick = { transitionType = k; expanded = false }, text = { Text(v) })
+                                // 上传状态/提示
+                                when {
+                                    uploadingVideo -> {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Orange)
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text("正在上传视频...", fontSize = 12.sp, color = Gray700)
                                         }
                                     }
+                                    selectedMergeUrl.isNotBlank() -> {
+                                        Text("视频已上传，可发布视频", fontSize = 11.sp, color = StatusCompleted)
+                                    }
+                                    pickedVideoUri != null -> {
+                                        Text("已选择视频，点击下方上传", fontSize = 11.sp, color = Gray700)
+                                    }
                                 }
-                            }
-                            // 渐入渐出
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-                                Text("渐入渐出:", fontSize = 12.sp, color = Gray700, modifier = Modifier.width(70.dp))
-                                Switch(checked = fadeInOut, onCheckedChange = { fadeInOut = it })
-                            }
-                            // 字幕
-                            OutlinedTextField(
-                                value = subtitleText,
-                                onValueChange = { subtitleText = it },
-                                label = { Text("字幕（可选）", fontSize = 12.sp) },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            when (val state = mergeState) {
-                                is MergeState.Idle -> {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                // 上传视频按钮（选了视频但未上传/上传失败时显示；上传中隐藏避免重复点击）
+                                if (selectedMergeUrl.isBlank() && !uploadingVideo && pickedVideoUri != null) {
                                     Button(
-                                        onClick = { pmViewModel.mergeVideos(task.projectId, taskVideoList.map { it.id },
-                                            transition = transitionType, fadeInOut = fadeInOut, subtitle = subtitleText) },
+                                        onClick = {
+                                            val uri = pickedVideoUri ?: return@Button
+                                            uploadingVideo = true
+                                            coroutineScope.launch {
+                                                var cacheFile: java.io.File? = null
+                                                try {
+                                                    // 拷贝到缓存文件，避免大视频一次性读入内存导致 OOM
+                                                    cacheFile = java.io.File(
+                                                        context.cacheDir,
+                                                        "upload_video_${System.currentTimeMillis()}.mp4"
+                                                    )
+                                                    context.contentResolver.openInputStream(uri)?.use { input ->
+                                                        cacheFile.outputStream().use { output -> input.copyTo(output) }
+                                                    } ?: throw Exception("读取视频失败")
+                                                    val requestBody = withContext(Dispatchers.IO) {
+                                                        cacheFile.asRequestBody("video/*".toMediaType())
+                                                    }
+                                                    val part = okhttp3.MultipartBody.Part.createFormData(
+                                                        "file", "video.mp4", requestBody
+                                                    )
+                                                    val response = withContext(Dispatchers.IO) {
+                                                        com.task.platform.network.ApiClient.apiService.uploadVideo(part)
+                                                    }
+                                                    val path = response.data?.relativePath
+                                                        ?: throw Exception("上传失败：${response.msg}")
+                                                    selectedMergeUrl = path
+                                                    uploadingVideo = false
+                                                    android.util.Log.d("PublishDetail", "video uploaded: $path")
+                                                    Toast.makeText(context, "视频上传成功", Toast.LENGTH_SHORT).show()
+                                                } catch (e: Exception) {
+                                                    android.util.Log.e("PublishDetail", "video upload failed", e)
+                                                    uploadingVideo = false
+                                                    Toast.makeText(context, "上传失败：${e.message}", Toast.LENGTH_SHORT).show()
+                                                } finally {
+                                                    cacheFile?.delete()
+                                                }
+                                            }
+                                        },
                                         modifier = Modifier.fillMaxWidth(),
                                         shape = RoundedCornerShape(8.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
                                     ) {
-                                        Text("开始合并", color = Color.White)
+                                        Text("上传视频", color = Color.White)
                                     }
-                                }
-                                is MergeState.Merging -> {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        CircularProgressIndicator(
-                                            modifier = Modifier.size(20.dp),
-                                            strokeWidth = 2.dp,
-                                            color = Orange
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("正在合并...", fontSize = 14.sp, color = Gray700)
-                                    }
-                                }
-                                is MergeState.Success -> {
-                                    Text("合并完成", fontSize = 14.sp, color = StatusCompleted)
                                     Spacer(modifier = Modifier.height(4.dp))
-                                    TextButton(
-                                        onClick = { pmViewModel.resetMergeState() },
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text("重新合并", fontSize = 12.sp)
-                                    }
                                 }
-                            is MergeState.Error -> {
-                                Text("合并失败: ${state.message}", fontSize = 12.sp, color = Color.Red)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { pmViewModel.mergeVideos(task.projectId, taskVideoList.map { it.id }) },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
-                                ) {
-                                    Text("重试", color = Color.White)
-                                }
+                                TextButton(
+                                    onClick = {
+                                        pickedVideoUri = null
+                                        selectedMergeUrl = ""
+                                        uploadingVideo = false
+                                        videoPicker.launch("video/*")
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("重新选择视频", fontSize = 12.sp) }
                             }
-                        }
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 编辑视频（跳转编辑器生成/保存到相册，再回此页选相册视频）
+                            Button(
+                                onClick = { navController.navigate("video_edit/${task.projectId}") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6A1B9A))
+                            ) {
+                                Text("编辑视频", color = Color.White)
+                            }
                             Divider(modifier = Modifier.padding(vertical = 8.dp))
 
-                            // 发布按钮（已领取且尚未发布时显示；不依赖合并URL，支持外部平台发布）
-                            if (isClaimed && submissionStatus == "") {
+                            // 发布视频按钮（已领取 + 已上传视频 + 尚未发布时显示；CLAIMED/未设置状态均显示，MERGED 已发布则隐藏）
+                            if (isClaimed && selectedMergeUrl.isNotBlank() && submissionStatus != "MERGED") {
                                 Button(
                                     onClick = { showPublishDialog = true },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp),
                                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE91E63))
                                 ) {
-                                    Text("发布到平台", color = Color.White)
+                                    Text("发布视频", color = Color.White)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
 
-                            // 提交审核（已发布/记录状态为 MERGED 但尚未提交时显示；不依赖合并URL）
+                            // 提交按钮（已发布/状态为 MERGED 但尚未提交时显示）
                             if (isClaimed && submissionStatus == "MERGED") {
                                 Button(
                                     onClick = { showSubmitDialog = true },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1565C0))
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
                                 ) {
-                                    Text("提交审核", color = Color.White)
+                                    Text("提交", color = Color.White)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                             }
@@ -1535,19 +1514,7 @@ private fun PublishDetailScreen(
 
                         } // end else (isClaimed)
 
-                        if (isClaimed && (submissionStatus == "" || submissionStatus == "MERGED")) {
-                            TextButton(
-                                onClick = {
-                                    pmViewModel.loadMergeHistory(task.projectId)
-                                    showHistoryGrid = true
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Icon(Icons.Default.History, null, tint = Orange, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("查看合并历史", fontSize = 13.sp, color = Orange)
-                            }
-                        }
+                        // 合并历史入口已移除（改为相册选视频流程）
                     }
                 }
 
@@ -1831,27 +1798,6 @@ private fun VideoThumbnailCard(
                 )
             }
         }
-    }
-}
-
-/**
- * 将相对路径图片 URL 转为可通过 Gateway 访问的完整 URL
- * - 已是 http/https 的完整 URL → 交给 rewriteLocalImageUrl 重写 localhost/127.0.0.1 为上传服务 host
- * - /upload/ 路径 → 拼接 BASE_URL + /api/upload/...（走网关路由到 upload-service）
- * - /uploads/ 路径 → 拼接 BASE_URL + /api/uploads/...（走网关路由到 admin-api）
- * - 其他相对路径 → 直接拼接 BASE_URL
- */
-private fun mapImageUrl(url: String): String {
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-        return rewriteLocalImageUrl(url)
-    }
-    val base = com.task.platform.BuildConfig.BASE_URL.trimEnd('/')
-    return if (url.startsWith("/upload/")) {
-        "$base/api$url"
-    } else if (url.startsWith("/uploads/")) {
-        "$base/api$url"
-    } else {
-        base + (if (url.startsWith("/")) url else "/$url")
     }
 }
 
@@ -2221,7 +2167,7 @@ private fun SubmitReviewDialog(
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, "关闭", tint = Gray900)
                     }
-                    Text("提交审核", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900, modifier = Modifier.weight(1f))
+                    Text("提交任务", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900, modifier = Modifier.weight(1f))
                 }
                 Divider()
 
@@ -2338,7 +2284,7 @@ private fun SubmitReviewDialog(
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
                             Spacer(modifier = Modifier.width(8.dp))
                         }
-                        Text(if (isUploading) "上传中..." else "提交审核", color = Color.White)
+                        Text(if (isUploading) "上传中..." else "提交任务", color = Color.White)
                     }
                 }
             }

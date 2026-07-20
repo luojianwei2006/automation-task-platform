@@ -32,3 +32,25 @@ fun rewriteLocalImageUrl(url: String): String {
     val host = ApiConstants.UPLOAD_BASE_URL.substringAfter("://").substringBefore(":")
     return url.replace("localhost", host).replace("127.0.0.1", host)
 }
+
+/**
+ * 将后端返回的图片/视频 URL 转为可通过 Gateway 访问的完整 URL（全工程统一入口）。
+ * - 已是 http/https 的完整 URL → 交给 rewriteLocalImageUrl 重写 localhost/127.0.0.1 为上传服务 host
+ * - /upload/ 路径 → 拼接 BASE_URL + /api/upload/...（走网关路由到 upload-service）
+ * - /uploads/ 路径 → 拼接 BASE_URL + /api/uploads/...（走网关路由到 admin-api）
+ * - 其他相对路径 → 直接拼接 BASE_URL
+ *
+ * ⚠️ 视频编辑预览（ExoPlayer）必须用本函数拼 URL，切勿直接用 BASE_URL + src，
+ *    否则缺 /api 前缀会 404（网关只路由 /api/ 前缀）。
+ */
+fun mapImageUrl(url: String): String {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+        return rewriteLocalImageUrl(url)
+    }
+    val base = BuildConfig.BASE_URL.trimEnd('/')
+    return if (url.startsWith("/upload/") || url.startsWith("/uploads/")) {
+        "$base/api$url"
+    } else {
+        base + (if (url.startsWith("/")) url else "/$url")
+    }
+}

@@ -5,6 +5,9 @@ import com.task.platform.BuildConfig
 import com.task.platform.model.ApiResponse
 import com.task.platform.model.AutoRecord
 import com.task.platform.model.AgreementVO
+import com.task.platform.model.VideoEditReq
+import com.task.platform.model.VideoEditResultVO
+import com.task.platform.model.VideoEditTaskVO
 import com.task.platform.model.MergeHistoryVO
 import com.task.platform.model.MergeResultVO
 import com.task.platform.model.PublishMaterialPreviewVO
@@ -178,6 +181,13 @@ interface ApiService {
         @Part("type") type: okhttp3.RequestBody
     ): ApiResponse<UploadResult>
 
+    /** 上传视频（发布任务相册视频上传，迁移至 task-upload-service） */
+    @Multipart
+    @POST("api/upload/video")
+    suspend fun uploadVideo(
+        @Part file: MultipartBody.Part
+    ): ApiResponse<UploadResult>
+
     // ==================== 自动化操作记录模块 ====================
 
     /** 保存自动化操作日志 */
@@ -233,6 +243,16 @@ interface ApiService {
     /** 查询提交状态 */
     @GET("api/mobile/publish/tasks/{id}/submission-status")
     suspend fun getSubmissionStatus(@Path("id") id: Long): ApiResponse<Map<String, Any>>
+
+    // ==================== 视频剪辑编辑模块 ====================
+
+    /** 提交视频编辑任务（异步渲染，返回 taskId 后轮询） */
+    @POST("api/mobile/publish/video-edit")
+    suspend fun editVideo(@Body req: VideoEditReq): ApiResponse<VideoEditResultVO>
+
+    /** 查询视频编辑任务结果 */
+    @GET("api/mobile/publish/video-edit/{taskId}")
+    suspend fun getVideoEditTask(@Path("taskId") taskId: Long): ApiResponse<VideoEditTaskVO>
 }
 
 /**

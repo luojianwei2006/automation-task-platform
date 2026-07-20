@@ -9,6 +9,8 @@ spring:
     name: task-gateway
   profiles:
     active: dev
+  codec:
+    max-in-memory-size: 300MB
   cloud:
     gateway:
       routes:

@@ -19,6 +19,7 @@ import com.task.platform.ui.profile.SettingsScreen
 import com.task.platform.ui.profile.AboutScreen
 import com.task.platform.ui.profile.AgreementScreen
 import com.task.platform.ui.profile.EditProfileScreen
+import com.task.platform.ui.publish.VideoEditorScreen
 import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.ScreenshotUploadScreen
 import com.task.platform.ui.task.TaskDetailScreen
@@ -46,6 +47,7 @@ object TaskRoutes {
     const val EDIT_PROFILE = "edit_profile"
     const val ABOUT = "about"
     const val AGREEMENT = "agreement/{type}"
+    const val VIDEO_EDIT = "video_edit/{projectId}"
 }
 
 /**
@@ -166,6 +168,12 @@ fun TaskNavGraph(
         // ===== 编辑资料页 =====
         composable(TaskRoutes.EDIT_PROFILE) {
             EditProfileScreen(navController = navController)
+        }
+
+        // ===== 视频剪辑编辑页 =====
+        composable(TaskRoutes.VIDEO_EDIT) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getString("projectId")?.toLongOrNull() ?: 0L
+            VideoEditorScreen(navController = navController, projectId = projectId)
         }
 
         // ===== 收益页 =====

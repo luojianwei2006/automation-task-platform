@@ -1,0 +1,14 @@
+-- 视频编辑任务表
+CREATE TABLE IF NOT EXISTS t_video_edit_task (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    project_id BIGINT DEFAULT NULL COMMENT '关联项目ID',
+    instruction_json TEXT NOT NULL COMMENT '编辑指令 JSON（EditInstruction）',
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/PROCESSING/COMPLETED/FAILED',
+    result_url VARCHAR(512) DEFAULT '' COMMENT '渲染完成后的视频访问URL',
+    duration_seconds INT DEFAULT NULL COMMENT '视频时长（秒）',
+    file_size BIGINT DEFAULT NULL COMMENT '文件大小（字节）',
+    error_message VARCHAR(1024) DEFAULT NULL COMMENT '失败原因',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_project (project_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频编辑任务';

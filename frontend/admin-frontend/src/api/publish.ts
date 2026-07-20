@@ -413,3 +413,27 @@ export function approveRecord(id: number) {
 export function rejectRecord(id: number, reason: string) {
   return publishRequest.post(`/publish/records/${id}/reject`, { reason })
 }
+
+// ==================== 视频剪辑编辑 API ====================
+
+/** 8 个滤镜预设（code 与后端 FilterPreset 一致） */
+export const FILTER_PRESET_OPTIONS = [
+  { code: 'none', label: '原片' },
+  { code: 'fresh', label: '清新' },
+  { code: 'warm', label: '暖阳' },
+  { code: 'film', label: '胶片' },
+  { code: 'gray', label: '黑白' },
+  { code: 'vintage', label: '复古' },
+  { code: 'cool', label: '冷调' },
+  { code: 'jpn', label: '日系' },
+]
+
+/** 提交视频编辑任务（异步渲染，返回 taskId） */
+export function submitVideoEdit(data: { projectId?: number; instruction: any }) {
+  return publishRequest.post('/mobile/publish/video-edit', data)
+}
+
+/** 查询视频编辑任务结果（轮询） */
+export function getVideoEditTask(taskId: number) {
+  return publishRequest.get(`/mobile/publish/video-edit/${taskId}`)
+}

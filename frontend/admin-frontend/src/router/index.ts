@@ -95,6 +95,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/publish/RecycleBin.vue'),
         meta: { title: '回收站' }
       },
+      // ========== 视频剪辑编辑 ==========
+      {
+        path: 'publish/video-editor',
+        name: 'VideoEditor',
+        component: () => import('../views/publish/VideoEditor.vue'),
+        meta: { title: '视频剪辑' }
+      },
       // ========== 视频发布任务（独立菜单） ==========
       {
         path: 'publish/tasks',

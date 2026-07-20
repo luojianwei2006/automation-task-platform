@@ -1,15 +1,15 @@
 server:
   port: 8086
   tomcat:
-    max-swallow-size: 10MB
+    max-swallow-size: 250MB
 
 spring:
   application:
     name: task-upload-service
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 20MB
+      max-file-size: 200MB
+      max-request-size: 250MB
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration

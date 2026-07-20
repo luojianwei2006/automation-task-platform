@@ -40,6 +40,17 @@ public class LocalFileStorageService implements FileStorageService {
             "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg"
     ));
 
+    /** 视频 Content-Type 前缀 */
+    private static final String VIDEO_CONTENT_TYPE_PREFIX = "video/";
+
+    /** 视频单文件最大大小：200MB */
+    private static final long MAX_VIDEO_SIZE = 200 * 1024 * 1024;
+
+    /** 允许的视频扩展名 */
+    private static final Set<String> ALLOWED_VIDEO_EXTENSIONS = new HashSet<>(Arrays.asList(
+            "mp4", "mov", "avi", "mkv", "webm", "3gp"
+    ));
+
     /** 相对路径固定前缀 */
     private static final String RELATIVE_PATH_PREFIX = "/upload/uploads/";
 
@@ -68,6 +79,31 @@ public class LocalFileStorageService implements FileStorageService {
 
         // 5. 返回相对路径
         return RELATIVE_PATH_PREFIX + type + "/" + filename;
+    }
+
+    @Override
+    public String uploadVideo(MultipartFile file) {
+        // 1. 视频校验
+        validateVideoFile(file);
+
+        // 2. 确定目录并创建
+        Path dirPath = ensureDirectory("video");
+
+        // 3. 生成唯一文件名
+        String filename = generateFilename(file);
+
+        // 4. 写入磁盘
+        Path filePath = dirPath.resolve(filename);
+        try {
+            file.transferTo(filePath.toFile());
+            log.info("视频上传成功: filename={}, size={}, path={}", filename, file.getSize(), filePath);
+        } catch (IOException e) {
+            log.error("视频写入失败: {}", filePath, e);
+            throw new BusinessException(9000, "视频保存失败，请稍后重试");
+        }
+
+        // 5. 返回相对路径
+        return RELATIVE_PATH_PREFIX + "video/" + filename;
     }
 
     @Override
@@ -149,6 +185,39 @@ public class LocalFileStorageService implements FileStorageService {
             String ext = FileUtil.extName(originalFilename).toLowerCase();
             if (StrUtil.isBlank(ext) || !ALLOWED_EXTENSIONS.contains(ext)) {
                 throw new BusinessException(400, "不支持的图片格式: ." + ext + "，支持: " + ALLOWED_EXTENSIONS);
+            }
+        }
+    }
+
+    /**
+     * 校验上传视频文件
+     *
+     * @param file MultipartFile
+     * @throws BusinessException 校验不通过时抛出
+     */
+    private void validateVideoFile(MultipartFile file) {
+        // 非空校验
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(400, "上传视频不能为空");
+        }
+
+        // 大小校验
+        if (file.getSize() > MAX_VIDEO_SIZE) {
+            throw new BusinessException(400, "视频大小不能超过 200MB");
+        }
+
+        // Content-Type 校验
+        String contentType = file.getContentType();
+        if (StrUtil.isBlank(contentType) || !contentType.startsWith(VIDEO_CONTENT_TYPE_PREFIX)) {
+            throw new BusinessException(400, "仅支持上传视频格式文件（video/*），当前类型: " + contentType);
+        }
+
+        // 扩展名校验
+        String originalFilename = file.getOriginalFilename();
+        if (StrUtil.isNotBlank(originalFilename)) {
+            String ext = FileUtil.extName(originalFilename).toLowerCase();
+            if (StrUtil.isBlank(ext) || !ALLOWED_VIDEO_EXTENSIONS.contains(ext)) {
+                throw new BusinessException(400, "不支持的视频格式: ." + ext + "，支持: " + ALLOWED_VIDEO_EXTENSIONS);
             }
         }
     }

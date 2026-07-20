@@ -124,6 +124,36 @@ public class UploadController {
         return ApiResponse.success(result, "上传成功");
     }
 
+    /**
+     * 视频文件上传
+     *
+     * <p>用于发布任务的视频上传（相册选视频后上传）。
+     * type 固定为 "video"，支持 video/* 格式，单文件最大 200MB。
+     * 路径: POST /api/upload/video → Strip /api → POST /upload/video</p>
+     *
+     * @param file 上传视频文件（必填）
+     * @return ApiResponse 包含上传结果
+     */
+    @PostMapping("/upload/video")
+    public ApiResponse<UploadResult> uploadVideo(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return ApiResponse.error(400, "上传视频不能为空");
+        }
+
+        log.debug("视频上传: originalFilename={}, size={}", file.getOriginalFilename(), file.getSize());
+
+        String relativePath = storageService.uploadVideo(file);
+        String accessUrl = storageService.getAccessUrl(relativePath);
+
+        UploadResult result = UploadResult.builder()
+                .relativePath(relativePath)
+                .accessUrl(accessUrl)
+                .filename(file.getOriginalFilename())
+                .size(file.getSize())
+                .build();
+        return ApiResponse.success(result, "上传成功");
+    }
+
     // ======================== 私有方法 ========================
 
     /**
