@@ -12,8 +12,10 @@ import androidx.compose.material.icons.filled.HourglassEmpty
 import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import com.task.platform.ui.theme.statusColors
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,9 +34,6 @@ import com.task.platform.viewmodel.TaskViewModel
 import java.util.Locale
 
 // ─── 配色 ─────────────────────────────────────
-private val AccentOrange = Color(0xFFFF8C00)
-private val AccentOrangeBg = Color(0xFFFFF8F0)
-private val AccentOrangeLight = Color(0xFFFFF0E0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -96,7 +95,7 @@ fun MyTasksScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AccentOrange,
+                    containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
                 )
             )
@@ -110,7 +109,7 @@ fun MyTasksScreen(
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = AccentOrange)
+                    LoadingIndicator()
                 }
             }
             is TaskViewModel.UiState.Error -> {
@@ -127,7 +126,7 @@ fun MyTasksScreen(
                         Spacer(Modifier.height(12.dp))
                         OutlinedButton(
                             onClick = { viewModel.loadMyTasks() },
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentOrange)
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text("重试")
                         }
@@ -153,13 +152,13 @@ fun MyTasksScreen(
                                     modifier = Modifier
                                         .size(80.dp)
                                         .clip(RoundedCornerShape(50))
-                                        .background(AccentOrangeLight),
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.HourglassEmpty,
                                         contentDescription = null,
-                                        tint = AccentOrange,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(40.dp)
                                     )
                                 }
@@ -226,7 +225,7 @@ private fun MyTaskCard(
     val leftBarColor = when (task.platform) {
         1 -> Color(0xFF000000) // 抖音黑
         2 -> Color(0xFFFF2442) // 小红书红
-        else -> AccentOrange
+        else -> MaterialTheme.colorScheme.primary
     }
 
     Card(
@@ -277,7 +276,7 @@ private fun MyTaskCard(
                     // 奖励金额
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = AccentOrangeBg
+                        color = MaterialTheme.colorScheme.surfaceVariant
                     ) {
                         val rewardText = remember(task.rewardAmount) {
                             "¥" + String.format(Locale.getDefault(), "%.2f", task.rewardAmount ?: 0.0)
@@ -286,7 +285,7 @@ private fun MyTaskCard(
                             text = rewardText,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = AccentOrange,
+                            color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                         )
                     }
@@ -365,7 +364,7 @@ private fun MyTaskCard(
                                     .fillMaxHeight()
                                     .fillMaxWidth(fraction = progress)
                                     .clip(RoundedCornerShape(2.dp))
-                                    .background(AccentOrange)
+                                    .background(MaterialTheme.colorScheme.primary)
                             )
                         }
                     }
@@ -392,10 +391,11 @@ private fun TaskTag(text: String, bgColor: Color, textColor: Color) {
 
 // ==================== 状态映射 ====================
 
+@Composable
 private fun getTaskStatusInfo(status: Int): Triple<String, Color, Color> {
     return when (status) {
         1 -> Triple("进行中", GreenLight, Green)
-        2 -> Triple("暂停", Color(0xFFFFF3E0), Color(0xFFFF9800))
+        2 -> Triple("暂停", Color(0xFFFFF3E0), MaterialTheme.colorScheme.primary)
         3 -> Triple("结束", RedLight, Red)
         4 -> Triple("拒绝", RedLight, Red)
         else -> Triple("待审核", BlueLight, Blue)
@@ -406,10 +406,11 @@ private fun getTaskStatusInfo(status: Int): Triple<String, Color, Color> {
  * 用户记录状态 → 状态标签（记录语义，与任务发布状态不同）
  * 0=进行中 1=待审核 2=已通过 3=已拒绝 4=已超时
  */
+@Composable
 private fun getRecordStatusInfo(status: Int): Triple<String, Color, Color> {
     return when (status) {
         0 -> Triple("进行中", Color(0xFFE8F5E9), Color(0xFF4CAF50))   // 已接取未提交-绿
-        1 -> Triple("待审核", Color(0xFFE3F2FD), Color(0xFF42A5F5))   // 已提交待审核-蓝
+        1 -> Triple("待审核", MaterialTheme.statusColors.reviewing.container, MaterialTheme.statusColors.reviewing.main)   // 已提交待审核-蓝
         2 -> Triple("已通过", Color(0xFFE8F5E9), Color(0xFF2E7D32))   // 审核通过-深绿
         3 -> Triple("已拒绝", Color(0xFFFFEBEE), Color(0xFFE53935))   // 拒绝-红
         4 -> Triple("已超时", Color(0xFFF5F5F5), Color(0xFF9E9E9E))   // 超时/放弃-灰

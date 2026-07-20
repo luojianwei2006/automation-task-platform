@@ -10,8 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import com.task.platform.ui.theme.AppTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestStoragePermissionIfNeeded()
         setContent {
-            MaterialTheme {
+            AppTheme {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     val navController = rememberNavController()
                     val updateViewModel: UpdateViewModel = hiltViewModel()

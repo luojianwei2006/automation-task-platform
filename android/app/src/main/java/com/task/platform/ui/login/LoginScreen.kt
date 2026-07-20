@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,9 +39,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.task.platform.viewmodel.LoginViewModel
 
 // 配色
-private val LoginOrange = Color(0xFFFF8C00)
-private val LoginOrangeLight = Color(0xFFFFB347)
-private val LoginOrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -126,7 +124,7 @@ fun LoginScreen(
                         .height(260.dp)
                         .background(
                             brush = Brush.verticalGradient(
-                                colors = listOf(LoginOrange, LoginOrangeLight)
+                                colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                             ),
                             shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
                         ),
@@ -256,16 +254,12 @@ fun LoginScreen(
                                 .height(52.dp),
                             shape = RoundedCornerShape(26.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = LoginOrange,
-                                disabledContainerColor = LoginOrange.copy(alpha = 0.5f)
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                             )
                         ) {
                             if (uiState is LoginViewModel.UiState.Loading) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(22.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.5.dp
-                                )
+                                LoadingIndicator(modifier = Modifier.size(22.dp))
                             } else {
                                 Text(
                                     "登 录",
@@ -288,7 +282,7 @@ fun LoginScreen(
                             Text(
                                 text = "立即注册",
                                 fontSize = 14.sp,
-                                color = LoginOrange,
+                                color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable { onNavigateToRegister() }
                             )
@@ -308,14 +302,14 @@ fun LoginScreen(
                     Text("登录即表示您同意", color = Gray500, fontSize = 11.sp)
                     Text(
                         text = "《用户协议》",
-                        color = LoginOrange,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         modifier = Modifier.clickable { navController.navigate("agreement/register") }
                     )
                     Text("和", color = Gray500, fontSize = 11.sp)
                     Text(
                         text = "《隐私政策》",
-                        color = LoginOrange,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 11.sp,
                         modifier = Modifier.clickable { navController.navigate("agreement/privacy") }
                     )
@@ -378,7 +372,7 @@ fun LoginTabItem(
         Text(
             text = text,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) LoginOrange else Gray500,
+            color = if (selected) MaterialTheme.colorScheme.primary else Gray500,
             fontSize = 14.sp
         )
     }
@@ -400,7 +394,7 @@ fun ModernInputField(
         onValueChange = onValueChange,
         label = { Text(label, fontSize = 13.sp) },
         leadingIcon = {
-            Icon(icon, contentDescription = null, tint = LoginOrange, modifier = Modifier.size(20.dp))
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         },
         keyboardOptions = keyboardOptions,
         keyboardActions = keyboardActions,
@@ -408,10 +402,10 @@ fun ModernInputField(
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = LoginOrange,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = Gray300,
-            focusedLabelColor = LoginOrange,
-            cursorColor = LoginOrange
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            cursorColor = MaterialTheme.colorScheme.primary
         )
     )
 }
@@ -433,7 +427,7 @@ fun ModernPasswordField(
         onValueChange = onValueChange,
         label = { Text(label, fontSize = 13.sp) },
         leadingIcon = {
-            Icon(Icons.Default.Lock, contentDescription = null, tint = LoginOrange, modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
         },
         trailingIcon = {
             IconButton(onClick = onToggleVisible) {
@@ -455,10 +449,10 @@ fun ModernPasswordField(
         singleLine = true,
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = LoginOrange,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = Gray300,
-            focusedLabelColor = LoginOrange,
-            cursorColor = LoginOrange
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            cursorColor = MaterialTheme.colorScheme.primary
         )
     )
 }
@@ -488,10 +482,10 @@ fun SmsCodeField(
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = LoginOrange,
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
                 unfocusedBorderColor = Gray300,
-                focusedLabelColor = LoginOrange,
-                cursorColor = LoginOrange
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                cursorColor = MaterialTheme.colorScheme.primary
             )
         )
         Spacer(modifier = Modifier.width(10.dp))
@@ -501,7 +495,7 @@ fun SmsCodeField(
             modifier = Modifier.height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (countdown > 0) Gray300 else LoginOrange,
+                containerColor = if (countdown > 0) Gray300 else MaterialTheme.colorScheme.primary,
                 contentColor = Color.White
             )
         ) {

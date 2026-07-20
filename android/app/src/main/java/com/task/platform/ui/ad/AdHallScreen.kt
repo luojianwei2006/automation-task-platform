@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import com.task.platform.ui.components.AppTopBar
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
@@ -27,8 +29,6 @@ import java.util.Locale
 
 // ==================== 配色常量 ====================
 
-private val HallOrange = Color(0xFFFF6B00)
-private val HallOrangeLight = Color(0xFFFF8C33)
 private val HallBg = Color(0xFFF5F5F5)
 private val Gray500 = Color(0xFF9E9E9E)
 private val Gray900 = Color(0xFF212121)
@@ -57,13 +57,7 @@ fun AdHallScreen(onTaskClick: (Long) -> Unit) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("广告大厅", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = HallOrange,
-                    titleContentColor = Color.White
-                )
-            )
+            AppTopBar(title = "广告大厅")
         },
         containerColor = HallBg
     ) { padding ->
@@ -73,7 +67,7 @@ fun AdHallScreen(onTaskClick: (Long) -> Unit) {
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = HallOrange)
+                    LoadingIndicator()
                 }
             }
             is TaskViewModel.UiState.Error -> {
@@ -180,19 +174,19 @@ private fun AdCard(
                         text = "+",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = HallOrange
+                        color = MaterialTheme.colorScheme.primary
                     )
                     Text(
                         text = String.format(Locale.getDefault(), "%.0f", (task.rewardAmount ?: 0.0) * 100),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = HallOrange,
+                        color = MaterialTheme.colorScheme.primary,
                         lineHeight = 20.sp
                     )
                     Text(
                         text = "币",
                         fontSize = 12.sp,
-                        color = HallOrange,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -202,7 +196,7 @@ private fun AdCard(
                 // "观看"按钮
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = HallOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.height(36.dp)
                 ) {
                     Box(
@@ -241,12 +235,12 @@ private fun AdIcon(task: TaskDTO) {
         Surface(
             modifier = Modifier.size(52.dp),
             shape = RoundedCornerShape(10.dp),
-            color = HallOrangeLight.copy(alpha = 0.15f)
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Text(
                     text = "广告",
-                    color = HallOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
                 )

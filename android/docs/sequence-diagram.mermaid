@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant OS as SystemUI
+    participant MA as MainActivity
+    participant AT as AppTheme
+    participant CS as ColorTokens (lightScheme/darkScheme)
+    participant SC as AppStatusColors (LocalStatusColors)
+    participant PG as PageScreen (e.g. PublishScreen)
+    participant AC as AppCard / AppTopBar / AppButton / StatusTag / LoadingIndicator
+
+    OS->>MA: onCreate() -> setContent
+    MA->>AT: AppTheme { ... }  (替换默认 MaterialTheme)
+    AT->>CS: isSystemInDarkTheme() ? darkScheme : lightScheme
+    AT->>SC: CompositionLocalProvider(LocalStatusColors provides Light/Dark)
+    AT->>PG: content() with themed ambient (colorScheme + typography + statusColors)
+    PG->>AC: AppTopBar(title, onBackClick)
+    AC->>MA: arrow tint = MaterialTheme.colorScheme.primary
+    AC->>MA: title color = MaterialTheme.colorScheme.onSurface
+    PG->>AC: AppCard { ... }
+    AC->>MA: Surface(color=colorScheme.surface, shape=Shape.radiusLg, elevation=1.dp)
+    PG->>AC: AppButton(text, onClick)
+    AC->>MA: background=colorScheme.primary, shape=Shape.radiusSm
+    PG->>AC: StatusTag(StatusType.Pending)
+    AC->>SC: MaterialTheme.statusColors.pending.container / content
+    PG->>AC: LoadingIndicator()
+    AC->>MA: CircularProgressIndicator(color=colorScheme.primary)
+    PG->>PG: text uses MaterialTheme.typography.titleMedium / bodyLarge

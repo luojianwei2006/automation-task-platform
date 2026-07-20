@@ -11,7 +11,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -38,12 +37,11 @@ import androidx.navigation.NavController
 import com.task.platform.model.EarningsRecord
 import com.task.platform.navigation.TaskRoutes
 import com.task.platform.viewmodel.EarningsViewModel
+import com.task.platform.ui.components.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
 import kotlinx.coroutines.flow.*
 
 // ─── 配色（同包 TransactionRecordsScreen 复用，故用 internal） ─────────
-internal val HallOrange = Color(0xFFFF8C00)
-internal val HallOrangeLight = Color(0xFFFFB347)
-internal val HallOrangeBg = Color(0xFFFFF8F0)
 internal val Gray50 = Color(0xFFFAFAFA)
 internal val Gray100 = Color(0xFFF5F5F5)
 internal val Gray300 = Color(0xFFE0E0E0)
@@ -109,7 +107,7 @@ fun EarningsScreen(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(HallOrange, HallOrangeLight)
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                     ),
                     shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
@@ -199,14 +197,14 @@ fun EarningsScreen(
                         .clickable {
                             navController.navigate(TaskRoutes.WITHDRAW)
                         },
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, HallOrange)
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = "立即提现",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = HallOrange
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -225,7 +223,7 @@ fun EarningsScreen(
                 val selected = selectedTab == index
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (selected) HallOrangeBg else Color.Transparent,
+                    color = if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
                     modifier = Modifier
                         .height(38.dp)
                         .clickable {
@@ -241,7 +239,7 @@ fun EarningsScreen(
                             text = label,
                             fontSize = 15.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) HallOrange else Gray500
+                            color = if (selected) MaterialTheme.colorScheme.primary else Gray500
                         )
                     }
                 }
@@ -258,7 +256,7 @@ fun EarningsScreen(
                     .fillMaxWidth(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = HallOrange)
+                LoadingIndicator()
             }
         } else if (displayRecords.isEmpty()) {
             Box(modifier = Modifier.weight(1f)) {
@@ -290,11 +288,7 @@ fun EarningsScreen(
                                 .padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                color = HallOrange,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
+                            LoadingIndicator(modifier = Modifier.size(24.dp))
                         }
                     }
                 }

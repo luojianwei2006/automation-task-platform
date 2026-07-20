@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
@@ -32,9 +33,6 @@ import com.task.platform.model.TaskDTO
 import com.task.platform.viewmodel.TaskViewModel
 
 // ─── 配色体系 ───────────────────────────────────────
-private val Orange = Color(0xFFFF8C00)
-private val OrangeLight = Color(0xFFFFB347)
-private val OrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -89,7 +87,7 @@ fun TaskHallScreen(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(Orange, OrangeLight)
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                     ),
                     shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
@@ -205,7 +203,7 @@ fun TaskHallScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Orange)
+                    LoadingIndicator()
                 }
             }
             else -> {
@@ -298,7 +296,7 @@ private fun FilterChipGroup(
             Surface(
                 modifier = Modifier.clickable { onSelect(value) },
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) Orange else Gray100,
+                color = if (isSelected) MaterialTheme.colorScheme.primary else Gray100,
                 shadowElevation = if (isSelected) 2.dp else 0.dp
             ) {
                 Text(
@@ -335,7 +333,7 @@ private fun SegmentedTab(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSelected) Orange else Color.Transparent)
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
                         .clickable { onSelect(index) }
                         .padding(vertical = 9.dp),
                     contentAlignment = Alignment.Center
@@ -381,13 +379,13 @@ private fun TaskCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(OrangeBg),
+                        .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.TaskAlt,
                         contentDescription = null,
-                        tint = Orange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -424,7 +422,7 @@ private fun TaskCard(
                         text = "¥" + String.format(java.util.Locale.getDefault(), "%.2f", task.rewardAmount ?: 0.0),
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Orange
+                        color = MaterialTheme.colorScheme.primary
                     )
                     if (remainCount >= 0) {
                         Text(
@@ -449,7 +447,7 @@ private fun TaskCard(
             1 -> "抖音" to Color(0xFFE91E63)
             2 -> "小红书" to Color(0xFFFF2442)
             3 -> "微信视频号" to Color(0xFF07C160)
-            else -> "全平台" to Orange
+            else -> "全平台" to MaterialTheme.colorScheme.primary
                 }
                 TaskTag(text = platformLabel, color = platformColor)
 
@@ -493,9 +491,10 @@ private fun TaskCard(
  * 任务发布状态 → 主色 Color
  * 0=待审核(蓝) 1=进行中(绿) 2=暂停(橙) 3=结束(红) 4=拒绝(红)
  */
+@Composable
 private fun taskStatusColor(status: Int): Color = when (status) {
     1 -> Color(0xFF4CAF50)   // 进行中-绿
-    2 -> Color(0xFFFF9800)   // 暂停-橙
+    2 -> MaterialTheme.colorScheme.primary   // 暂停-橙
     3 -> Color(0xFFE53935)   // 结束-红
     4 -> Color(0xFFE53935)   // 拒绝-红
     else -> Color(0xFF42A5F5) // 待审核-蓝

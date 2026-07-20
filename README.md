@@ -127,6 +127,21 @@ Vue 3 + TypeScript + Element Plus + Pinia。商户/平台运营后台，含系�
 
 ---
 
+## 安卓端 UI Design System（2026-07-20 新增）
+
+基于纯 Compose Material3 主题系统（零新增依赖）落地统一设计语言，覆盖全部 28 个页面：
+
+- **主色权威**：`colorScheme.primary = 0xFFFF8C00`（品牌橙，浅/深一致），页面不再硬编码主色；第三方平台品牌色（快手橙、小红书红等）按业务语义保留。
+- **语义状态色**：`AppStatusColors`（reviewing/approved/rejected/pending/timeout）经 `LocalStatusColors` 注入，`MaterialTheme.statusColors.*` 统一取用。
+- **基础组件库**（`ui/components`）：`AppCard` / `AppTopBar` / `AppButton` / `AppTextButton` / `StatusTag` / `EmptyState` / `LoadingIndicator` / `SegmentedTab` / `FilterChipGroup`。
+- **圆角尺度**（`ui/theme/Shape`）：sm=8 / md=12 / lg=16 / xl=24 dp 四档阶梯。
+- **字体语义化**（`ui/theme/Type`）：titleLarge 20 / titleMedium 18 / bodyLarge 16 / bodyMedium 14 / labelMedium 12 / labelSmall 11 sp。
+- **双主题**：`AppTheme` 封装 `MaterialTheme(colorScheme, typography)` + `CompositionLocalProvider(LocalStatusColors)`，`isSystemInDarkTheme()` 驱动浅/深自动切换。
+
+> 设计文档：`android/docs/PRD_ui_design_system.md`（需求与视觉规范）、`android/docs/ARCH_ui_design_system.md`（架构与任务分解），含 `class-diagram.mermaid` / `sequence-diagram.mermaid`。
+>
+> 已知 DRY 债务（非阻塞，P1 跟进）：约 14 屏仍残留状态色字面量（取值与 `AppStatusColors` 完全一致）、3 处裸 `TopAppBar`（实色橙头，样式与 `AppTopBar` 范式不一致）、大量 `fontSize` 字面量未完全收敛到语义字体层级。均不破坏主目标，将在后续迭代统一。
+
 ## 安卓端功能完成度（截至 2026-07-20）
 
 ### ✅ 已完成页面（UI + 接口调用齐全）

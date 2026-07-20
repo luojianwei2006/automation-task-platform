@@ -13,6 +13,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -39,12 +40,11 @@ import com.task.platform.model.UserInfo
 import com.task.platform.viewmodel.AutoViewModel
 import com.task.platform.viewmodel.TaskViewModel
 import com.task.platform.navigation.TaskRoutes
+import com.task.platform.ui.components.AppTopBar
+import com.task.platform.ui.components.AppCard
 import java.util.Locale
 
 // ─── 配色 ───────────────────────────────────────
-private val Orange = Color(0xFFFF8C00)
-private val OrangeLight = Color(0xFFFFB347)
-private val OrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -125,16 +125,11 @@ fun TaskDetailScreen(
     Box(modifier = Modifier.fillMaxSize().background(Gray50)) {
         Column(modifier = Modifier.fillMaxSize()) {
             // ===== 顶部栏 =====
-            Surface(color = Color.White, shadowElevation = 1.dp) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 4.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
-                    }
-                    Text("任务详情", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Gray900, modifier = Modifier.weight(1f))
-                }
+            Box(modifier = Modifier.statusBarsPadding()) {
+                AppTopBar(
+                    title = "任务详情",
+                    onBackClick = { navController.popBackStack() }
+                )
             }
 
             when {
@@ -161,7 +156,7 @@ fun TaskDetailScreen(
                     .background(Color.Black.copy(alpha = 0.35f)),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = Orange)
+                LoadingIndicator()
             }
         }
     }
@@ -181,7 +176,7 @@ fun TaskDetailScreen(
                             viewModel.loadTaskRecord(taskId)
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("确认接受") }
             },
             dismissButton = {
@@ -215,7 +210,7 @@ fun TaskDetailScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("开始执行") }
             },
             dismissButton = {
@@ -236,7 +231,7 @@ fun TaskDetailScreen(
                         accessibilityGuideRequested = false
                         autoVM.openAccessibilitySettings()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("去设置") }
             },
             dismissButton = {
@@ -254,7 +249,7 @@ fun TaskDetailScreen(
             confirmButton = {
                 Button(
                     onClick = { autoError = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("确定") }
             }
         )
@@ -292,7 +287,7 @@ fun TaskDetailScreen(
 @Composable
 private fun LoadingView() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        CircularProgressIndicator(color = Orange)
+        LoadingIndicator()
     }
 }
 
@@ -384,7 +379,7 @@ private fun GradientHeader(task: TaskDTO) {
     val remain = task.totalQuota - task.usedQuota
     Box(
         modifier = Modifier.fillMaxWidth()
-            .background(brush = Brush.verticalGradient(listOf(Orange, OrangeLight)), shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .background(brush = Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)), shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .padding(20.dp)
     ) {
         Column {
@@ -408,13 +403,8 @@ private fun GradientHeader(task: TaskDTO) {
 
 @Composable
 private fun InfoCard(task: TaskDTO) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier) {
             Text("基本信息", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900)
             Spacer(modifier = Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -425,7 +415,7 @@ private fun InfoCard(task: TaskDTO) {
             if (!task.locationDesc.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.LocationOn, null, tint = Orange, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(task.locationDesc, fontSize = 14.sp, color = Gray700)
                 }
@@ -438,13 +428,8 @@ private fun InfoCard(task: TaskDTO) {
 
 @Composable
 private fun RequirementsCard(requirements: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier) {
             Text("任务要求", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900)
             Spacer(modifier = Modifier.height(8.dp))
             Text(requirements, fontSize = 15.sp, color = Gray700, lineHeight = 24.sp)
@@ -456,13 +441,8 @@ private fun RequirementsCard(requirements: String) {
 
 @Composable
 private fun ScreenshotExamples(images: List<String>) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        AppCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Column(modifier = Modifier) {
             Text("截图示例", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Gray900)
             Spacer(modifier = Modifier.height(12.dp))
             images.forEach { imgUrl ->
@@ -480,7 +460,7 @@ private fun ScreenshotExamples(images: List<String>) {
 @Composable
 private fun StatusBanner(record: TaskRecordDTO) {
     val (bgColor, text, icon) = when (record.status) {
-        0 -> Triple(OrangeBg, "进行中", Icons.Default.PlayArrow)
+        0 -> Triple(MaterialTheme.colorScheme.surfaceVariant, "进行中", Icons.Default.PlayArrow)
         1 -> Triple(Color(0xFFE3F2FD), "审核中", Icons.Default.HourglassEmpty)
         2 -> Triple(Color(0xFFE8F5E9), "已通过", Icons.Default.CheckCircle)
         3 -> Triple(Color(0xFFFFEBEE), "未通过", Icons.Default.Cancel)
@@ -493,7 +473,7 @@ private fun StatusBanner(record: TaskRecordDTO) {
         colors = CardDefaults.cardColors(containerColor = bgColor)
     ) {
         Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = Orange, modifier = Modifier.size(20.dp))
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(10.dp))
             Column {
                 Text("任务状态：$text", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Gray900)
@@ -525,7 +505,7 @@ private fun BottomActionBar(
                         onClick = onAcceptClick,
                         modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                         shape = RoundedCornerShape(26.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) { Text("接受任务", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
                 }
             }
@@ -540,12 +520,12 @@ private fun BottomActionBar(
                             modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp).height(48.dp),
                             shape = RoundedCornerShape(24.dp),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                contentColor = if (isRunning) Gray500 else Orange
+                                contentColor = if (isRunning) Gray500 else MaterialTheme.colorScheme.primary
                             ),
                             border = ButtonDefaults.outlinedButtonBorder
                         ) {
                             if (isRunning) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Orange, strokeWidth = 2.dp)
+                                LoadingIndicator(modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("执行中...", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                             } else {
@@ -559,7 +539,7 @@ private fun BottomActionBar(
                         onClick = onUploadClick,
                         modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                         shape = RoundedCornerShape(26.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Default.Upload, null)
                         Spacer(modifier = Modifier.width(8.dp))
@@ -569,9 +549,9 @@ private fun BottomActionBar(
             }
             record.status == 1 -> {
                 Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Orange, strokeWidth = 2.dp)
+                    LoadingIndicator(modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text("审核中，请耐心等待", fontSize = 16.sp, color = Orange, fontWeight = FontWeight.Medium)
+                    Text("审核中，请耐心等待", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                 }
             }
             record.status == 2 -> {
@@ -594,7 +574,7 @@ private fun BottomActionBar(
                     onClick = onAcceptClick,
                     modifier = Modifier.fillMaxWidth().padding(16.dp).height(52.dp),
                     shape = RoundedCornerShape(26.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("重新接受", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
             }
         }

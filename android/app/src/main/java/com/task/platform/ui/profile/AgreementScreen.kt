@@ -6,13 +6,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,7 +82,7 @@ fun AgreementScreen(navController: NavController, type: String) {
                 Icon(
                     Icons.Default.ArrowBack,
                     contentDescription = "返回",
-                    tint = Color(0xFFFF8C00)
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
@@ -99,7 +99,7 @@ fun AgreementScreen(navController: NavController, type: String) {
         when {
             loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFFFF8C00))
+                    LoadingIndicator()
                 }
             }
 

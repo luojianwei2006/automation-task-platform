@@ -21,6 +21,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
+import com.task.platform.ui.theme.Shape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,7 +73,6 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.concurrent.TimeUnit
 
-private val Orange = Color(0xFFFF6A00)
 private val Gray700 = Color(0xFF374151)
 private val Gray500 = Color(0xFF6B7280)
 private val SubColor = Color(0xFF42A5F5)
@@ -126,7 +127,7 @@ private fun ScrubberBar(
         var lastGT by remember { mutableStateOf(0.0) }
         Box(
             Modifier.fillMaxWidth().height(18.dp)
-                .background(Gray500.copy(alpha = 0.4f), RoundedCornerShape(9.dp))
+                .background(Gray500.copy(alpha = 0.4f), Shape.radiusSm)
                 .pointerInput(enabled, totalDuration) {
                     if (!enabled) return@pointerInput
                     fun seekFromX(xPx: Float) {
@@ -142,7 +143,7 @@ private fun ScrubberBar(
                     )
                 }
         ) {
-            Box(Modifier.width((displayFrac * barW.value).dp).fillMaxHeight().background(Orange, RoundedCornerShape(9.dp)))
+            Box(Modifier.width((displayFrac * barW.value).dp).fillMaxHeight().background(MaterialTheme.colorScheme.primary, Shape.radiusSm))
             segBoundaries.forEach { bs ->
                 val x = ((bs / totalDuration) * barW.value).dp
                 Box(Modifier.offset(x = x - 0.5.dp).width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.5f)))
@@ -151,7 +152,7 @@ private fun ScrubberBar(
                 Modifier.offset(x = (displayFrac * barW.value).dp - 6.dp, y = 3.dp)
                     .size(12.dp)
                     .background(Color.White, CircleShape)
-                    .border(1.5.dp, Orange, CircleShape)
+                    .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
             )
         }
     }
@@ -174,14 +175,14 @@ private fun RailItem(
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .background(
-                if (active) Orange.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f),
-                RoundedCornerShape(12.dp)
+                if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.12f),
+                Shape.radiusMd
             )
             .padding(vertical = 14.dp, horizontal = 4.dp)
     ) {
         Text(emoji, fontSize = 24.sp)
         Spacer(Modifier.height(4.dp))
-        Text(label, fontSize = 12.sp, color = if (active) Orange else Color.White, fontWeight = FontWeight.Medium)
+        Text(label, fontSize = 12.sp, color = if (active) MaterialTheme.colorScheme.primary else Color.White, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -496,13 +497,13 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                         Text("‹", fontSize = 24.sp, color = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Orange)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
             )
         }
     ) { padding ->
         if (loading) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Orange)
+                LoadingIndicator()
             }
         } else if (error != null) {
             Box(Modifier.fillMaxSize().padding(padding).padding(24.dp), contentAlignment = Alignment.Center) {
@@ -585,10 +586,10 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                                 Column(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     modifier = Modifier
-                                        .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
+                                        .background(Color.Black.copy(alpha = 0.55f), Shape.radiusMd)
                                         .padding(24.dp)
                                 ) {
-                                    CircularProgressIndicator(Modifier.size(36.dp), strokeWidth = 3.dp, color = Color.White)
+                                    LoadingIndicator(modifier = Modifier.size(36.dp))
                                     Spacer(Modifier.height(12.dp))
                                     Text("正在渲染中…", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                                 }
@@ -612,7 +613,7 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                 // ============ 全局进度胶片条 + 进度条 + 字幕轨道（视频正下方）============
                 Column(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
-                        .background(Color(0xFFF7F7F8), RoundedCornerShape(10.dp))
+                        .background(Color(0xFFF7F7F8), Shape.radiusMd)
                         .padding(8.dp)
                 ) {
                     // 顶行：全局时间文案 + 缩放
@@ -627,15 +628,15 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                                 timelineScale = SCALES[(if (idx <= 0) 0 else idx - 1).coerceAtLeast(0)]
                             },
                             modifier = Modifier.size(30.dp)
-                        ) { Text("－", fontSize = 18.sp, color = Orange, fontWeight = FontWeight.Bold) }
-                        Text("${timelineScale.toInt()}x", fontSize = 12.sp, color = Orange, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp), textAlign = TextAlign.Center)
+                        ) { Text("－", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
+                        Text("${timelineScale.toInt()}x", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, modifier = Modifier.width(34.dp), textAlign = TextAlign.Center)
                         IconButton(
                             onClick = {
                                 val idx = SCALES.indexOfFirst { it > timelineScale }
                                 timelineScale = SCALES.getOrElse(idx) { SCALES.last() }
                             },
                             modifier = Modifier.size(30.dp)
-                        ) { Text("＋", fontSize = 18.sp, color = Orange, fontWeight = FontWeight.Bold) }
+                        ) { Text("＋", fontSize = 18.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
                     }
 
                     Spacer(Modifier.height(6.dp))
@@ -644,7 +645,7 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                     Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                         Column(Modifier.width(timelineW)) {
                             // —— 胶片条（每秒一格缩略图 + 段边界 + 播放头）——
-                            Box(Modifier.fillMaxWidth().height(54.dp).background(Color(0xFF1A1A1A), RoundedCornerShape(6.dp))) {
+                            Box(Modifier.fillMaxWidth().height(54.dp).background(Color(0xFF1A1A1A), Shape.radiusSm)) {
                                 Row(Modifier.fillMaxSize()) {
                                     val totalSecs = totalDuration.toInt() + 1
                                     repeat(totalSecs) { sec ->
@@ -677,7 +678,7 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                                     val w = ((effEnd - sub.start) * pxPerSec).dp
                                     Box(
                                         Modifier.offset(x = x).width(w).height(32.dp)
-                                            .background(SubColor, RoundedCornerShape(4.dp))
+                                            .background(SubColor, Shape.radiusSm)
                                             .combinedClickable(
                                                 onClick = {
                                                     // 跨段跳转：定位到该字幕所在的片段并从段内起点续播
@@ -782,7 +783,7 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                         )
                         Text(
                             "${"%.1f".format(sel.speed)}x",
-                            fontSize = 13.sp, color = Orange, fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold,
                             modifier = Modifier.width(44.dp), textAlign = TextAlign.End
                         )
                     }
@@ -811,14 +812,14 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                             modifier = Modifier.padding(4.dp)
                                 .clickable { selectedIndex = idx }
                                 .background(
-                                    if (idx == selectedIndex) Orange.copy(alpha = 0.2f) else Color.Transparent,
-                                    RoundedCornerShape(8.dp)
+                                    if (idx == selectedIndex) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent,
+                                    Shape.radiusSm
                                 )
                                 .padding(6.dp)
                         ) {
                             // 首帧缩略图（取帧中显示转圈占位）
                             Box(
-                                Modifier.size(40.dp).background(Color.Black, RoundedCornerShape(4.dp)),
+                                Modifier.size(40.dp).background(Color.Black, Shape.radiusSm),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (thumb != null) {
@@ -829,11 +830,11 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 } else if (!loadedFlags.contains(idx)) {
-                                    CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Gray500)
+                                    LoadingIndicator(modifier = Modifier.size(16.dp))
                                 }
                             }
                             Spacer(Modifier.height(3.dp))
-                            Text("片段${idx + 1}", fontSize = 11.sp, color = if (idx == selectedIndex) Orange else Gray700, fontWeight = FontWeight.Medium, maxLines = 1)
+                            Text("片段${idx + 1}", fontSize = 11.sp, color = if (idx == selectedIndex) MaterialTheme.colorScheme.primary else Gray700, fontWeight = FontWeight.Medium, maxLines = 1)
                             Text(FilterPresetCode.from(s.filterPreset).label, fontSize = 10.sp, color = Gray500, maxLines = 1)
                         }
                     }
@@ -857,8 +858,8 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                             modifier = Modifier.padding(4.dp)
                                 .clickable { if (sel != null) segments[selectedIndex] = sel.copy(filterPreset = fp.code) }
                                 .background(
-                                    if (selected) Orange else Color.LightGray.copy(alpha = 0.4f),
-                                    RoundedCornerShape(16.dp)
+                                    if (selected) MaterialTheme.colorScheme.primary else Color.LightGray.copy(alpha = 0.4f),
+                                    Shape.radiusLg
                                 )
                                 .padding(horizontal = 16.dp, vertical = 10.dp)
                         ) {
@@ -868,7 +869,7 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                 }
 
                 // ============ 底部操作栏（贴底，固定高度）============
-                Surface(color = Orange, modifier = Modifier.fillMaxWidth()) {
+                Surface(color = MaterialTheme.colorScheme.primary, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -900,10 +901,8 @@ fun VideoEditorScreen(navController: NavHostController, projectId: Long) {
                             enabled = !submitting,
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                         ) {
-                            if (submitting) CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Orange
-                            )
-                            else Text("生成视频", color = Orange, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            if (submitting) LoadingIndicator(modifier = Modifier.size(18.dp))
+                            else Text("生成视频", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         }
                     }
                 }
@@ -1076,7 +1075,7 @@ private fun ResultPreviewDialog(
     DisposableEffect(Unit) { onDispose { resultPlayer.release() } }
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = Shape.radiusMd,
             color = Color(0xFF101010),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1099,9 +1098,9 @@ private fun ResultPreviewDialog(
                         onClick = onSave,
                         enabled = !saving,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
-                        if (saving) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
+                        if (saving) LoadingIndicator(modifier = Modifier.size(16.dp))
                         else Text("保存到相册", color = Color.White)
                     }
                 }

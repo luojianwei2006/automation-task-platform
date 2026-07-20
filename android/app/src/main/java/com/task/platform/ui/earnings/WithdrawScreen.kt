@@ -8,6 +8,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
+import com.task.platform.ui.components.AppTopBar
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -84,13 +86,9 @@ fun WithdrawScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("申请提现", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color(0xFFFF8C00))
-                    }
-                }
+            AppTopBar(
+                title = "申请提现",
+                onBackClick = { navController.popBackStack() }
             )
         }
     ) { padding ->
@@ -377,11 +375,7 @@ fun WithdrawScreen(
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                if (isLoading) CircularProgressIndicator(
-                    Modifier.size(22.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
-                )
+                if (isLoading) LoadingIndicator(modifier = Modifier.size(22.dp))
                 else Text("提交申请", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
 

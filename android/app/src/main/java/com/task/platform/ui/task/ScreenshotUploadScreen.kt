@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
+import com.task.platform.ui.components.AppTopBar
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -70,13 +72,9 @@ fun ScreenshotUploadScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("上传截图") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Color(0xFFFF8C00))
-                    }
-                }
+            AppTopBar(
+                title = "上传截图",
+                onBackClick = { navController.popBackStack() }
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -278,7 +276,7 @@ private fun ThumbnailImage(uri: Uri) {
                 modifier = Modifier.fillMaxSize()
             )
             errored -> Text("加载失败", fontSize = 10.sp, color = Color.Gray)
-            else -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color.White)
+            else -> LoadingIndicator(modifier = Modifier.size(24.dp))
         }
     }
 }

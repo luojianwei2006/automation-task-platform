@@ -81,7 +81,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { navController.popBackStack() }) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color(0xFFFF8C00))
+                Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = MaterialTheme.colorScheme.primary)
             }
             Text(
                 text = "设置",
@@ -97,7 +97,7 @@ fun SettingsScreen(
         SettingsCard(title = "修改密码") {
             Button(
                 onClick = { showChangePwDialog = true },
-                colors = ButtonDefaults.buttonColors(containerColor = androidx.compose.ui.graphics.Color(0xFFFF8C00))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("修改密码", color = MaterialTheme.colorScheme.onPrimary)
             }
@@ -163,7 +163,7 @@ fun SettingsScreen(
                     Toast.makeText(context, "正在检查…", Toast.LENGTH_SHORT).show()
                     updateViewModel.manualCheck(context)
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00))
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("检查新版本", color = MaterialTheme.colorScheme.onPrimary)
             }

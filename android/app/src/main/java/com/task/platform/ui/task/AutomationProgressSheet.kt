@@ -6,6 +6,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -14,9 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.task.platform.viewmodel.AutoViewModel
+import com.task.platform.ui.theme.Shape
+import androidx.compose.material3.MaterialTheme
 
 // ─── 配色 ───────────────────────────────────────
-private val Orange = Color(0xFFFF8C00)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -90,16 +92,12 @@ fun AutomationProgressSheet(
         when (autoUiState) {
             is AutoViewModel.AutoUiState.Running -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Orange,
-                        strokeWidth = 2.dp
-                    )
+                    LoadingIndicator(modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         "正在执行: ${autoUiState.currentStep}",
                         fontSize = 14.sp,
-                        color = Orange,
+                        color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -123,13 +121,9 @@ fun AutomationProgressSheet(
             }
             is AutoViewModel.AutoUiState.Preparing -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        color = Orange,
-                        strokeWidth = 2.dp
-                    )
+                    LoadingIndicator(modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("准备中...", fontSize = 14.sp, color = Orange, fontWeight = FontWeight.Medium)
+                    Text("准备中...", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
                 }
             }
             is AutoViewModel.AutoUiState.Error -> {
@@ -151,10 +145,10 @@ fun AutomationProgressSheet(
 
         // ── 步骤列表 ──
         if (steps.isNotEmpty()) {
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = Color.White
-            ) {
+        Surface(
+            shape = Shape.radiusMd,
+            color = MaterialTheme.colorScheme.surface
+        ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     steps.forEachIndexed { index, step ->
                         AutomationStepItem(
@@ -210,10 +204,9 @@ fun AutomationStepItem(
                     tint = RedFail,
                     modifier = Modifier.size(20.dp)
                 )
-                else -> CircularProgressIndicator(
+                else -> LoadingIndicator(
                     modifier = Modifier.size(16.dp),
-                    color = Orange,
-                    strokeWidth = 2.dp
+                    size = 16.dp
                 )
             }
         }

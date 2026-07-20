@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Celebration
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -52,6 +51,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.task.platform.model.EarningsRecord
 import com.task.platform.viewmodel.EarningsViewModel
+import com.task.platform.ui.components.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
 
 /**
  * 流水记录页（独立页面）
@@ -86,7 +87,7 @@ fun TransactionRecordsScreen(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(HallOrange, HallOrangeLight)
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                     ),
                     shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
@@ -124,7 +125,7 @@ fun TransactionRecordsScreen(
                 val selected = selectedTab == index
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = if (selected) HallOrangeBg else Color.Transparent,
+                    color = if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent,
                     modifier = Modifier
                         .height(38.dp)
                         .clickable {
@@ -140,7 +141,7 @@ fun TransactionRecordsScreen(
                             text = label,
                             fontSize = 15.sp,
                             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                            color = if (selected) HallOrange else Gray500
+                            color = if (selected) MaterialTheme.colorScheme.primary else Gray500
                         )
                     }
                 }
@@ -155,7 +156,7 @@ fun TransactionRecordsScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(color = HallOrange)
+                LoadingIndicator()
             }
         } else if (earningsRecords.isEmpty()) {
             EarningsEmptyView()
@@ -184,11 +185,7 @@ fun TransactionRecordsScreen(
                                 .padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                color = HallOrange,
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp
-                            )
+                            LoadingIndicator(modifier = Modifier.size(24.dp))
                         }
                     }
                 }
@@ -219,7 +216,7 @@ internal fun EarningsRecordItem(record: EarningsRecord) {
     }
     val iconTint = when (record.type) {
         1 -> IncomeGreen
-        2 -> HallOrange
+        2 -> MaterialTheme.colorScheme.primary
         3 -> ExpenseRed
         5 -> ExpenseRed
         else -> Color(0xFF42A5F5)

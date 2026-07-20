@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
+import com.task.platform.ui.components.AppTopBar
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -84,14 +86,9 @@ fun WalletBindingScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("收款账户", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color(0xFFFF8C00))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            AppTopBar(
+                title = "收款账户",
+                onBackClick = { navController.popBackStack() }
             )
         },
         containerColor = GrayBg
@@ -509,11 +506,7 @@ fun AddEditDialog(
                 )
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = Color.White
-                    )
+                    LoadingIndicator(modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(
@@ -573,7 +566,7 @@ private fun ThumbnailImage(uri: Uri, modifier: Modifier = Modifier) {
         when {
             bmp != null -> Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             errored -> Text("加载失败", fontSize = 10.sp, color = Color.Gray)
-            else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            else -> LoadingIndicator(modifier = Modifier.size(24.dp))
         }
     }
 }

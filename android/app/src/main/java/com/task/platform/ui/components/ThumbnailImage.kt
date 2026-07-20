@@ -6,7 +6,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +26,8 @@ import kotlinx.coroutines.withContext
 /**
  * 通用缩略图组件：手动解码 Uri（支持 content://）为 ImageBitmap 显示。
  * 不用 `by` 委托，改用 = + .value，避免跨文件委托解析问题。
+ *
+ * 接入 Design System：加载态统一使用 [LoadingIndicator]，文案字号使用语义层级。
  */
 @Composable
 fun ThumbnailImage(
@@ -94,8 +95,12 @@ fun ThumbnailImage(
                 contentScale = contentScale,
                 modifier = Modifier.fillMaxSize()
             )
-            errored.value -> Text("加载失败", fontSize = 10.sp, color = Color.Gray)
-            else -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+            errored.value -> Text(
+                "加载失败",
+                fontSize = 10.sp, // TODO 功能尺寸：缩略图占位极小注记，非页面语义字号
+                color = Color.Gray
+            )
+            else -> LoadingIndicator(modifier = Modifier.size(24.dp))
         }
     }
 }

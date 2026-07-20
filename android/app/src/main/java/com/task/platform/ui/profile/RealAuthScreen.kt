@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.AppTopBar
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,9 +34,6 @@ import com.task.platform.viewmodel.RealAuthViewModel
 import java.util.Locale
 
 // ─── 配色 ─────────────────────────────────────
-private val Orange = Color(0xFFFF8C00)
-private val OrangeLight = Color(0xFFFFF0E0)
-private val OrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -44,8 +43,6 @@ private val Gray700 = Color(0xFF616161)
 private val Gray900 = Color(0xFF212121)
 private val Green = Color(0xFF4CAF50)
 private val GreenLight = Color(0xFFE8F5E9)
-private val Amber = Color(0xFFFF9800)
-private val AmberLight = Color(0xFFFFF3E0)
 private val Red = Color(0xFFE53935)
 private val RedLight = Color(0xFFFFEBEE)
 
@@ -70,28 +67,9 @@ fun RealAuthScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Default.VerifiedUser,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text("实名认证", fontWeight = FontWeight.Bold)
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Orange,
-                    titleContentColor = Color.White
-                )
+            AppTopBar(
+                title = "实名认证",
+                onBackClick = onBack
             )
         },
         containerColor = Gray50
@@ -108,7 +86,7 @@ fun RealAuthScreen(
                         Modifier.fillMaxSize().padding(padding),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Orange)
+                        LoadingIndicator()
                     }
                 }
                 is RealAuthViewModel.UiState.Passed -> PassedContent(onBack = onBack)
@@ -184,7 +162,7 @@ private fun PassedContent(onBack: () -> Unit) {
             onClick = onBack,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange)
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) {
             Text("返回", fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }
@@ -216,13 +194,13 @@ private fun PendingContent(onBack: () -> Unit) {
             modifier = Modifier
                 .size(100.dp)
                 .clip(CircleShape)
-                .background(AmberLight),
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 Icons.Default.HourglassTop,
                 contentDescription = null,
-                tint = Amber,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(52.dp)
             )
         }
@@ -262,7 +240,7 @@ private fun PendingContent(onBack: () -> Unit) {
                 StepRow(icon = Icons.Default.CheckCircle, text = "资料已提交", active = true, color = Green)
                 StepConnector()
                 // 步骤 2：审核中 ○
-                StepRow(icon = Icons.Default.HourglassEmpty, text = "系统审核中", active = true, color = Amber)
+                StepRow(icon = Icons.Default.HourglassEmpty, text = "系统审核中", active = true, color = MaterialTheme.colorScheme.primary)
                 StepConnector()
                 // 步骤 3：待完成 ○
                 StepRow(icon = Icons.Default.FiberManualRecord, text = "审核完成", active = false, color = Gray300)
@@ -271,7 +249,7 @@ private fun PendingContent(onBack: () -> Unit) {
 
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                    color = Amber,
+                    color = MaterialTheme.colorScheme.primary,
                     trackColor = Gray100
                 )
                 Spacer(Modifier.height(4.dp))
@@ -285,7 +263,7 @@ private fun PendingContent(onBack: () -> Unit) {
             onClick = onBack,
             modifier = Modifier.fillMaxWidth().height(48.dp),
             shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Orange)
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary)
         ) {
             Text("返回", fontSize = 16.sp, fontWeight = FontWeight.Medium)
         }
@@ -423,7 +401,7 @@ private fun FormContent(
         // ── 为什么需要实名认证 ──
         Card(
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = OrangeBg)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Row(
                 modifier = Modifier.padding(14.dp),
@@ -433,7 +411,7 @@ private fun FormContent(
                 Icon(
                     Icons.Default.Security,
                     contentDescription = null,
-                    tint = Orange,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(22.dp).padding(top = 1.dp)
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -462,14 +440,14 @@ private fun FormContent(
                     onValueChange = { if (it.length <= 64) realName = it },
                     label = { Text("真实姓名") },
                     placeholder = { Text("请输入您的真实姓名", color = Gray400) },
-                    leadingIcon = { Icon(Icons.Default.Badge, null, tint = Orange) },
+                    leadingIcon = { Icon(Icons.Default.Badge, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Orange,
-                        focusedLabelColor = Orange,
-                        cursorColor = Orange
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
                     )
                 )
 
@@ -483,16 +461,16 @@ private fun FormContent(
                     },
                     label = { Text("身份证号码") },
                     placeholder = { Text("18位身份证号码", color = Gray400) },
-                    leadingIcon = { Icon(Icons.Default.CreditCard, null, tint = Orange) },
+                    leadingIcon = { Icon(Icons.Default.CreditCard, null, tint = MaterialTheme.colorScheme.primary) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     isError = idCardError != null,
                     supportingText = idCardError?.let { { Text(it, color = Red, fontSize = 12.sp) } },
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Orange,
-                        focusedLabelColor = Orange,
-                        cursorColor = Orange
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                        cursorColor = MaterialTheme.colorScheme.primary
                     )
                 )
 
@@ -545,16 +523,12 @@ private fun FormContent(
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(25.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Orange,
+                        containerColor = MaterialTheme.colorScheme.primary,
                         disabledContainerColor = Gray300
                     )
                 ) {
                     if (isSubmitting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            color = Color.White,
-                            strokeWidth = 2.dp
-                        )
+                        LoadingIndicator(modifier = Modifier.size(22.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("提交中...", fontSize = 16.sp)
                     } else {
@@ -598,13 +572,9 @@ private fun PhotoBox(
             if (uploading) {
                 // 上传中
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(32.dp),
-                        color = Orange,
-                        strokeWidth = 2.5.dp
-                    )
+                    LoadingIndicator(modifier = Modifier.size(32.dp))
                     Spacer(Modifier.height(8.dp))
-                    Text("上传中...", fontSize = 12.sp, color = Orange)
+                    Text("上传中...", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary)
                 }
             } else if (uri == null) {
                 // 未选择

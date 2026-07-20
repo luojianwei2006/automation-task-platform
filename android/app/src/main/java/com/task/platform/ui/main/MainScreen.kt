@@ -49,14 +49,10 @@ import com.task.platform.ui.profile.ProfileScreen
 import com.task.platform.ui.publish.PublishScreen
 import com.task.platform.ui.task.MyTasksScreen
 import com.task.platform.ui.task.TaskHallScreen
+import com.task.platform.ui.theme.Shape
+import androidx.compose.material3.MaterialTheme
 
 // ─── 主题色 ───────────────────────────────────────
-private val NavOrange = Color(0xFFFF8C00)
-private val NavOrangeLight = Color(0xFFFFB347)
-private val NavOrangeBg = Color(0xFFFFF3E0)
-private val NavGrayUnselected = Color(0xFF999999)
-private val NavBarBg = Color(0xFFFFFFFF)
-private val NavBarShadow = Color(0x0F000000)
 
 /**
  * 主屏幕 - 带底部导航
@@ -66,7 +62,7 @@ fun MainScreen(navController: NavHostController) {
     val mainNavController = rememberNavController()
 
     Scaffold(
-        containerColor = Color.White,
+        containerColor = MaterialTheme.colorScheme.surface,
         bottomBar = {
             PremiumBottomNavBar(navController = mainNavController)
         }
@@ -120,12 +116,12 @@ private fun PremiumBottomNavBar(navController: NavHostController) {
             .fillMaxWidth()
             .shadow(
                 elevation = 16.dp,
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                ambientColor = NavBarShadow,
-                spotColor = NavBarShadow
+                shape = Shape.radiusXl,
+                ambientColor = Color.Black.copy(alpha = 0.06f),
+                spotColor = Color.Black.copy(alpha = 0.06f)
             ),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        color = NavBarBg
+        shape = Shape.radiusXl,
+        color = MaterialTheme.colorScheme.surface
     ) {
         Row(
             modifier = Modifier
@@ -165,12 +161,12 @@ private fun PremiumNavItem(
     onClick: () -> Unit
 ) {
     val iconColor by animateColorAsState(
-        targetValue = if (selected) NavOrange else NavGrayUnselected,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = tween(300),
         label = "iconColor"
     )
     val textColor by animateColorAsState(
-        targetValue = if (selected) NavOrange else NavGrayUnselected,
+        targetValue = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = tween(300),
         label = "textColor"
     )
@@ -203,8 +199,8 @@ private fun PremiumNavItem(
                         .background(
                             brush = Brush.linearGradient(
                                 colors = listOf(
-                                    NavOrangeBg,
-                                    Color(0xFFFFECB3)
+                                    MaterialTheme.colorScheme.primaryContainer,
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                                 )
                             )
                         )
@@ -241,7 +237,7 @@ private fun PremiumNavItem(
                     .clip(RoundedCornerShape(1.5.dp))
                     .background(
                         brush = Brush.horizontalGradient(
-                            colors = listOf(NavOrange, NavOrangeLight)
+                            colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                         )
                     )
             )

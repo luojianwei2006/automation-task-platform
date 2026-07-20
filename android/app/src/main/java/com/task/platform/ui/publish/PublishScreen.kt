@@ -33,6 +33,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.LoadingIndicator
+import com.task.platform.ui.theme.Shape
+import com.task.platform.ui.theme.statusColors
 import androidx.compose.material3.pulltorefresh.PullToRefreshContainer
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
@@ -80,9 +83,6 @@ import com.task.platform.viewmodel.PublishViewModel.MergeState
 import java.io.IOException
 
 // ─── 配色体系 ───────────────────────────────────────
-private val Orange = Color(0xFFFF8C00)
-private val OrangeLight = Color(0xFFFFB347)
-private val OrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
@@ -96,9 +96,6 @@ private val DouyinPink = Color(0xFFE91E63)
 private val XiaohongshuRed = Color(0xFFFF2442)
 
 // 状态标签颜色
-private val StatusPending = Color(0xFFFF8C00)   // 橙色
-private val StatusClaimed = Color(0xFF2196F3)   // 蓝色
-private val StatusCompleted = Color(0xFF4CAF50) // 绿色
 
 /**
  * 发布任务大厅 — 类似于 TaskHallScreen 的设计风格
@@ -162,7 +159,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(Orange, OrangeLight)
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                     ),
                     shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
@@ -226,7 +223,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
         TabRow(
             selectedTabIndex = selectedTab,
             containerColor = Color.White,
-            contentColor = Orange,
+            contentColor = MaterialTheme.colorScheme.primary,
             modifier = Modifier.fillMaxWidth()
         ) {
             Tab(
@@ -242,7 +239,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                         fontSize = 15.sp
                     )
                 },
-                selectedContentColor = Orange,
+                selectedContentColor = MaterialTheme.colorScheme.primary,
                 unselectedContentColor = Gray500
             )
             Tab(
@@ -258,7 +255,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                         fontSize = 15.sp
                     )
                 },
-                selectedContentColor = Orange,
+                selectedContentColor = MaterialTheme.colorScheme.primary,
                 unselectedContentColor = Gray500
             )
         }
@@ -270,7 +267,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(color = Orange)
+                    LoadingIndicator()
                 }
             }
             is PublishViewModel.UiState.Error -> {
@@ -296,7 +293,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                             viewModel.resetError()
                             if (selectedTab == 0) viewModel.loadTasks() else viewModel.loadMyTasks()
                         }) {
-                            Text("重试", color = Orange)
+                            Text("重试", color = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -375,7 +372,7 @@ fun PublishScreen(navController: androidx.navigation.NavHostController) {
                             viewModel.loadMyTasks()
                         }
                     },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Orange)
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text("确认领取", fontWeight = FontWeight.Bold)
                 }
@@ -462,13 +459,13 @@ private fun PublishTaskCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(OrangeBg),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.CloudUpload,
                         contentDescription = null,
-                        tint = Orange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -535,7 +532,7 @@ private fun PublishTaskCard(
                     // 全部任务中的待领取 → 显示领取按钮
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = Orange,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.clickable { onClaim() }
                     ) {
                         Text(
@@ -550,7 +547,7 @@ private fun PublishTaskCard(
                     // 我的任务中已领取 → 显示完成按钮
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = StatusCompleted,
+                        color = MaterialTheme.statusColors.approved.main,
                         modifier = Modifier.clickable { onComplete() }
                     ) {
                         Text(
@@ -583,12 +580,12 @@ private fun PublishTaskCard(
 private fun PublishStatusTag(status: String) {
     val s = status.lowercase()
     val (label, color) = when (s) {
-        "pending", "online" -> "待领取" to StatusPending
-        "claimed", "merged" -> "已领取" to StatusClaimed
-        "submitted" -> "审核中" to Orange
-        "passed" -> "已奖励" to StatusCompleted
+        "pending", "online" -> "待领取" to MaterialTheme.statusColors.pending.main
+        "claimed", "merged" -> "已领取" to MaterialTheme.statusColors.reviewing.main
+        "submitted" -> "审核中" to MaterialTheme.statusColors.reviewing.main
+        "passed" -> "已奖励" to MaterialTheme.statusColors.approved.main
         "rejected" -> "已拒绝（需要重新提交审核）" to Color.Red
-        "completed", "running" -> "审核中" to Orange
+        "completed", "running" -> "审核中" to MaterialTheme.statusColors.reviewing.main
         "expired", "timeout" -> "已超时" to Gray500
         "cancelled", "offline", "failed" -> "待领取" to Gray500
         else -> "待领取" to Gray500
@@ -864,7 +861,7 @@ private fun PublishDetailScreen(
                             }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                 ) { Text("确认发布", color = Color.White) }
             },
             dismissButton = {
@@ -900,7 +897,7 @@ private fun PublishDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.ArrowBack, "返回", tint = Orange)
+                        Icon(Icons.Default.ArrowBack, "返回", tint = MaterialTheme.colorScheme.primary)
                     }
                     Text(
                         "发布任务详情",
@@ -1253,7 +1250,7 @@ private fun PublishDetailScreen(
                                 enabled = refreshCooldown == 0,
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                             ) {
                                 Text(
                                     if (refreshCooldown > 0) "刷新(${refreshCooldown}s)" else "换一批",
@@ -1293,7 +1290,7 @@ private fun PublishDetailScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = StatusCompleted)
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.statusColors.approved.main)
                             ) {
                                 Text("领取任务", color = Color.White)
                             }
@@ -1309,9 +1306,9 @@ private fun PublishDetailScreen(
                                     else -> "审核中"
                                 }
                                 val stateColor = when (submissionStatus) {
-                                    "PASSED" -> StatusCompleted
+                                    "PASSED" -> MaterialTheme.statusColors.approved.main
                                     "REJECTED" -> Color.Red
-                                    else -> Orange
+                                    else -> MaterialTheme.colorScheme.primary
                                 }
                                 val stateHint = when (submissionStatus) {
                                     "PASSED" -> if (submissionReward != null) "已发放奖励 ¥${submissionReward}" else "你的发布已审核通过"
@@ -1373,7 +1370,7 @@ private fun PublishDetailScreen(
                                     onClick = { videoPicker.launch("video/*") },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
                                     Icon(Icons.Default.VideoLibrary, contentDescription = null, tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -1388,7 +1385,7 @@ private fun PublishDetailScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Orange)
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                                 ) {
                                     Icon(Icons.Default.PlayArrow, contentDescription = null, tint = Color.White)
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -1399,13 +1396,13 @@ private fun PublishDetailScreen(
                                 when {
                                     uploadingVideo -> {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Orange)
+                                            LoadingIndicator(modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text("正在上传视频...", fontSize = 12.sp, color = Gray700)
                                         }
                                     }
                                     selectedMergeUrl.isNotBlank() -> {
-                                        Text("视频已上传，可发布视频", fontSize = 11.sp, color = StatusCompleted)
+                                        Text("视频已上传，可发布视频", fontSize = 11.sp, color = MaterialTheme.statusColors.approved.main)
                                     }
                                     pickedVideoUri != null -> {
                                         Text("已选择视频，点击下方上传", fontSize = 11.sp, color = Gray700)
@@ -1620,7 +1617,7 @@ private fun MaterialItem(material: PublishMaterialDTO) {
         Icon(
             icon,
             contentDescription = typeLabel,
-            tint = Orange,
+            tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(8.dp))
@@ -1648,20 +1645,20 @@ private fun MaterialItem(material: PublishMaterialDTO) {
                 Text(
                     text = "已上传文件",
                     fontSize = 11.sp,
-                    color = StatusClaimed
+                    color = MaterialTheme.statusColors.reviewing.main
                 )
             }
         }
         // 素材类型徽标
         Surface(
             shape = RoundedCornerShape(4.dp),
-            color = Orange.copy(alpha = 0.1f)
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
         ) {
             Text(
                 text = typeLabel,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                 fontSize = 11.sp,
-                color = Orange
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -1775,7 +1772,7 @@ private fun VideoThumbnailCard(
                     Icon(
                         Icons.Default.Videocam,
                         contentDescription = "视频",
-                        tint = Orange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -1914,8 +1911,8 @@ private fun VideoPreviewDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = SliderDefaults.colors(
-                        thumbColor = Orange,
-                        activeTrackColor = Orange,
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
                         inactiveTrackColor = Color.White.copy(alpha = 0.3f)
                     )
                 )
@@ -2084,7 +2081,7 @@ private fun HistoryGridDialog(
                                                 onClick = { onSelect(h) },
                                                 modifier = Modifier.fillMaxWidth().height(24.dp),
                                                 shape = RoundedCornerShape(4.dp),
-                                                colors = ButtonDefaults.buttonColors(containerColor = Orange),
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                                 contentPadding = PaddingValues(0.dp)
                                             ) {
                                                 Text("选择", fontSize = 10.sp, color = Color.White)
@@ -2200,9 +2197,9 @@ private fun SubmitReviewDialog(
                                             onClick = { imagePicker.launch("image/*") },
                                             modifier = Modifier.fillMaxSize(),
                                             shape = RoundedCornerShape(8.dp),
-                                            border = androidx.compose.foundation.BorderStroke(1.dp, Orange.copy(alpha = 0.3f))
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                                         ) {
-                                            Icon(Icons.Default.Add, null, tint = Orange, modifier = Modifier.size(24.dp))
+                                            Icon(Icons.Default.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                                         }
                                     } else {
                                         // 已上传的截图
@@ -2281,7 +2278,7 @@ private fun SubmitReviewDialog(
                         enabled = !isUploading
                     ) {
                         if (isUploading) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp, color = Color.White)
+                            LoadingIndicator(modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                         }
                         Text(if (isUploading) "上传中..." else "提交任务", color = Color.White)

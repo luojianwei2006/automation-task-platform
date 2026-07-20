@@ -21,7 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -127,7 +127,7 @@ fun EditProfileScreen(
                 title = { Text("编辑资料") },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = Color(0xFFFF8C00))
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 actions = {
@@ -173,7 +173,7 @@ fun EditProfileScreen(
                                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.3f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                                LoadingIndicator(modifier = Modifier.size(24.dp))
                             }
                         }
                     } else if (avatarUrl.isNotBlank()) {
@@ -277,7 +277,7 @@ fun EditProfileScreen(
                     enabled = !isLoading
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                        LoadingIndicator(modifier = Modifier.size(16.dp))
                     } else {
                         Text("确定")
                     }
@@ -332,7 +332,7 @@ private fun ThumbnailImage(uri: Uri, modifier: Modifier = Modifier) {
         when {
             bmp != null -> Image(bmp, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             errored -> Text("加载失败", fontSize = 10.sp, color = androidx.compose.ui.graphics.Color.Gray)
-            else -> CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+            else -> LoadingIndicator(modifier = Modifier.size(24.dp))
         }
     }
 }

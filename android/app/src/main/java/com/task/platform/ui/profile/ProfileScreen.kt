@@ -22,7 +22,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -61,23 +60,15 @@ import com.task.platform.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import com.task.platform.ui.theme.statusColors
 
 // ─── 配色 ─────────────────────────────────────
-private val HallOrange = Color(0xFFFF8C00)
-private val HallOrangeLight = Color(0xFFFFB347)
-private val HallOrangeBg = Color(0xFFFFF8F0)
 private val Gray50 = Color(0xFFFAFAFA)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
 private val Gray500 = Color(0xFF9E9E9E)
 private val Gray700 = Color(0xFF616161)
 private val Gray900 = Color(0xFF212121)
-
-private val AuthVerifiedGreen = Color(0xFF4CAF50)
-private val AuthUnverifiedYellow = Color(0xFFFF9800)
-private val AuthPendingBlue = Color(0xFF42A5F5)
-private val AuthFailedRed = Color(0xFFE53935)
-private val LogoutRed = Color(0xFFE53935)
 
 /**
  * 个人中心屏幕
@@ -128,7 +119,7 @@ fun ProfileScreen(
                 .fillMaxWidth()
                 .background(
                     brush = Brush.verticalGradient(
-                        colors = listOf(HallOrange, HallOrangeLight)
+                        colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                     ),
                     shape = RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp)
                 )
@@ -308,7 +299,7 @@ fun ProfileScreen(
                             Icon(
                                 Icons.Default.ExitToApp,
                                 contentDescription = "退出登录",
-                                tint = LogoutRed,
+                                tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(22.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -316,7 +307,7 @@ fun ProfileScreen(
                                 text = "退出登录",
                                 fontSize = 17.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = LogoutRed
+                                color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
@@ -360,7 +351,7 @@ fun ProfileScreen(
                                     showAutoModeDialog = false
                                 },
                             shape = RoundedCornerShape(8.dp),
-                            color = if (selected) HallOrangeBg else Color.Transparent
+                            color = if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -369,7 +360,7 @@ fun ProfileScreen(
                                 RadioButton(
                                     selected = selected,
                                     onClick = null,
-                                    colors = RadioButtonDefaults.colors(selectedColor = HallOrange)
+                                    colors = RadioButtonDefaults.colors(selectedColor = MaterialTheme.colorScheme.primary)
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(label, fontSize = 15.sp, fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal)
@@ -432,7 +423,7 @@ private fun InviteDialog(
                     text = inviteCode ?: "加载中...",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = HallOrange
+                    color = MaterialTheme.colorScheme.primary
                 )
                 if (inviteUrl != null) {
                     Spacer(Modifier.height(12.dp))
@@ -455,7 +446,7 @@ private fun InviteDialog(
                     clipboard.setPrimaryClip(android.content.ClipData.newPlainText("邀请码", inviteCode ?: ""))
                     android.widget.Toast.makeText(context, "邀请码已复制", android.widget.Toast.LENGTH_SHORT).show()
                 },
-                colors = ButtonDefaults.buttonColors(containerColor = HallOrange)
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text("复制邀请码", color = Color.White)
             }
@@ -473,11 +464,11 @@ private fun InviteDialog(
 @Composable
 private fun AuthStatusBadge(status: Int) {
     val (text, bgColor, textColor) = when (status) {
-        0 -> Triple("未认证", AuthUnverifiedYellow.copy(alpha = 0.2f), AuthUnverifiedYellow)
-        1 -> Triple("审核中", AuthPendingBlue.copy(alpha = 0.2f), AuthPendingBlue)
-        2 -> Triple("已认证", AuthVerifiedGreen.copy(alpha = 0.2f), AuthVerifiedGreen)
-        3 -> Triple("认证失败", AuthFailedRed.copy(alpha = 0.2f), AuthFailedRed)
-        else -> Triple("未认证", AuthUnverifiedYellow.copy(alpha = 0.2f), AuthUnverifiedYellow)
+        0 -> Triple("未认证", MaterialTheme.statusColors.pending.main.copy(alpha = 0.2f), MaterialTheme.statusColors.pending.main)
+        1 -> Triple("审核中", MaterialTheme.statusColors.reviewing.main.copy(alpha = 0.2f), MaterialTheme.statusColors.reviewing.main)
+        2 -> Triple("已认证", MaterialTheme.statusColors.approved.main.copy(alpha = 0.2f), MaterialTheme.statusColors.approved.main)
+        3 -> Triple("认证失败", MaterialTheme.colorScheme.error.copy(alpha = 0.2f), MaterialTheme.colorScheme.error)
+        else -> Triple("未认证", MaterialTheme.statusColors.pending.main.copy(alpha = 0.2f), MaterialTheme.statusColors.pending.main)
     }
 
     Surface(
@@ -547,13 +538,13 @@ private fun MenuItemRow(
             modifier = Modifier
                 .size(40.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(HallOrangeBg),
+                .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 icon.icon,
                 contentDescription = title,
-                tint = HallOrange,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(22.dp)
             )
         }

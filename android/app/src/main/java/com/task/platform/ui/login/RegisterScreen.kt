@@ -12,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import com.task.platform.ui.components.AppTopBar
+import com.task.platform.ui.components.LoadingIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,8 +34,6 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.task.platform.viewmodel.LoginViewModel
 
 // 配色
-private val RegOrange = Color(0xFFFF8C00)
-private val RegOrangeLight = Color(0xFFFFB347)
 private val Gray100 = Color(0xFFF5F5F5)
 private val Gray300 = Color(0xFFE0E0E0)
 private val Gray500 = Color(0xFF9E9E9E)
@@ -85,21 +85,7 @@ fun RegisterScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            Icons.Default.ArrowBack,
-                            contentDescription = "返回",
-                            tint = RegOrange
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                )
-            )
+            AppTopBar(title = "注册", onBackClick = onNavigateBack)
         },
         containerColor = Color.White
     ) { padding ->
@@ -117,7 +103,7 @@ fun RegisterScreen(
                     .offset(y = (-16).dp)
                     .background(
                         brush = Brush.verticalGradient(
-                            colors = listOf(RegOrange, RegOrangeLight)
+                            colors = listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
                         ),
                         shape = RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
                     ),
@@ -212,10 +198,10 @@ fun RegisterScreen(
                                 singleLine = true,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = RegOrange,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
                                     unfocusedBorderColor = Gray300,
-                                    focusedLabelColor = RegOrange,
-                                    cursorColor = RegOrange
+                                    focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                    cursorColor = MaterialTheme.colorScheme.primary
                                 )
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -225,7 +211,7 @@ fun RegisterScreen(
                                 modifier = Modifier.height(56.dp),
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (countdown > 0) Gray300 else RegOrange,
+                                    containerColor = if (countdown > 0) Gray300 else MaterialTheme.colorScheme.primary,
                                     contentColor = Color.White
                                 )
                             ) {
@@ -260,7 +246,7 @@ fun RegisterScreen(
                         onValueChange = { confirmPassword = it },
                         label = { Text("确认密码", fontSize = 13.sp) },
                         leadingIcon = {
-                            Icon(Icons.Default.Lock, null, tint = RegOrange, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         },
                         trailingIcon = {
                             IconButton(onClick = { confirmVisible = !confirmVisible }) {
@@ -290,10 +276,10 @@ fun RegisterScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = RegOrange,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = Gray300,
-                            focusedLabelColor = RegOrange,
-                            cursorColor = RegOrange,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary,
                             errorBorderColor = MaterialTheme.colorScheme.error
                         )
                     )
@@ -322,7 +308,7 @@ fun RegisterScreen(
                         label = { Text("邀请码（可选）", fontSize = 13.sp) },
                         placeholder = { Text("填写邀请码享受额外奖励", fontSize = 12.sp, color = Gray500) },
                         leadingIcon = {
-                            Icon(Icons.Default.CardGiftcard, null, tint = RegOrange, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.CardGiftcard, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         },
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
@@ -330,10 +316,10 @@ fun RegisterScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = RegOrange,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
                             unfocusedBorderColor = Gray300,
-                            focusedLabelColor = RegOrange,
-                            cursorColor = RegOrange
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary
                         )
                     )
 
@@ -354,16 +340,12 @@ fun RegisterScreen(
                             .height(52.dp),
                         shape = RoundedCornerShape(26.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = RegOrange,
-                            disabledContainerColor = RegOrange.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
                         )
                     ) {
                         if (uiState is LoginViewModel.UiState.Loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = Color.White,
-                                strokeWidth = 2.5.dp
-                            )
+                            LoadingIndicator(modifier = Modifier.size(22.dp))
                         } else {
                             Text(
                                 "注 册",
@@ -388,14 +370,14 @@ fun RegisterScreen(
                 Text("注册即表示您同意", color = Gray500, fontSize = 11.sp)
                 Text(
                     text = "《用户协议》",
-                    color = RegOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 11.sp,
                     modifier = Modifier.clickable { navController.navigate("agreement/register") }
                 )
                 Text("和", color = Gray500, fontSize = 11.sp)
                 Text(
                     text = "《隐私政策》",
-                    color = RegOrange,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 11.sp,
                     modifier = Modifier.clickable { navController.navigate("agreement/privacy") }
                 )
@@ -417,7 +399,7 @@ fun RegisterScreen(
                 TextButton(onClick = onNavigateBack) {
                     Text(
                         text = "返回登录",
-                        color = RegOrange,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
@@ -433,13 +415,13 @@ private fun SectionLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, 
     Row(
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = RegOrange)
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = RegOrange
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }

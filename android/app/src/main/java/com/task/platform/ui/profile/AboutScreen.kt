@@ -53,7 +53,7 @@ fun AboutScreen(navController: NavController) {
             Icon(
                 imageVector = Icons.Filled.ArrowBack,
                 contentDescription = "返回",
-                tint = Color(0xFFFF8C00),
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier
                     .clickable { navController.popBackStack() }
             )
@@ -121,7 +121,7 @@ fun AboutScreen(navController: NavController) {
 
         Button(
             onClick = { navController.navigate("agreement/about") },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("关于我们", color = MaterialTheme.colorScheme.onPrimary)
@@ -129,7 +129,7 @@ fun AboutScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = { navController.navigate("agreement/privacy") },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("隐私协议", color = MaterialTheme.colorScheme.onPrimary)
@@ -137,7 +137,7 @@ fun AboutScreen(navController: NavController) {
         Spacer(modifier = Modifier.height(12.dp))
         Button(
             onClick = { navController.navigate("agreement/register") },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF8C00)),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("注册协议", color = MaterialTheme.colorScheme.onPrimary)

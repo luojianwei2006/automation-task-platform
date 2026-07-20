@@ -1,0 +1,80 @@
+classDiagram
+    class AppTheme {
+        +AppTheme(darkTheme: Boolean, content: Composable)
+    }
+    class ColorTokens {
+        +BrandOrange: Color
+        +lightScheme: ColorScheme
+        +darkScheme: ColorScheme
+    }
+    class AppTypography {
+        +titleLarge: TextStyle
+        +titleMedium: TextStyle
+        +bodyLarge: TextStyle
+        +bodyMedium: TextStyle
+        +labelMedium: TextStyle
+        +labelSmall: TextStyle
+    }
+    class Shape {
+        +radiusSm: RoundedCornerShape
+        +radiusMd: RoundedCornerShape
+        +radiusLg: RoundedCornerShape
+        +radiusXl: RoundedCornerShape
+    }
+    class StatusColorSet {
+        +main: Color
+        +container: Color
+        +content: Color
+    }
+    class AppStatusColors {
+        +reviewing: StatusColorSet
+        +approved: StatusColorSet
+        +rejected: StatusColorSet
+        +pending: StatusColorSet
+        +timeout: StatusColorSet
+    }
+    class LocalStatusColors {
+        +current: AppStatusColors
+    }
+    class AppCard {
+        +AppCard(modifier, onClick, border, contentPadding, content)
+    }
+    class AppTopBar {
+        +AppTopBar(title, onBackClick, actions)
+    }
+    class AppButton {
+        +AppButton(text, onClick, modifier, enabled)
+    }
+    class AppTextButton {
+        +AppTextButton(text, onClick, modifier, enabled)
+    }
+    class StatusTag {
+        +StatusTag(type: StatusType)
+    }
+    class EmptyState {
+        +EmptyState(message, modifier, icon)
+    }
+    class LoadingIndicator {
+        +LoadingIndicator(modifier)
+    }
+    class SegmentedTab {
+        +SegmentedTab(items, selectedIndex, onSelect)
+    }
+    class FilterChipGroup {
+        +FilterChipGroup(options, selected, onToggle)
+    }
+
+    AppTheme ..> ColorTokens : uses lightScheme/darkScheme
+    AppTheme ..> AppTypography : injects typography
+    AppTheme ..> LocalStatusColors : provides statusColors
+    LocalStatusColors ..> AppStatusColors : holds
+    AppCard ..> Shape : radiusLg
+    AppButton ..> Shape : radiusSm
+    AppTextButton ..> Shape : radiusSm
+    StatusTag ..> AppStatusColors : reads statusColors
+    AppCard ..> MaterialTheme : colorScheme.surface
+    AppTopBar ..> MaterialTheme : colorScheme.primary / onSurface
+    AppButton ..> MaterialTheme : colorScheme.primary / onPrimary
+    AppTextButton ..> MaterialTheme : colorScheme.primary
+    LoadingIndicator ..> MaterialTheme : colorScheme.primary
+    EmptyState ..> MaterialTheme : colorScheme.outline / onSurfaceVariant
